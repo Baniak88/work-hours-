@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Test artifacts and local build credentials
+playwright-report/
+test-results/
+artifacts/
+credentials.json
+.env
