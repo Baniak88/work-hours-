@@ -12,7 +12,7 @@ Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, na
 - Interfejs używa grafitu, szarości i jasnych akcentów zamiast jaskrawej zieleni. Nowy formularz korzysta z kwotowej stawki Overtime; dotychczasowe mnożniki w historii pozostają obsługiwane bez przeliczania zapisów.
 - **Kopie JSON mają format 4**, aby starsze aplikacje nie zignorowały dodatku procentowego. Kopie 1–3 są odczytywane z zachowaniem wcześniejszych zarobków. Przed przywróceniem kopii 4 na drugim telefonie zaktualizuj aplikację.
 
-## iPhone — bezpłatna instalacja z Safari (1.3)
+## iPhone — bezpłatna instalacja z Safari (1.4)
 
 **[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Wersja hostowana przez Sites jest prywatna — jeśli pojawi się logowanie, użyj konta ChatGPT właściciela tej aplikacji. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
 
@@ -32,15 +32,15 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 - Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
 - Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
 
-## Instalator Android 1.3.0
+## Instalator Android 1.4.0
 
-**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.3.0/work-hours-1.3.0.apk)** · około 91 MB.
+**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.4.0/work-hours-1.4.0.apk)** · około 91 MB.
 
-[Wydanie v1.3.0 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.3.0) zawiera plik `work-hours-1.3.0.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/fFuuBdLoY8-TCyydApJLxv0CwhZoXqywsmptFtQh5oc.apk).
+[Wydanie v1.4.0 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.4.0) zawiera plik `work-hours-1.4.0.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/WVDW6i4q7KhCxvMdH1FHy9QIwluOOvSFk3jxwGzitIg.apk).
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 
-[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/83998ddd-1ed1-460c-8be8-10a93ebfd5db). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.3.0.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
+[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/d59c3bba-ec5b-4ffa-b189-08fa8fa1b785). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.4.0.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
 
 Osobny instalator iOS nie został zbudowany: dystrybucja IPA przez EAS wymaga podpisu z konta Apple Developer oraz rejestracji urządzenia lub dystrybucji przez TestFlight.
 
