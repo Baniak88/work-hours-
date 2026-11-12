@@ -76,11 +76,10 @@ npm run web
 
 ## Własny plik instalacyjny Android / iOS
 
-Projekt ma konfigurację EAS; nie jest jeszcze powiązany z kontem Expo ani podpisany. Przed kompilacją użyj własnego konta Expo i zatwierdź identyfikatory aplikacji w `app.json`. `eas init` zapisze identyfikator Twojego projektu.
+Projekt jest połączony z kontem **neospecto82**: [Work Hours w Expo](https://expo.dev/accounts/neospecto82/projects/work-hours). Identyfikator EAS jest zapisany w `app.json`, a klucz podpisu Androida jest zarządzany na tym koncie Expo. Repozytorium GitHub przechowuje kod; kompilację uruchamia EAS CLI. Samo wysłanie zmian do GitHuba nie aktualizuje aplikacji zainstalowanej na telefonie.
 
 ```sh
 npx eas-cli@latest login
-npx eas-cli@latest init
 npx eas-cli@latest build --platform android --profile preview
 ```
 
