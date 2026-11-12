@@ -4,7 +4,9 @@ Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, na
 
 ## Instalator Android 1.2.0
 
-**[Pobierz podpisany APK](https://expo.dev/artifacts/eas/96Yibih1Lq2ku9JPRdtnBGmep0DauPtWuzIqQsz5x8E.apk)** · około 91 MB.
+**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.2.0/work-hours-1.2.0.apk)** · około 91 MB.
+
+[Wydanie v1.2.0 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.2.0) zawiera plik `work-hours-1.2.0.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/96Yibih1Lq2ku9JPRdtnBGmep0DauPtWuzIqQsz5x8E.apk).
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 

@@ -18,5 +18,7 @@
     "x86",
     "x86_64"
   ],
-  "verifiedAt": "2026-11-12T01:57:37.513530+00:00"
+  "verifiedAt": "2026-11-12T01:57:37.513530+00:00",
+  "githubReleaseUrl": "https://github.com/Baniak88/work-hours-/releases/tag/v1.2.0",
+  "githubDownloadUrl": "https://github.com/Baniak88/work-hours-/releases/download/v1.2.0/work-hours-1.2.0.apk"
 }
