@@ -1,6 +1,6 @@
+import { Text, View, Icon as Ionicons } from "../ui";
 import React, { useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Platform, StyleSheet } from "react-native";
 
 export default function InstallHelp() {
   const [ready, setReady] = useState(false);

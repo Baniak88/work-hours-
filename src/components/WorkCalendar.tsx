@@ -1,6 +1,12 @@
+import {
+  Pressable,
+  Text,
+  View,
+  usePresentation,
+  Icon as Ionicons,
+} from "../ui";
 import React, { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { StyleSheet } from "react-native";
 import {
   Slice,
   duration as formatDuration,
@@ -31,8 +37,10 @@ const C = {
   night: "#9DAAC0",
 };
 export default function WorkCalendar(p: Props) {
+  const { language, locale } = usePresentation();
   const { metric } = p;
-  const duration = (minutes: number) => formatDuration(minutes, p.timeFormat);
+  const duration = (minutes: number) =>
+    formatDuration(minutes, p.timeFormat, language);
   const byDay = useMemo(() => {
     const map = new Map<string, Slice[]>();
     p.slices.forEach((s) => {
@@ -64,7 +72,7 @@ export default function WorkCalendar(p: Props) {
       <View style={s.header}>
         {arrow("chevron-back", "Poprzedni miesiąc", -1)}
         <Text accessibilityRole="header" style={s.month}>
-          {localDate(p.month + "-01").toLocaleDateString("pl-PL", {
+          {localDate(p.month + "-01").toLocaleDateString(locale, {
             month: "long",
             year: "numeric",
           })}

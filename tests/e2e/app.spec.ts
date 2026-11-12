@@ -6,7 +6,7 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page.getByText("Twój zegar pracy.")).toBeVisible();
+  await expect(page.getByText("Twoja zmiana.")).toBeVisible();
   await page
     .getByRole("button", { name: "Utwórz projekt", exact: true })
     .click();
@@ -17,8 +17,8 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("25");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("125");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Wybierz projekt Bowmill" }),
@@ -121,16 +121,16 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   await page
     .getByRole("button", { name: "Wczytaj przykład", exact: true })
     .click();
-  await expect(page.getByText("Twój zegar pracy.")).toBeVisible();
+  await expect(page.getByText("Twoja zmiana.")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Zamknij formularz" }),
   ).toBeHidden();
   await expect(page.locator('[aria-modal="true"]')).toBeHidden();
-  await expect(page.getByText("Twój zegar pracy.")).toBeInViewport();
+  await expect(page.getByText("Twoja zmiana.")).toBeInViewport();
   await page.getByRole("button", { name: "Zamknij komunikat" }).click();
-  await page
-    .getByRole("button", { name: "Wybierz zmianę: Zmiana nocna", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
+  await page.getByRole("button", { name: "Zmiana nocna", exact: true }).click();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Start zmiany", exact: true }),
   ).toBeInViewport();
@@ -167,7 +167,7 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   });
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
-  await expect(page.getByText("Twój zegar pracy.")).toBeInViewport();
+  await expect(page.getByText("Twoja zmiana.")).toBeInViewport();
   await page.screenshot({
     path: "artifacts/desktop-home.png",
     fullPage: true,
@@ -195,8 +195,8 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("25");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("125");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page
@@ -209,8 +209,8 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     page.getByRole("textbox", { name: "Koniec zmiany", exact: true }),
   ).toHaveValue("03:00");
   await page
-    .getByRole("textbox", { name: "Norma godzin na zmianę" })
-    .fill("7,5");
+    .getByRole("textbox", { name: "Norma zmiany (godziny:minuty)" })
+    .fill("07:30");
   await page
     .getByRole("button", {
       name: "Automatycznie o godzinie końca",
@@ -219,9 +219,9 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     .click();
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Wybierz zmianę: Zmiana nocna", exact: true })
-    .click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
+  await page.getByRole("button", { name: "Zmiana nocna", exact: true }).click();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
   await expect(page.getByText("Norma 7:30 h", { exact: true })).toBeVisible();
   await expect(page.getByText(/Auto-stop 2026-11-11 o 03:00/)).toBeVisible();
   await page.getByRole("button", { name: "Start zmiany", exact: true }).click();
@@ -278,7 +278,7 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
   expect(saved.entries[0].shift.kind).toBe("night");
 });
 
-test("fixed overtime rates, monthly calendar, overnight day details, historical correction and deletion", async ({
+test("percentage overtime rates, monthly calendar, overnight day details, historical correction and deletion", async ({
   page,
 }) => {
   await page.clock.setFixedTime(new Date("2026-11-12T12:00:00Z"));
@@ -295,11 +295,11 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("25");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("125");
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("35");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("175");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
   await expect(page.getByText("Kalendarz pracy.")).toBeVisible();
@@ -347,8 +347,8 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("button", { name: "Edytuj projekt Bowmill", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("45");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("225");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
   await expect(
@@ -365,11 +365,11 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" }),
-  ).toHaveValue("35");
+    page.getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" }),
+  ).toHaveValue("175");
   await page
-    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
-    .fill("40");
+    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .fill("200");
   await page
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
     .click();

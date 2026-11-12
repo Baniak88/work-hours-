@@ -2,6 +2,16 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.5 — nadgodziny procentowo, jedna zmiana, języki i motywy
+
+- **Overtime — procent Basic:** 150% oznacza ×1,5. Basic £10/h daje wtedy £15/h po normie. Możesz wpisać 150 lub skrót 1,5 / 1.5 — po opuszczeniu pola skrót zostanie pokazany jako 150. Dostępne są szybkie wybory 125%, 150% i 200%. Dosłowne „1,5%” jest mniejszą wartością od Basic i nie jest akceptowane jako 150%.
+- Podgląd kwoty aktualizuje się po wpisaniu Basic i procentu. Shift allowance jest nadal osobnym procentem Basic; przełącznik określa, czy doliczać go do nadgodzin. Dawne wpisy ze stawką kwotową i mnożnikami zachowują wcześniejsze kwoty. Edycja ich notatki nie zmienia stawek; jawna edycja stawek zapisuje nowy procent tylko w tym wpisie.
+- **Ustawienia → Zmiany i norma:** wybierz jedną zmianę. Pulpit pokazuje jej pojedynczą kartę, bez przełączników dzienna/nocna. Aktywny licznik pokazuje swoją zapisaną zmianę do zakończenia; wybór w ustawieniach dotyczy kolejnego startu.
+- Norma jest wpisywana w **godzinach:minutach**, np. **09:45**, a nie 9,45 godziny (co oznacza 9:27). Istniejące normy są wyświetlane zgodnie z zapisaną wartością; nie są automatycznie zmieniane. Zmiana normy dotyczy kolejnych zmian.
+- **Ustawienia → Język:** Polski / English. Tłumaczone są opisy, formularze, przyciski, komunikaty, daty i nagłówki CSV. Własne notatki i nazwy miejsc pracy pozostają zapisane w oryginale.
+- **Ustawienia → Motyw kolorystyczny:** nocny granat z błękitem (domyślny), grafit i jasny. Wybrany motyw, język i zmiana zostają na urządzeniu i w kopii JSON. Zachowano zgodność formatu kopii 4.
+- Weryfikacja: 42 testy domeny/preferencji (w tym wyniki procentów, normy w godzinach i minutach, tłumaczenia i kontrast trzech palet), 4 testy obsługi offline, lint, TypeScript i eksport JS Android/iOS/web. Nie wykonano testu na fizycznym telefonie ani podglądu w przeglądarce: środowisko Sites nie udostępnia wymaganego cua_repl.js. Scenariusze Playwright dostosowano do nowych pól i wyboru zmiany w ustawieniach, lecz nie uruchamiano ich dla 1.5.
+
 ## Wersja 1.4 — proste stawki i usuwanie przykładów
 
 - **Ustawienia → Stawki → wybierz miejsce pracy**: trzy pola: **Basic** (kwota za godzinę), **Shift allowance** (edytowalny procent Basic) i **Overtime rate** (osobna kwota za godzinę po normie). Formularz pokazuje stawkę przed normą i po niej. Przełącznik „Dodatek także do nadgodzin” określa, czy dodatek liczony od Basic doliczać do Overtime.

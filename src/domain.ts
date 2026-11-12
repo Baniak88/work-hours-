@@ -1,3 +1,4 @@
+import { translateText } from "./i18n";
 export type OvertimePolicy = {
   overtimeMode?: "multiplier" | "fixed";
   overtimeRate?: number;
@@ -61,6 +62,8 @@ export type State = {
   preferredShiftId: string;
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
+  language?: "pl" | "en";
+  theme?: "navy" | "graphite" | "light";
 };
 export type Slice = {
   entry: Entry;
@@ -121,15 +124,53 @@ export function timeLabel(value: number) {
 export function duration(
   minutes: number,
   format: "clock" | "decimal" = "clock",
+  language: "pl" | "en" = "pl",
 ) {
   if (format === "decimal")
-    return (Math.max(0, minutes) / 60).toLocaleString("pl-PL", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-      useGrouping: false,
-    });
+    return (Math.max(0, minutes) / 60).toLocaleString(
+      language === "en" ? "en-GB" : "pl-PL",
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+        useGrouping: false,
+      },
+    );
   const m = Math.max(0, Math.round(minutes));
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+}
+// Percent is the full share of Basic: 150% = 1.5 × Basic. For convenience,
+// 1–10 entered as a multiplier is normalized to 100–1000% before saving.
+export function overtimePercentInput(input: string) {
+  const explicitPercent = input.trim().endsWith("%");
+  const cleaned = input.trim().replace(/%$/, "").trim().replace(",", ".");
+  if (!cleaned || !/^\d+(\.\d+)?$/.test(cleaned))
+    throw new Error("Wpisz procent nadgodzin, np. 150, lub mnożnik, np. 1,5.");
+  const value = Number(cleaned);
+  const percent =
+    !explicitPercent && value >= 1 && value <= 10 ? value * 100 : value;
+  if (!Number.isFinite(percent) || percent < 100 || percent > 1000)
+    throw new Error("Nadgodziny ustaw od 100% do 1000% Basic (od ×1 do ×10).");
+  return percent;
+}
+export function policyOvertimePercent(
+  policy: OvertimePolicy & { rate: number; overtime: number },
+) {
+  return policy.overtimeMode === "fixed"
+    ? policy.rate > 0
+      ? (overtimeHourlyRate(policy) / policy.rate) * 100
+      : null
+    : policy.overtime * 100;
+}
+export function parseNormHours(input: string) {
+  const value = input.trim();
+  if (/^\d{1,2}:[0-5]\d$/.test(value)) {
+    const [hours, minutes] = value.split(":").map(Number);
+    const norm = hours + minutes / 60;
+    if (norm > 0 && norm <= 24) return norm;
+  }
+  throw new Error(
+    "Wpisz normę jako godziny:minuty, np. 08:00 lub 09:45 (do 24:00).",
+  );
 }
 export function money(amount: number, currency = "GBP") {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(
@@ -461,6 +502,9 @@ export function csv(state: State, entries = state.entries) {
       ).toFixed(2),
     ]),
   ];
+  rows[0] = rows[0].map((header) =>
+    translateText(String(header), state.language),
+  );
   return "\uFEFF" + rows.map((r) => r.map(quote).join(";")).join("\r\n");
 }
 export function validateBackup(input: unknown): State {
@@ -506,6 +550,9 @@ export function validateBackup(input: unknown): State {
   if (
     (version !== 1 && version !== 2 && version !== 3 && version !== 4) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
+    (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
+    (s.theme !== undefined &&
+      !["navy", "graphite", "light"].includes(s.theme)) ||
     (s.timeFormat !== undefined &&
       !["clock", "decimal"].includes(s.timeFormat)) ||
     (s.calendarMetric !== undefined &&

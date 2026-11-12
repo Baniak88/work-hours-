@@ -1,6 +1,12 @@
+import {
+  Pressable,
+  Text,
+  View,
+  usePresentation,
+  Icon as Ionicons,
+} from "../ui";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { StyleSheet } from "react-native";
 import {
   dateKey,
   duration as formatDuration,
@@ -24,12 +30,10 @@ type Props = {
   timeFormat?: "clock" | "decimal";
   now: number;
   shift: Shift;
-  shifts: Shift[];
   timer: Timer | null;
   project?: string;
   busy: boolean;
   priorMinutes?: number;
-  onSelect: (shift: Shift) => void;
   onEdit: () => void;
   onStart: () => void;
   onPause: () => void;
@@ -95,7 +99,9 @@ function Action({
   );
 }
 export default function ShiftClock(p: Props) {
-  const duration = (minutes: number) => formatDuration(minutes, p.timeFormat);
+  const { language, locale } = usePresentation();
+  const duration = (minutes: number) =>
+    formatDuration(minutes, p.timeFormat, language);
   const active = p.timer,
     shift = active?.shift ?? p.shift,
     worked = active ? timerMinutes(active, p.now) : 0,
@@ -122,7 +128,7 @@ export default function ShiftClock(p: Props) {
         <View style={{ gap: 6 }}>
           <Text style={styles.overline}>ZEGAR W PRACY</Text>
           <Text accessibilityLabel="Aktualna godzina" style={styles.wallClock}>
-            {new Date(p.now).toLocaleTimeString("pl-PL", {
+            {new Date(p.now).toLocaleTimeString(locale, {
               hour: "2-digit",
               minute: "2-digit",
               second: "2-digit",
@@ -131,57 +137,13 @@ export default function ShiftClock(p: Props) {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Ustawienia wybranej zmiany"
+          accessibilityLabel="Wybierz zmianę w ustawieniach"
           onPress={p.onEdit}
           style={styles.settings}
         >
           <Icon name="options-outline" color={color.white} />
         </Pressable>
       </View>
-      {!active && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.choices}
-        >
-          {p.shifts.map((s) => (
-            <Pressable
-              key={s.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Wybierz zmianę: ${s.name}`}
-              accessibilityState={{ selected: s.id === p.shift.id }}
-              disabled={p.busy}
-              onPress={() => p.onSelect(s)}
-              style={[
-                styles.choice,
-                s.id === p.shift.id && {
-                  backgroundColor: "#35383F",
-                  borderColor: color.green,
-                },
-              ]}
-            >
-              <Icon
-                name={s.kind === "night" ? "moon-outline" : "sunny-outline"}
-                color={s.id === p.shift.id ? color.green : color.muted}
-                size={17}
-              />
-              <Text
-                style={{
-                  color: s.id === p.shift.id ? color.white : color.muted,
-                  fontSize: 13,
-                  fontWeight: "600",
-                }}
-              >
-                {s.name === "Zmiana dzienna"
-                  ? "Dzienna"
-                  : s.name === "Zmiana nocna"
-                    ? "Nocna"
-                    : s.name}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
       {active && !active.shift ? (
         <View style={[styles.schedule, { marginTop: 12, gap: 7 }]}>
           <Text style={{ color: color.white, fontSize: 13, fontWeight: "600" }}>
@@ -242,6 +204,7 @@ export default function ShiftClock(p: Props) {
               : "GOTOWY DO STARTU"}
           </Text>
           <Text
+            verbatim
             numberOfLines={1}
             style={[styles.small, { marginLeft: "auto", flexShrink: 1 }]}
           >
@@ -275,11 +238,11 @@ export default function ShiftClock(p: Props) {
               : `Ponad normę ${duration(progressMinutes - norm)} h`}
           </Text>
           <Text style={styles.small}>
-            {(p.priorMinutes ?? 0) > 0
+            {(p.priorMinutes ?? 0) >= 1
               ? `Wcześniej ${duration(p.priorMinutes!)} h tej zmiany`
               : active
                 ? "Przerwy nie wliczają się do normy"
-                : "Start zapisuje rzeczywisty czas przyjścia"}
+                : "Start zapisuje czas przyjścia"}
           </Text>
         </View>
       </View>

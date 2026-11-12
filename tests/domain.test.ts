@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   calculate,
   duration,
+  overtimePercentInput,
+  policyOvertimePercent,
+  parseNormHours,
   allowanceHourlyRate,
   demoState,
   overtimeHourlyRate,
@@ -27,6 +30,8 @@ import {
   type Job,
 } from "../src/domain";
 import { calendarDays, moveMonth } from "../src/calendar";
+import { translateText } from "../src/i18n";
+import { themes, themeColor } from "../src/themes";
 import {
   clearWorkData,
   markLegacySamples,
@@ -43,6 +48,113 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("overtime accepts 150 percent and the 1.5 shortcut, and pays £15 on a £10 Basic", () => {
+  for (const input of ["150", "150%", "1.5", "1,5"]) {
+    const percent = overtimePercentInput(input);
+    assert.equal(percent, 150);
+    const e = entry("2026-10-20", "06:00", "16:00", {
+      rate: 10,
+      overtimeMode: "multiplier",
+      overtime: percent / 100,
+    });
+    assert.equal(overtimeHourlyRate(e), 15);
+    assert.equal(totals(calculate([e])).amount, 8 * 10 + 2 * 15);
+  }
+  for (const input of ["", "1.5%", "50", "0", "1001", "abc"])
+    assert.throws(() => overtimePercentInput(input));
+  assert.equal(
+    policyOvertimePercent({
+      ...job,
+      rate: 10,
+      overtimeMode: "fixed",
+      overtimeRate: 15,
+    }),
+    150,
+  );
+  assert.equal(
+    policyOvertimePercent({
+      ...job,
+      rate: 0,
+      overtimeMode: "fixed",
+      overtimeRate: 15,
+    }),
+    null,
+  );
+});
+test("hours:minutes input removes decimal-hour ambiguity without changing saved norms", () => {
+  assert.equal(parseNormHours("9:45"), 9.75);
+  assert.equal(parseNormHours("09:27"), 9.45);
+  assert.equal(parseNormHours("24:00"), 24);
+  for (const input of ["9.45", "9,45", "00:00", "24:01", "8:75", "8"])
+    assert.throws(() => parseNormHours(input));
+});
+test("selected shift, language and theme persist while an active timer keeps its original shift", () => {
+  const state = freshState();
+  state.language = "en";
+  state.theme = "light";
+  state.preferredShiftId = "night";
+  state.jobs = [job];
+  state.timer = makeTimer(job, state.shifts[1], Date.now());
+  const next = validateBackup(
+    JSON.parse(JSON.stringify({ ...state, preferredShiftId: "day" })),
+  );
+  assert.equal(next.timer?.shift?.id, "night");
+  assert.equal(next.preferredShiftId, "day");
+  assert.equal(next.language, "en");
+  assert.equal(next.theme, "light");
+  assert.throws(() => validateBackup({ ...state, language: "invalid" }));
+  assert.throws(() => validateBackup({ ...state, theme: "invalid" }));
+});
+test("English interface localises actions, dynamic confirmations and decimal hours without changing unknown text", () => {
+  assert.equal(translateText("Ustawienia", "en"), "Settings");
+  assert.equal(translateText(" Norma ", "en"), " Target ");
+  assert.equal(
+    translateText("Basic — stawka podstawowa (GBP/h)", "en"),
+    "Basic — hourly rate (GBP/h)",
+  );
+  assert.equal(
+    translateText("Edytuj wpis Bowmill 2026-11-10", "en"),
+    "Edit entry Bowmill 2026-11-10",
+  );
+  assert.equal(
+    translateText("Zmienić walutę na GBP?", "en"),
+    "Change currency to GBP?",
+  );
+  assert.equal(
+    translateText("My own project #123", "en"),
+    "My own project #123",
+  );
+  assert.equal(translateText("Ustawienia", "pl"), "Ustawienia");
+  assert.equal(duration(225, "decimal", "en"), "3.75");
+  assert.equal(duration(225, "decimal", "pl"), "3,75");
+  const state = freshState();
+  state.language = "en";
+  state.jobs = [job];
+  state.entries = [entry(undefined, undefined, undefined, { note: "Przerwa" })];
+  assert.match(csv(state), /Workplace/);
+  assert.match(csv(state), /"Przerwa"/);
+});
+test("all three palettes preserve text contrast and map colours including transparent borders", () => {
+  function luminance(hex: string) {
+    const channels = hex
+      .match(/[a-f\d]{2}/gi)!
+      .map((c) => parseInt(c, 16) / 255)
+      .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  }
+  function contrast(a: string, b: string) {
+    const x = luminance(a),
+      y = luminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+  for (const [name, p] of Object.entries(themes)) {
+    assert.ok(contrast(p.text, p.card) >= 4.5, name + " body text");
+    assert.ok(contrast(p.muted, p.card) >= 4.5, name + " secondary text");
+    assert.ok(contrast(p.bg, p.accent) >= 4.5, name + " primary button");
+  }
+  assert.equal(themeColor("#DCE2EA70", "light"), themes.light.accent + "70");
+  assert.equal(themeColor("transparent", "light"), "transparent");
+});
 test("time display switches formats without changing minute precision or stored earnings", () => {
   assert.equal(duration(225), "3:45");
   assert.equal(duration(225, "decimal"), "3,75");

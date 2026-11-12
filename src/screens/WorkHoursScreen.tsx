@@ -1,25 +1,26 @@
-import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
-  useWindowDimensions,
-} from "react-native";
+  usePresentation,
+  Icon as Ionicons,
+} from "../ui";
+import React, { useMemo, useRef, useState } from "react";
+import { Modal, Platform, StyleSheet, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Break,
   Entry,
   Job,
   overtimeHourlyRate,
+  overtimePercentInput,
+  policyOvertimePercent,
+  parseNormHours,
   allowanceHourlyRate,
   overtimeSnapshot,
   validateOvertime,
@@ -171,11 +172,13 @@ function Chip({
   active,
   onPress,
   dot,
+  verbatim = false,
 }: {
   label: string;
   active?: boolean;
   onPress: () => void;
   dot?: string;
+  verbatim?: boolean;
 }) {
   return (
     <Pressable
@@ -186,6 +189,7 @@ function Chip({
     >
       {dot && <View style={[s.dot, { backgroundColor: dot }]} />}
       <Text
+        verbatim={verbatim}
         style={{
           color: active ? C.text : C.muted,
           fontSize: 13,
@@ -204,6 +208,7 @@ function Field({
   placeholder,
   numeric = false,
   multiline = false,
+  onBlur,
 }: {
   label: string;
   value?: string;
@@ -211,6 +216,7 @@ function Field({
   placeholder?: string;
   numeric?: boolean;
   multiline?: boolean;
+  onBlur?: () => void;
 }) {
   return (
     <View style={{ flex: 1, gap: 8 }}>
@@ -219,6 +225,7 @@ function Field({
         accessibilityLabel={label}
         value={value ?? ""}
         onChangeText={onChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor="#7F838D"
         keyboardType={numeric ? "decimal-pad" : "default"}
@@ -264,6 +271,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     setSelected,
     save,
   } = useWorkHours();
+  const { language, locale, t: tr } = usePresentation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 850;
@@ -336,19 +344,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     todayTotal = totals(slices.filter((x) => x.date === today));
   const fmt = (n: number) => money(n, data.currency);
   const duration = (minutes: number) =>
-    formatDuration(minutes, data.timeFormat);
+    formatDuration(minutes, data.timeFormat, language);
   const jobFor = (id: string) => data.jobs.find((j) => j.id === id)!;
   function openJob(j?: Job) {
     setFormError("");
     setForm({
       type: "job",
       id: j?.id,
-      name: j?.name ?? "Moja praca",
+      name: j?.name ?? tr("Moja praca"),
       rate: j ? String(j.rate) : "",
       dailyHours: String(j?.dailyHours ?? 8),
       overtime: String(j?.overtime ?? 1.25),
-      overtimeMode: "fixed",
-      overtimeRate: j ? String(overtimeHourlyRate(j)) : "",
+      overtimeMode: "multiplier",
+      overtimePercent: j ? String(policyOvertimePercent(j) ?? "") : "150",
       shiftAllowancePercent: String(j?.shiftAllowancePercent ?? 0),
       allowanceOnOvertime: String(j?.allowanceOnOvertime ?? false),
       color: j?.color ?? C.green,
@@ -369,7 +377,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     if (!form) return null;
     const base = Number(form.rate?.replace(",", ".")),
       percent = Number(form.shiftAllowancePercent?.replace(",", ".")),
-      overtime = Number(form.overtimeRate?.replace(",", ".")),
+      overtimePercent = (() => {
+        try {
+          return overtimePercentInput(form.overtimePercent ?? "");
+        } catch {
+          return NaN;
+        }
+      })(),
+      overtime = (base * overtimePercent) / 100,
       allowance = (base * percent) / 100;
     return (
       <View style={{ gap: 14 }}>
@@ -391,12 +406,36 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           Procent stawki Basic. Wpisz 0, jeśli nie masz dodatku.
         </Text>
         <Field
-          label={`Overtime rate — nadgodziny (${data.currency}/h)`}
+          label="Overtime — procent stawki Basic (%)"
           numeric
-          value={form.overtimeRate}
-          onChange={(v) => updateRate("overtimeRate", v)}
-          placeholder="np. 30,00"
+          value={form.overtimePercent}
+          onChange={(v) => updateRate("overtimePercent", v)}
+          onBlur={() => {
+            try {
+              const percent = String(
+                overtimePercentInput(form.overtimePercent ?? ""),
+              );
+              if (percent !== form.overtimePercent)
+                updateRate("overtimePercent", percent);
+            } catch {
+              /* Submit shows validation without interrupting typing. */
+            }
+          }}
+          placeholder="150 lub 1,5"
         />
+        <Text style={s.caption}>
+          150% = ×1,5 stawki Basic. Skrót 1,5 oznacza to samo co 150%.
+        </Text>
+        <View style={[s.row, { flexWrap: "wrap" }]}>
+          {[125, 150, 200].map((percent) => (
+            <Chip
+              key={percent}
+              label={`${percent}%`}
+              active={overtimePercent === percent}
+              onPress={() => updateRate("overtimePercent", String(percent))}
+            />
+          ))}
+        </View>
         <Pressable
           accessibilityRole="checkbox"
           accessibilityLabel="Dodatek także do nadgodzin"
@@ -432,14 +471,16 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={s.between}>
             <Text style={s.caption}>Do normy · Basic + dodatek</Text>
             <Text style={s.rowTitle}>
-              {Number.isFinite(base + allowance) ? fmt(base + allowance) : "—"}
+              {form.rate?.trim() && Number.isFinite(base + allowance)
+                ? fmt(base + allowance)
+                : "—"}
               /h
             </Text>
           </View>
           <View style={s.between}>
             <Text style={s.caption}>Po normie · Overtime</Text>
             <Text style={s.rowTitle}>
-              {Number.isFinite(overtime + allowance)
+              {form.rate?.trim() && Number.isFinite(overtime + allowance)
                 ? fmt(
                     overtime +
                       (form.allowanceOnOvertime === "true" ? allowance : 0),
@@ -465,10 +506,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             jobId: id,
             rate: String(j.rate),
             overtime: String(j.overtime),
-            overtimeMode: "fixed",
+            overtimeMode: "multiplier",
             shiftAllowancePercent: String(j.shiftAllowancePercent ?? 0),
             allowanceOnOvertime: String(j.allowanceOnOvertime ?? false),
-            overtimeRate: String(overtimeHourlyRate(j)),
+            overtimePercent: String(policyOvertimePercent(j) ?? ""),
             ratesExpanded: "false",
             ratesDirty: "false",
           }
@@ -484,7 +525,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       kind: value?.kind ?? "day",
       startTime: value?.startTime ?? "06:00",
       endTime: value?.endTime ?? "14:00",
-      normHours: String(value?.normHours ?? 8),
+      normHours: formatDuration((value?.normHours ?? 8) * 60),
       autoStop: String(value?.autoStop ?? false),
     });
   }
@@ -546,10 +587,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       note: e?.note ?? "",
       rate: String(entryPolicy?.rate ?? 0),
       overtime: String(entryPolicy?.overtime ?? 1.25),
-      overtimeMode: "fixed",
+      overtimeMode: "multiplier",
       shiftAllowancePercent: String(entryPolicy?.shiftAllowancePercent ?? 0),
       allowanceOnOvertime: String(entryPolicy?.allowanceOnOvertime ?? false),
-      overtimeRate: String(entryPolicy ? overtimeHourlyRate(entryPolicy) : 0),
+      overtimePercent: entryPolicy
+        ? String(policyOvertimePercent(entryPolicy) ?? "")
+        : "150",
       ratesExpanded: "false",
       ratesDirty: "false",
     });
@@ -641,7 +684,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           kind: form.kind === "night" ? "night" : "day",
           startTime: form.startTime ?? "",
           endTime: form.endTime ?? "",
-          normHours: Number(form.normHours?.replace(",", ".")),
+          normHours: parseNormHours(form.normHours ?? ""),
           autoStop: form.autoStop === "true",
         };
         validateShift(value);
@@ -663,22 +706,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         const name = form.name?.trim() ?? "",
           rate = Number(form.rate?.replace(",", ".")),
           dailyHours = Number(form.dailyHours?.replace(",", ".")),
-          overtime = Number(form.overtime?.replace(",", "."));
+          overtime = overtimePercentInput(form.overtimePercent ?? "") / 100;
         const overtimePolicy = {
+          overtimeMode: "multiplier" as const,
           shiftAllowancePercent: Number(
             form.shiftAllowancePercent?.replace(",", "."),
           ),
           allowanceOnOvertime: form.allowanceOnOvertime === "true",
-          overtimeMode:
-            form.overtimeMode === "fixed"
-              ? ("fixed" as const)
-              : ("multiplier" as const),
-          ...(form.overtimeMode === "fixed"
-            ? { overtimeRate: Number(form.overtimeRate?.replace(",", ".")) }
-            : {}),
         };
-        if (form.overtimeMode === "fixed" && !form.overtimeRate?.trim())
-          throw new Error("Podaj stawkę nadgodzin za godzinę.");
         validateOvertime(overtimePolicy);
         if (!name || name.length > 80)
           throw new Error("Podaj nazwę projektu (do 80 znaków).");
@@ -777,14 +812,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 form.shiftAllowancePercent?.replace(",", "."),
               ),
               allowanceOnOvertime: form.allowanceOnOvertime === "true",
-              overtime: Number(form.overtime?.replace(",", ".")),
-              overtimeMode:
-                form.overtimeMode === "fixed"
-                  ? ("fixed" as const)
-                  : ("multiplier" as const),
-              ...(form.overtimeMode === "fixed"
-                ? { overtimeRate: Number(form.overtimeRate?.replace(",", ".")) }
-                : {}),
+              overtime: overtimePercentInput(form.overtimePercent ?? "") / 100,
+              overtimeMode: "multiplier" as const,
             }
           : policy;
       if (
@@ -801,10 +830,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         throw new Error("Mnożnik musi wynosić od 1 do 10.");
       if (
         form.ratesDirty === "true" &&
-        (!form.rate?.trim() ||
-          (form.overtimeMode === "fixed" && !form.overtimeRate?.trim()))
+        (!form.rate?.trim() || !form.overtimePercent?.trim())
       )
-        throw new Error("Uzupełnij stawkę godzinową i stawkę nadgodzin.");
+        throw new Error("Uzupełnij stawkę Basic i procent nadgodzin.");
       validateOvertime(entryPolicy);
       const entry: Entry = {
         id: form.id ?? uid(),
@@ -939,7 +967,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         </View>
         <View style={{ flex: 1, gap: 5 }}>
           <Text style={s.rowTitle}>
-            {j.name}
+            <Text verbatim>{j.name}</Text>
             {e.demo ? " · przykład" : ""}
           </Text>
           {e.shift && (
@@ -963,7 +991,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             {Math.round((displayEnd - displayStart) / 60000 - t.minutes)} min
           </Text>
           {!!e.note && (
-            <Text numberOfLines={1} style={s.caption}>
+            <Text verbatim numberOfLines={1} style={s.caption}>
               {e.note}
             </Text>
           )}
@@ -1057,9 +1085,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     return (
       <>
         {header(
-          "TWÓJ CZAS. TWOJE ZASADY.",
-          "Twój zegar pracy.",
-          new Date(now).toLocaleDateString("pl-PL", {
+          "TWÓJ CZAS PRACY",
+          "Twoja zmiana.",
+          new Date(now).toLocaleDateString(locale, {
             weekday: "long",
             day: "numeric",
             month: "long",
@@ -1080,15 +1108,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               timeFormat={data.timeFormat}
               now={now}
               shift={shift}
-              shifts={data.shifts}
               timer={timer}
               project={timerJob?.name}
               busy={busy}
               priorMinutes={prior}
-              onSelect={(value) =>
-                void save({ ...data, preferredShiftId: value.id })
-              }
-              onEdit={() => openShift(shift)}
+              onEdit={() => setTab("settings")}
               onStart={() => (job ? void start() : openJob())}
               onPause={() => void togglePause()}
               onStop={() => void stop()}
@@ -1230,7 +1254,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         <I name="briefcase-outline" color={C.muted} />
                       </View>
                       <View style={{ gap: 5, flex: 1 }}>
-                        <Text style={s.rowTitle}>{j.name}</Text>
+                        <Text verbatim style={s.rowTitle}>
+                          {j.name}
+                        </Text>
                         <Text style={s.caption}>
                           {fmt(j.rate)} / h · OT {fmt(overtimeHourlyRate(j))} /
                           h
@@ -1473,7 +1499,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={[s.sectionHeader, { marginTop: 17, marginBottom: 10 }]}>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[s.sectionTitle, { fontSize: 15 }]}>
-                {localDate(calendarDate).toLocaleDateString("pl-PL", {
+                {localDate(calendarDate).toLocaleDateString(locale, {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
@@ -1608,13 +1634,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         {group === "jobs"
                           ? jobFor(k).name
                           : group === "weeks"
-                            ? weekTitle(k)
+                            ? weekTitle(k, locale)
                             : group === "months"
                               ? localDate(k + "-01").toLocaleDateString(
-                                  "pl-PL",
+                                  locale,
                                   { month: "long", year: "numeric" },
                                 )
-                              : localDate(k).toLocaleDateString("pl-PL", {
+                              : localDate(k).toLocaleDateString(locale, {
                                   weekday: "long",
                                   day: "numeric",
                                   month: "long",
@@ -1635,7 +1661,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     unique.map((e) => row(e, list))
                   ) : (
                     <View style={s.groupPreview}>
-                      <Text style={s.caption}>
+                      <Text verbatim style={s.caption}>
                         {[
                           ...new Set(
                             list.map((x) => jobFor(x.entry.jobId).name),
@@ -1703,7 +1729,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             <View style={s.reportHero}>
               <Text style={s.overline}>
                 {new Date(now)
-                  .toLocaleDateString("pl-PL", {
+                  .toLocaleDateString(locale, {
                     month: "long",
                     year: "numeric",
                   })
@@ -1841,7 +1867,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <View style={s.between}>
                         <View style={s.row}>
                           <View style={[s.dot, { backgroundColor: C.muted }]} />
-                          <Text style={s.rowTitle}>{j.name}</Text>
+                          <Text verbatim style={s.rowTitle}>
+                            {j.name}
+                          </Text>
                         </View>
                         <Text style={s.rowMoney}>{fmt(t.amount)}</Text>
                       </View>
@@ -1897,7 +1925,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   <View key={k} style={[s.paymentCard, { gap: 18 }]}>
                     <View style={s.between}>
                       <View style={{ gap: 8, flex: 1 }}>
-                        <Text style={s.rowTitle}>{weekTitle(k)}</Text>
+                        <Text style={s.rowTitle}>{weekTitle(k, locale)}</Text>
                         <Text style={s.caption}>
                           {duration(t.minutes)} h · nadgodziny{" "}
                           {duration(t.extra)} h
@@ -2024,6 +2052,44 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             />
           </View>
         )}
+        <View style={[s.card, { padding: 16, gap: 16, marginBottom: 20 }]}>
+          <Text style={s.rowTitle}>Język</Text>
+          <View style={s.row}>
+            {(
+              [
+                ["pl", "Polski"],
+                ["en", "English"],
+              ] as const
+            ).map(([value, label]) => (
+              <Chip
+                key={value}
+                label={label}
+                active={(data.language ?? "pl") === value}
+                onPress={() => void save({ ...data, language: value })}
+              />
+            ))}
+          </View>
+          <Text style={s.rowTitle}>Motyw kolorystyczny</Text>
+          <View style={[s.row, { flexWrap: "wrap" }]}>
+            {(
+              [
+                ["navy", "Nocny granat"],
+                ["graphite", "Grafit"],
+                ["light", "Jasny"],
+              ] as const
+            ).map(([value, label]) => (
+              <Chip
+                key={value}
+                label={label}
+                active={(data.theme ?? "navy") === value}
+                onPress={() => void save({ ...data, theme: value })}
+              />
+            ))}
+          </View>
+          <Text style={s.caption}>
+            Język, wygląd i wybrana zmiana są zapamiętywane na tym urządzeniu.
+          </Text>
+        </View>
         <Text style={s.settingsHeading}>STAWKI</Text>
         <View style={{ gap: 12 }}>
           {jobs.map((j) => (
@@ -2035,7 +2101,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               style={[s.card, { padding: 16, gap: 16 }]}
             >
               <View style={s.between}>
-                <Text style={s.rowTitle}>{j.name}</Text>
+                <Text verbatim style={s.rowTitle}>
+                  {j.name}
+                </Text>
                 <I name="create-outline" color={C.text} />
               </View>
               <View style={[s.row, { gap: 8 }]}>
@@ -2045,7 +2113,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     label: "Allowance",
                     value: `${j.shiftAllowancePercent ?? 0}%`,
                   },
-                  { label: "Overtime / h", value: fmt(overtimeHourlyRate(j)) },
+                  {
+                    label: "Overtime %",
+                    value:
+                      policyOvertimePercent(j) === null
+                        ? fmt(overtimeHourlyRate(j))
+                        : `${Number(policyOvertimePercent(j)!.toFixed(2))}%`,
+                  },
                 ].map((v) => (
                   <View key={v.label} style={{ flex: 1, gap: 6 }}>
                     <Text style={s.caption}>{v.label}</Text>
@@ -2081,6 +2155,25 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           />
         </View>
         <Text style={s.settingsHeading}>ZMIANY I NORMA</Text>
+        <Text style={[s.caption, { marginBottom: 12 }]}>
+          Wybierz jedną zmianę na pulpit. Uruchomiony licznik zachowuje swoją
+          zmianę do zakończenia.
+        </Text>
+        <View style={[s.row, { flexWrap: "wrap", marginBottom: 12 }]}>
+          {data.shifts.map((v) => (
+            <Chip
+              key={v.id}
+              label={v.name}
+              active={data.preferredShiftId === v.id}
+              onPress={() =>
+                void save(
+                  { ...data, preferredShiftId: v.id },
+                  "Wybrano zmianę na pulpit",
+                )
+              }
+            />
+          ))}
+        </View>
         <View style={s.card}>
           {data.shifts.map((v) => (
             <Pressable
@@ -2263,7 +2356,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 }}
               >
                 <Text style={s.rowTitle}>
-                  {j.name}
+                  <Text verbatim>{j.name}</Text>
                   {j.archived ? " · archiwum" : ""}
                 </Text>
                 <Button
@@ -2335,6 +2428,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         currency: data.currency,
                         timeFormat: data.timeFormat,
                         calendarMetric: data.calendarMetric,
+                        language: data.language,
+                        theme: data.theme,
                       },
                       "Wczytano dane przykładowe",
                     ).then((ok) => {
@@ -2354,7 +2449,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.4.0 · dane na Twoim urządzeniu
+          Work Hours · 1.5.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -2363,7 +2458,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
   return (
     <View style={[s.app, { paddingTop: insets.top }]}>
-      <StatusBar style="light" />
+      <StatusBar style={state?.theme === "light" ? "dark" : "light"} />
       {wide && (
         <View style={s.rail}>
           <View style={[s.row, { marginBottom: 45 }]}>
@@ -2561,14 +2656,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         : "Godziny początku i końca możesz dopasować do swojego grafiku."}
                     </Text>
                     <Field
-                      label="Norma godzin na zmianę"
-                      numeric
+                      label="Norma zmiany (godziny:minuty)"
                       value={form.normHours}
+                      placeholder="08:00"
                       onChange={(v) => setField("normHours", v)}
                     />
                     <Text style={s.caption}>
-                      Np. 8 lub 7,5. Nadgodziny zaczynają się po przepracowaniu
-                      normy, po odjęciu przerw. Nie zerują się o północy.
+                      Np. 09:45 oznacza 9 godzin 45 minut. Przerwy są odliczane
+                      od normy; północ jej nie zeruje.
                     </Text>
                     <Text style={s.fieldLabel}>Zakończenie licznika</Text>
                     <View style={{ gap: 10 }}>
@@ -2647,6 +2742,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           <Chip
                             key={j.id}
                             label={j.name}
+                            verbatim
                             dot={C.muted}
                             active={form?.jobId === j.id}
                             onPress={() => selectEntryJob(j.id)}
@@ -2824,11 +2920,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     </View>
   );
 }
-function weekTitle(key: string) {
+function weekTitle(key: string, locale: string) {
   const start = localDate(key),
     end = localDate(key);
   end.setDate(end.getDate() + 6);
-  return `${start.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" })}`;
+  return `${start.toLocaleDateString(locale, { day: "numeric", month: "short" })} – ${end.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg, flexDirection: "row" },

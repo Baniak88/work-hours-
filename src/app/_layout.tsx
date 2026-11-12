@@ -4,6 +4,7 @@ import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { PresentationEffects } from "../ui";
 import { WorkHoursProvider } from "../WorkHoursProvider";
 export default function RootLayout() {
   const [loaded, error] = useFonts(Ionicons.font);
@@ -22,6 +23,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <WorkHoursProvider>
+        <PresentationEffects />
         <Slot />
       </WorkHoursProvider>
     </SafeAreaProvider>
