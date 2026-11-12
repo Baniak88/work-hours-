@@ -22,21 +22,21 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 - Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
 - Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
 
-## Instalator Android 1.2.0
+## Instalator Android 1.3.0
 
-**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.2.0/work-hours-1.2.0.apk)** · około 91 MB.
+**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.3.0/work-hours-1.3.0.apk)** · około 91 MB.
 
-[Wydanie v1.2.0 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.2.0) zawiera plik `work-hours-1.2.0.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/96Yibih1Lq2ku9JPRdtnBGmep0DauPtWuzIqQsz5x8E.apk).
+[Wydanie v1.3.0 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.3.0) zawiera plik `work-hours-1.3.0.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/fFuuBdLoY8-TCyydApJLxv0CwhZoXqywsmptFtQh5oc.apk).
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 
-[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/0aa95188-2ff2-4dd2-95e7-bedfee4ab33e). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.2.0.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
+[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/83998ddd-1ed1-460c-8be8-10a93ebfd5db). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.3.0.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
 
 Osobny instalator iOS nie został zbudowany: dystrybucja IPA przez EAS wymaga podpisu z konta Apple Developer oraz rejestracji urządzenia lub dystrybucji przez TestFlight.
 
 ## Podgląd
 
-Zrzuty podglądu przeglądarkowego na ekranie telefonu, z danymi przykładowymi:
+Zrzuty podglądu wersji 1.2 na ekranie telefonu, z danymi przykładowymi:
 
 <p>
   <img src="docs/screenshots/calendar.png" width="240" alt="Kalendarz godzin i zarobków" />
