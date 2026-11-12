@@ -2,6 +2,16 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Instalator Android 1.2.0
+
+**[Pobierz podpisany APK](https://expo.dev/artifacts/eas/96Yibih1Lq2ku9JPRdtnBGmep0DauPtWuzIqQsz5x8E.apk)** · około 91 MB.
+
+Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
+
+[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/0aa95188-2ff2-4dd2-95e7-bedfee4ab33e). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.2.0.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
+
+Osobny instalator iOS nie został zbudowany: dystrybucja IPA przez EAS wymaga podpisu z konta Apple Developer oraz rejestracji urządzenia lub dystrybucji przez TestFlight.
+
 ## Podgląd
 
 Zrzuty podglądu przeglądarkowego na ekranie telefonu, z danymi przykładowymi:
