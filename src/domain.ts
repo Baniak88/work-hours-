@@ -8,6 +8,16 @@ export type Job = {
   archived?: boolean;
 };
 export type Break = { start: number; end: number };
+export type Shift = {
+  id: string;
+  name: string;
+  kind: "day" | "night";
+  startTime: string;
+  endTime: string;
+  normHours: number;
+  autoStop: boolean;
+};
+export type ShiftRecord = Shift & { workDate: string };
 export type Entry = {
   id: string;
   jobId: string;
@@ -18,6 +28,8 @@ export type Entry = {
   rate: number;
   dailyHours: number;
   overtime: number;
+  shift?: ShiftRecord;
+  autoStopped?: boolean;
 };
 export type Timer = {
   jobId: string;
@@ -27,14 +39,18 @@ export type Timer = {
   rate: number;
   dailyHours: number;
   overtime: number;
+  shift?: ShiftRecord;
+  plannedEnd?: number;
 };
 export type State = {
-  version: 1;
+  version: 2;
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
   currency: "GBP" | "PLN" | "EUR";
   paidWeeks: string[];
+  shifts: Shift[];
+  preferredShiftId: string;
 };
 export type Slice = {
   entry: Entry;
@@ -44,13 +60,35 @@ export type Slice = {
   extra: number;
   amount: number;
 };
+export const defaultShifts = (): Shift[] => [
+  {
+    id: "day",
+    name: "Zmiana dzienna",
+    kind: "day",
+    startTime: "06:00",
+    endTime: "14:00",
+    normHours: 8,
+    autoStop: false,
+  },
+  {
+    id: "night",
+    name: "Zmiana nocna",
+    kind: "night",
+    startTime: "17:30",
+    endTime: "03:00",
+    normHours: 8,
+    autoStop: false,
+  },
+];
 export const freshState = (): State => ({
-  version: 1,
+  version: 2,
   jobs: [],
   entries: [],
   timer: null,
   currency: "GBP",
   paidWeeks: [],
+  shifts: defaultShifts(),
+  preferredShiftId: "day",
 });
 export const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -93,22 +131,99 @@ export function minutesWorked(start: number, end: number, breaks: Break[]) {
   );
 }
 export function timerMinutes(t: Timer, now: number) {
-  return minutesWorked(t.start, t.pausedAt ?? now, t.breaks);
+  return minutesWorked(
+    t.start,
+    Math.min(t.pausedAt ?? now, now, t.plannedEnd ?? Infinity),
+    t.breaks,
+  );
+}
+export function timerDayMinutes(t: Timer, now: number, date: string) {
+  const start = parseLocal(date, "00:00"),
+    next = new Date(start);
+  next.setDate(next.getDate() + 1);
+  return minutesWorked(
+    Math.max(t.start, start),
+    Math.min(next.getTime(), t.pausedAt ?? now, now, t.plannedEnd ?? Infinity),
+    t.breaks,
+  );
 }
 export function finishTimer(t: Timer, now: number): Entry {
+  const end = Math.min(now, t.plannedEnd ?? Infinity);
   return {
     id: uid(),
     jobId: t.jobId,
     start: t.start,
-    end: now,
+    end,
     breaks: [
       ...t.breaks,
-      ...(t.pausedAt === null ? [] : [{ start: t.pausedAt, end: now }]),
-    ],
+      ...(t.pausedAt === null ? [] : [{ start: t.pausedAt, end }]),
+    ]
+      .map((b) => ({ start: b.start, end: Math.min(b.end, end) }))
+      .filter((b) => b.start < b.end),
     note: "",
     rate: t.rate,
     dailyHours: t.dailyHours,
     overtime: t.overtime,
+    ...(t.shift ? { shift: t.shift } : {}),
+    ...(t.plannedEnd !== undefined && now >= t.plannedEnd
+      ? { autoStopped: true }
+      : {}),
+  };
+}
+export function validTime(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+export function validateShift(shift: Shift) {
+  if (!shift.name.trim() || shift.name.length > 80)
+    throw new Error("Podaj nazwę zmiany (do 80 znaków).");
+  if (!validTime(shift.startTime) || !validTime(shift.endTime))
+    throw new Error("Godziny zmiany wpisz jako GG:MM, np. 17:30 i 03:00.");
+  if (shift.startTime === shift.endTime)
+    throw new Error("Początek i koniec zmiany muszą być różne.");
+  if (
+    !Number.isFinite(shift.normHours) ||
+    shift.normHours <= 0 ||
+    shift.normHours > 24
+  )
+    throw new Error("Norma musi być większa od 0 i nie przekraczać 24 godzin.");
+}
+export function shiftDuration(shift: Shift) {
+  const minute = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3));
+  return (minute(shift.endTime) - minute(shift.startTime) + 1440) % 1440;
+}
+export function shiftWorkDate(shift: Shift, at: number) {
+  const day = new Date(at);
+  if (shift.endTime < shift.startTime && timeLabel(at) < shift.endTime)
+    day.setDate(day.getDate() - 1);
+  return dateKey(day);
+}
+export function shiftEnd(shift: Shift, at: number) {
+  const day = new Date(at);
+  const [h, m] = shift.endTime.split(":").map(Number);
+  day.setHours(h, m, 0, 0);
+  if (day.getTime() <= at) day.setDate(day.getDate() + 1);
+  return day.getTime();
+}
+export function makeTimer(job: Job, shift: Shift, at: number): Timer {
+  validateShift(shift);
+  return {
+    jobId: job.id,
+    start: at,
+    breaks: [],
+    pausedAt: null,
+    rate: job.rate,
+    dailyHours: shift.normHours,
+    overtime: job.overtime,
+    shift: { ...shift, workDate: shiftWorkDate(shift, at) },
+    ...(shift.autoStop ? { plannedEnd: shiftEnd(shift, at) } : {}),
+  };
+}
+export function settleTimer(state: State, now: number): State {
+  if (!state.timer?.plannedEnd || now < state.timer.plannedEnd) return state;
+  return {
+    ...state,
+    timer: null,
+    entries: [...state.entries, finishTimer(state.timer, now)],
   };
 }
 // Allocate chronological entries together so several shifts share one daily overtime allowance.
@@ -124,12 +239,14 @@ export function calculate(entries: Entry[]): Slice[] {
       next.setHours(24, 0, 0, 0);
       const end = Math.min(e.end, next.getTime());
       const date = dateKey(start),
-        key = `${e.jobId}/${date}`;
+        key = e.shift
+          ? `${e.jobId}/shift/${e.shift.id}/${e.shift.workDate}`
+          : `${e.jobId}/${date}`;
       const minutes = minutesWorked(start, end, e.breaks),
         previous = used.get(key) ?? 0;
       const regular = Math.min(
           minutes,
-          Math.max(0, e.dailyHours * 60 - previous),
+          Math.max(0, (e.shift?.normHours ?? e.dailyHours) * 60 - previous),
         ),
         extra = minutes - regular;
       out.push({
@@ -209,6 +326,10 @@ export function csv(state: State, entries = state.entries) {
     [
       "Data",
       "Projekt",
+      "Zmiana",
+      "Typ zmiany",
+      "Dzień zmiany",
+      "Norma godzin",
       "Początek zmiany",
       "Koniec zmiany",
       "Godziny",
@@ -223,6 +344,14 @@ export function csv(state: State, entries = state.entries) {
     ...calculate(entries).map((s) => [
       s.date,
       state.jobs.find((j) => j.id === s.entry.jobId)?.name ?? "Projekt",
+      s.entry.shift?.name ?? "Bez przypisanej zmiany",
+      s.entry.shift?.kind === "night"
+        ? "Nocna"
+        : s.entry.shift?.kind === "day"
+          ? "Dzienna"
+          : "",
+      s.entry.shift?.workDate ?? "",
+      s.entry.shift?.normHours ?? s.entry.dailyHours,
       new Date(s.entry.start).toISOString(),
       new Date(s.entry.end).toISOString(),
       (s.minutes / 60).toFixed(4),
@@ -239,10 +368,11 @@ export function csv(state: State, entries = state.entries) {
 }
 export function validateBackup(input: unknown): State {
   const fail = (): never => {
-    throw new Error("Nieprawidłowa kopia danych Work Hours (wersja 1).");
+    throw new Error("Nieprawidłowa kopia danych Work Hours.");
   };
   if (!input || typeof input !== "object") return fail();
   const s = input as State;
+  const version = (input as { version: unknown }).version;
   const number = (v: unknown) => typeof v === "number" && Number.isFinite(v);
   const text = (v: unknown) => typeof v === "string" && v.length <= 10000;
   const policy = (x: Job | Entry | Timer) =>
@@ -268,7 +398,7 @@ export function validateBackup(input: unknown): State {
         (i === 0 || p.start >= b[i - 1].end),
     );
   if (
-    s.version !== 1 ||
+    (version !== 1 && version !== 2) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     !Array.isArray(s.jobs) ||
     !Array.isArray(s.entries) ||
@@ -297,6 +427,40 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   const ids = new Set(s.jobs.map((j) => j.id));
+  const isShift = (v: Shift) => {
+    if (
+      !v ||
+      !text(v.id) ||
+      !v.id ||
+      !text(v.name) ||
+      !["day", "night"].includes(v.kind) ||
+      typeof v.autoStop !== "boolean"
+    )
+      return false;
+    try {
+      validateShift(v);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const isRecord = (v: ShiftRecord | undefined) =>
+    v === undefined ||
+    (isShift(v) &&
+      typeof v.workDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(v.workDate) &&
+      Number.isFinite(localDate(v.workDate).getTime()) &&
+      dateKey(localDate(v.workDate)) === v.workDate);
+  if (
+    version === 2 &&
+    (!Array.isArray(s.shifts) ||
+      s.shifts.length === 0 ||
+      s.shifts.length > 100 ||
+      !s.shifts.every(isShift) ||
+      new Set(s.shifts.map((x) => x.id)).size !== s.shifts.length ||
+      !s.shifts.some((x) => x.id === s.preferredShiftId))
+  )
+    return fail();
   if (
     !s.entries.every(
       (e) =>
@@ -311,6 +475,8 @@ export function validateBackup(input: unknown): State {
         e.end <= Date.now() + 60000 &&
         breaks(e.breaks, e.start, e.end) &&
         text(e.note) &&
+        isRecord(e.shift) &&
+        (e.autoStopped === undefined || typeof e.autoStopped === "boolean") &&
         policy(e),
     )
   )
@@ -327,6 +493,12 @@ export function validateBackup(input: unknown): State {
       t.start <= 0 ||
       t.start > Date.now() ||
       !policy(t) ||
+      !isRecord(t.shift) ||
+      (t.plannedEnd !== undefined &&
+        (!number(t.plannedEnd) ||
+          t.plannedEnd <= t.start ||
+          t.plannedEnd - t.start > 2 * 86400000 ||
+          !t.shift?.autoStop)) ||
       (t.pausedAt !== null &&
         (!number(t.pausedAt) ||
           t.pausedAt < t.start ||
@@ -346,7 +518,9 @@ export function validateBackup(input: unknown): State {
     )
   )
     return fail();
-  return s;
+  return version === 1
+    ? { ...s, version: 2, shifts: defaultShifts(), preferredShiftId: "day" }
+    : s;
 }
 export function demoState(): State {
   const state = freshState();
@@ -363,9 +537,13 @@ export function demoState(): State {
     const d = new Date();
     d.setDate(d.getDate() - i);
     if (d.getDay() === 0 || d.getDay() === 6) continue;
-    d.setHours(5, 40 + (i % 4), 0, 0);
+    const selectedShift = state.shifts[i % 3 === 0 ? 1 : 0];
+    const night = selectedShift.kind === "night";
+    d.setHours(night ? 17 : 5, night ? 30 : 40 + (i % 4), 0, 0);
     const end = new Date(d);
-    end.setHours(16, i % 3 === 0 ? 15 : 0);
+    if (night) end.setDate(end.getDate() + 1);
+    end.setHours(night ? 3 : 16, 0, 0, 0);
+    if (end.getTime() > Date.now()) continue;
     state.entries.push({
       id: uid(),
       jobId: job.id,
@@ -381,6 +559,7 @@ export function demoState(): State {
       rate: job.rate,
       dailyHours: job.dailyHours,
       overtime: job.overtime,
+      shift: { ...selectedShift, workDate: dateKey(d) },
     });
   }
   return state;

@@ -6,7 +6,7 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page.getByText("Dobry dzień do pracy.")).toBeVisible();
+  await expect(page.getByText("Twój zegar pracy.")).toBeVisible();
   await page
     .getByRole("button", { name: "Utwórz projekt", exact: true })
     .click();
@@ -56,9 +56,7 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
   await expect(page.getByText(/Koniec pracy musi wypadać/)).toBeVisible();
   await page.getByRole("button", { name: "Zamknij formularz" }).click();
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Rozpocznij pracę", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Start zmiany", exact: true }).click();
   await expect(
     page.getByText("W TRAKCIE PRACY", { exact: true }),
   ).toBeVisible();
@@ -67,7 +65,9 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
   await page.reload();
   await expect(page.getByText("CZAS NA PRZERWĘ")).toBeVisible();
   await page.getByRole("button", { name: "Wznów", exact: true }).click();
-  await page.getByRole("button", { name: "Zakończ", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Zakończ zmianę", exact: true })
+    .click();
   await expect(page.getByText("GOTOWY DO STARTU")).toBeVisible();
   await page.getByRole("tab", { name: "Raporty", exact: true }).click();
   await page.getByRole("tab", { name: "Rozliczenia", exact: true }).click();
@@ -116,13 +116,19 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   await page
     .getByRole("button", { name: "Wczytaj przykład", exact: true })
     .click();
-  await expect(page.getByText("Dobry dzień do pracy.")).toBeVisible();
+  await expect(page.getByText("Twój zegar pracy.")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Zamknij formularz" }),
   ).toBeHidden();
   await expect(page.locator('[aria-modal="true"]')).toBeHidden();
-  await expect(page.getByText("Dobry dzień do pracy.")).toBeInViewport();
+  await expect(page.getByText("Twój zegar pracy.")).toBeInViewport();
   await page.getByRole("button", { name: "Zamknij komunikat" }).click();
+  await page
+    .getByRole("button", { name: "Wybierz zmianę: Zmiana nocna", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Start zmiany", exact: true }),
+  ).toBeInViewport();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -133,6 +139,12 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
     fullPage: true,
     scale: "css",
   });
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(
+    page.getByRole("button", { name: "Start zmiany", exact: true }),
+  ).toBeInViewport();
+  await page.screenshot({ path: "artifacts/mobile-small.png", scale: "css" });
+  await page.setViewportSize({ width: 390, height: 664 });
   await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
   await expect(page.getByText("Twój czas w szczegółach.")).toBeInViewport();
   await page.screenshot({
@@ -149,7 +161,7 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   });
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
-  await expect(page.getByText("Dobry dzień do pracy.")).toBeInViewport();
+  await expect(page.getByText("Twój zegar pracy.")).toBeInViewport();
   await page.screenshot({
     path: "artifacts/desktop-home.png",
     fullPage: true,
@@ -160,4 +172,96 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("night shift settings, actual arrival, capped auto-stop after closing, and next shift waiting", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-11-10T17:30:00Z"));
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Utwórz projekt", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Nazwa projektu lub pracodawcy" })
+    .fill("Bowmill");
+  await page
+    .getByRole("textbox", { name: "Stawka godzinowa (GBP)" })
+    .fill("20");
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Edytuj: Zmiana nocna", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Początek zmiany", exact: true }),
+  ).toHaveValue("17:30");
+  await expect(
+    page.getByRole("textbox", { name: "Koniec zmiany", exact: true }),
+  ).toHaveValue("03:00");
+  await page
+    .getByRole("textbox", { name: "Norma godzin na zmianę" })
+    .fill("7,5");
+  await page
+    .getByRole("button", {
+      name: "Automatycznie o godzinie końca",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Wybierz zmianę: Zmiana nocna", exact: true })
+    .click();
+  await expect(page.getByText("Norma 7:30 h", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Auto-stop 2026-11-11 o 03:00/)).toBeVisible();
+  await page.getByRole("button", { name: "Start zmiany", exact: true }).click();
+  await expect(
+    page.getByText("W TRAKCIE PRACY", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "artifacts/mobile-night-active.png",
+    scale: "css",
+  });
+  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.clock.setFixedTime(new Date("2026-11-11T10:00:00Z"));
+  // Reload simulates closing the application before the scheduled end.
+  await page.reload();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
+  await expect(page.getByText("GOTOWY DO STARTU")).toBeVisible();
+  await expect(page.getByText("Ostatnia zmiana zakończona")).toBeVisible();
+  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("button", { name: "Nocne", exact: true }).click();
+  await expect(page.getByText("£200.00").first()).toBeVisible();
+  await page.getByRole("tab", { name: "Dni", exact: true }).click();
+  await expect(
+    page.getByText(/norma 7:30 h · auto-stop/).first(),
+  ).toBeVisible();
+  const entry = page
+    .getByRole("button", { name: "Edytuj wpis Bowmill 2026-11-10" })
+    .first();
+  await entry.click();
+  await expect(
+    page.getByRole("textbox", { name: "Godzina rozpoczęcia", exact: true }),
+  ).toHaveValue("17:30");
+  await expect(
+    page.getByRole("textbox", { name: "Data zakończenia", exact: true }),
+  ).toHaveValue("2026-11-11");
+  await expect(
+    page.getByRole("textbox", { name: "Godzina zakończenia", exact: true }),
+  ).toHaveValue("03:00");
+  await page.getByRole("button", { name: "Zamknij formularz" }).click();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
+  await page.waitForURL("http://127.0.0.1:8081/");
+  await page.reload();
+  await expect(page.getByText("GOTOWY DO STARTU")).toBeVisible();
+  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: /Zapisz kopię zapasową/ }).click();
+  const saved = JSON.parse(
+    await readFile((await (await downloaded).path())!, "utf8"),
+  );
+  expect(saved.entries).toHaveLength(1);
+  expect(saved.timer).toBeNull();
+  expect(saved.entries[0].shift.kind).toBe("night");
 });

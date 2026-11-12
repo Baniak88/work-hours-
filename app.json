@@ -2,7 +2,7 @@
   "expo": {
     "name": "Work Hours",
     "slug": "work-hours",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.baniak88.workhours",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.baniak88.workhours",
@@ -26,8 +28,12 @@
       "name": "Work Hours",
       "shortName": "Work Hours",
       "themeColor": "#101314",
-      "backgroundColor": "#101314"
+      "backgroundColor": "#101314",
+      "output": "single"
     },
-    "plugins": ["expo-sharing", "expo-font"]
+    "plugins": ["expo-sharing", "expo-font", "expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

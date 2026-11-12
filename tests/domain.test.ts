@@ -12,6 +12,13 @@ import {
   totals,
   validateBackup,
   weekKey,
+  defaultShifts,
+  makeTimer,
+  settleTimer,
+  shiftEnd,
+  shiftWorkDate,
+  timerDayMinutes,
+  validateShift,
   type Entry,
   type Job,
 } from "../src/domain";
@@ -162,7 +169,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 2 }));
+  assert.throws(() => validateBackup({ ...s, version: 3 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -196,4 +203,188 @@ test("CSV escapes quotes, formula injection and includes a BOM", () => {
 });
 test("date keys use the local day, rather than UTC day", () => {
   assert.equal(dateKey(stamp("2026-07-01", "00:15")), "2026-07-01");
+});
+test("17:30–03:00 is one night shift with one 8-hour norm across midnight", () => {
+  const night = defaultShifts()[1],
+    start = stamp("2026-10-20", "17:30"),
+    end = stamp("2026-10-21", "03:00");
+  const timer = makeTimer(job, night, start),
+    e = finishTimer(timer, end),
+    t = totals(calculate([e]));
+  assert.deepEqual(t, { minutes: 570, regular: 480, extra: 90, amount: 197.5 });
+  assert.equal(e.shift?.workDate, "2026-10-20");
+  assert.equal(calculate([e])[1].extra, 90);
+});
+test("night breaks reduce the working norm and allow fractional norms", () => {
+  const shift = { ...defaultShifts()[1], normHours: 7.5 },
+    start = stamp("2026-10-20", "17:30");
+  const timer = makeTimer(job, shift, start);
+  timer.breaks = [
+    { start: stamp("2026-10-20", "23:45"), end: stamp("2026-10-21", "00:15") },
+  ];
+  const t = totals(
+    calculate([finishTimer(timer, stamp("2026-10-21", "03:00"))]),
+  );
+  assert.equal(t.minutes, 540);
+  assert.equal(t.regular, 450);
+  assert.equal(t.extra, 90);
+  assert.equal(t.amount, 187.5);
+});
+test("a new day or night occurrence gets a new norm, while split sessions share it", () => {
+  const night = defaultShifts()[1];
+  const a = finishTimer(
+    makeTimer(job, night, stamp("2026-10-20", "17:30")),
+    stamp("2026-10-20", "23:30"),
+  );
+  const b = finishTimer(
+    makeTimer(job, night, stamp("2026-10-21", "00:00")),
+    stamp("2026-10-21", "03:00"),
+  );
+  const c = finishTimer(
+    makeTimer(job, night, stamp("2026-10-21", "17:30")),
+    stamp("2026-10-21", "23:30"),
+  );
+  assert.equal(b.shift?.workDate, a.shift?.workDate);
+  assert.notEqual(c.shift?.workDate, a.shift?.workDate);
+  const t = totals(calculate([c, b, a]));
+  assert.equal(t.regular, 840);
+  assert.equal(t.extra, 60);
+});
+test("auto-stop caps elapsed time and persists exactly once after reopening", () => {
+  const night = { ...defaultShifts()[1], autoStop: true };
+  const start = stamp("2026-10-20", "17:30"),
+    end = stamp("2026-10-21", "03:00");
+  const timer = makeTimer(job, night, start);
+  assert.equal(timer.plannedEnd, end);
+  assert.equal(timerMinutes(timer, end + 8 * 3600000), 570);
+  const state = freshState();
+  state.jobs = [job];
+  state.timer = timer;
+  assert.equal(settleTimer(state, end - 1), state);
+  const done = settleTimer(
+    JSON.parse(JSON.stringify(state)),
+    end + 8 * 3600000,
+  );
+  assert.equal(done.timer, null);
+  assert.equal(done.entries.length, 1);
+  assert.equal(done.entries[0].end, end);
+  assert.equal(done.entries[0].autoStopped, true);
+  assert.equal(settleTimer(done, end + 86400000), done);
+  assert.equal(done.entries.length, 1);
+});
+test("automatic stop while paused clips the pause to the scheduled end", () => {
+  const timer = makeTimer(
+    job,
+    { ...defaultShifts()[1], autoStop: true },
+    stamp("2026-10-20", "17:30"),
+  );
+  timer.pausedAt = stamp("2026-10-21", "02:00");
+  const e = finishTimer(timer, stamp("2026-10-21", "10:00"));
+  assert.equal(e.end, stamp("2026-10-21", "03:00"));
+  assert.equal(e.breaks[0].end, e.end);
+  assert.equal(totals(calculate([e])).minutes, 510);
+});
+test("manual shifts stop only on request, and saved policies survive template edits", () => {
+  const shift = defaultShifts()[1];
+  const timer = makeTimer(job, shift, stamp("2026-10-20", "17:30"));
+  shift.normHours = 6;
+  shift.endTime = "01:00";
+  assert.equal(timer.plannedEnd, undefined);
+  assert.equal(timer.shift?.normHours, 8);
+  assert.equal(timerMinutes(timer, stamp("2026-10-21", "04:00")), 630);
+  assert.equal(
+    finishTimer(timer, stamp("2026-10-21", "04:00")).autoStopped,
+    undefined,
+  );
+});
+test("starting after midnight belongs to the previous night and stops that morning", () => {
+  const shift = { ...defaultShifts()[1], autoStop: true },
+    at = stamp("2026-10-21", "00:30");
+  assert.equal(shiftWorkDate(shift, at), "2026-10-20");
+  assert.equal(shiftEnd(shift, at), stamp("2026-10-21", "03:00"));
+});
+test("only the part of an active night after midnight is counted as today", () => {
+  const timer = makeTimer(
+    job,
+    defaultShifts()[1],
+    stamp("2026-10-20", "17:30"),
+  );
+  assert.equal(
+    timerDayMinutes(timer, stamp("2026-10-21", "02:00"), "2026-10-21"),
+    120,
+  );
+  assert.equal(
+    timerDayMinutes(timer, stamp("2026-10-21", "02:00"), "2026-10-20"),
+    390,
+  );
+});
+test("night auto-stop respects the local clock across DST and counts elapsed time", () => {
+  const night = { ...defaultShifts()[1], autoStop: true };
+  const timer = makeTimer(job, night, stamp("2026-10-24", "17:30"));
+  assert.equal(timer.plannedEnd, stamp("2026-10-25", "03:00"));
+  assert.equal(timerMinutes(timer, timer.plannedEnd!), 630);
+  assert.equal(
+    totals(calculate([finishTimer(timer, timer.plannedEnd!)])).extra,
+    150,
+  );
+});
+test("version 1 migrates without changing existing entries, pay, or running timer", () => {
+  const previous = {
+    version: 1,
+    jobs: [job],
+    entries: [entry()],
+    timer: null,
+    currency: "GBP",
+    paidWeeks: [],
+  };
+  const next = validateBackup(previous);
+  assert.equal(next.version, 2);
+  assert.equal(next.shifts.length, 2);
+  assert.deepEqual(next.entries, previous.entries);
+  assert.equal(totals(calculate(next.entries)).amount, 210);
+  const running = {
+    ...previous,
+    entries: [],
+    timer: {
+      jobId: job.id,
+      start: stamp("2026-10-20", "06:00"),
+      breaks: [],
+      pausedAt: null,
+      rate: 20,
+      dailyHours: 8,
+      overtime: 1.25,
+    },
+  };
+  assert.deepEqual(validateBackup(running).timer, running.timer);
+});
+test("shift backup validates snapshots and rejects malformed hours, norms and deadlines", () => {
+  const state = freshState();
+  state.jobs = [job];
+  state.timer = makeTimer(
+    job,
+    { ...state.shifts[1], autoStop: true },
+    stamp("2026-10-20", "17:30"),
+  );
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(state))), state);
+  assert.throws(() => validateShift({ ...state.shifts[0], normHours: 0 }));
+  assert.throws(() =>
+    validateShift({ ...state.shifts[0], startTime: "25:00" }),
+  );
+  assert.throws(() => validateShift({ ...state.shifts[0], endTime: "06:00" }));
+  assert.throws(() => validateBackup({ ...state, shifts: [] }));
+  assert.throws(() =>
+    validateBackup({ ...state, timer: { ...state.timer, plannedEnd: 0 } }),
+  );
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      entries: [
+        {
+          ...entry(),
+          shift: { ...state.shifts[0], normHours: -1, workDate: "2026-10-20" },
+        },
+      ],
+      timer: null,
+    }),
+  );
 });

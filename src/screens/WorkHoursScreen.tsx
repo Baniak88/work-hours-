@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
-  AppState,
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
@@ -13,18 +12,20 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFonts } from "expo-font";
 import {
   Break,
   Entry,
   Job,
   State,
+  Shift,
+  Slice,
+  makeTimer,
+  shiftDuration,
+  shiftWorkDate,
+  validateShift,
   calculate,
   checkEntry,
   csv,
@@ -37,14 +38,16 @@ import {
   money,
   parseLocal,
   timeLabel,
-  timerMinutes,
+  timerDayMinutes,
   totals,
   uid,
   validateBackup,
   weekKey,
-} from "./src/domain";
-import { readState, writeState } from "./src/storage";
-import { exportFile, importFile } from "./src/files";
+} from "../domain";
+import { useWorkHours } from "../WorkHoursProvider";
+import { router } from "expo-router";
+import ShiftClock from "../components/ShiftClock";
+import { exportFile, importFile } from "../files";
 
 const C = {
   bg: "#101314",
@@ -61,7 +64,7 @@ const COLORS = [C.green, C.blue, "#D9AFF7", "#F4C582", "#F29BB5"];
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
 type Tab = "home" | "entries" | "reports" | "settings";
 type Form = {
-  type: "job" | "entry" | "start";
+  type: "job" | "entry" | "start" | "shift";
   id?: string;
   [key: string]: string | undefined;
 };
@@ -237,75 +240,45 @@ function Empty({
     </View>
   );
 }
-function AppContent() {
+export default function WorkHoursScreen({ tab }: { tab: Tab }) {
+  const {
+    state,
+    loadError,
+    load,
+    now,
+    busy,
+    notice,
+    setNotice,
+    selected,
+    setSelected,
+    save,
+  } = useWorkHours();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 850;
-  const [state, setState] = useState<State | null>(null),
-    [loadError, setLoadError] = useState(""),
-    [tab, setTab] = useState<Tab>("home"),
-    [now, setNow] = useState(Date.now()),
-    [busy, setBusy] = useState(false);
-  const lock = useRef(false);
+  const paths = {
+    home: "/",
+    entries: "/entries",
+    reports: "/reports",
+    settings: "/settings",
+  } as const;
+  function setTab(next: Tab) {
+    router.replace(paths[next]);
+  }
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  useEffect(() => {
-    scroll.current?.scrollTo({ y: 0, animated: false });
-  }, [tab]);
   const [form, setForm] = useState<Form | null>(null),
     [formError, setFormError] = useState(""),
-    [notice, setNotice] = useState(""),
     [confirm, setConfirm] = useState<Confirm | null>(null);
-  const [selected, setSelected] = useState(""),
-    [search, setSearch] = useState(""),
+  const [search, setSearch] = useState(""),
     [projectFilter, setProjectFilter] = useState("all"),
+    [shiftFilter, setShiftFilter] = useState("all"),
     [group, setGroup] = useState<"days" | "weeks" | "months" | "jobs">("weeks"),
     [period, setPeriod] = useState("all"),
     [reportMode, setReportMode] = useState<"summary" | "payments">("summary");
-  async function load() {
-    setLoadError("");
-    try {
-      setState(await readState());
-    } catch {
-      setLoadError(
-        "Nie udało się odczytać zapisanych danych. Zachowaliśmy je na urządzeniu. Spróbuj ponownie; nie odinstalowuj aplikacji.",
-      );
-    }
-  }
-  useEffect(() => {
-    void load();
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    const listener = AppState.addEventListener("change", () =>
-      setNow(Date.now()),
-    );
-    return () => {
-      clearInterval(interval);
-      listener.remove();
-    };
-  }, []);
-  useEffect(() => {
-    if (!notice) return;
-    const id = setTimeout(() => setNotice(""), 5000);
-    return () => clearTimeout(id);
-  }, [notice]);
-  async function save(next: State, message?: string) {
-    if (lock.current) return false;
-    lock.current = true;
-    setBusy(true);
-    try {
-      await writeState(next);
-      setState(next);
-      if (message) setNotice(message);
-      return true;
-    } catch {
-      setNotice(
-        "Nie udało się zapisać danych. Sprawdź wolne miejsce i spróbuj ponownie.",
-      );
-      return false;
-    } finally {
-      lock.current = false;
-      setBusy(false);
-    }
-  }
+  const calculated = useMemo(
+    () => calculate(state?.entries ?? []),
+    [state?.entries],
+  );
   if (!state)
     return (
       <View style={[s.app, { justifyContent: "center", padding: 30 }]}>
@@ -327,7 +300,8 @@ function AppContent() {
     jobs = data.jobs.filter((j) => !j.archived),
     job = jobs.find((j) => j.id === selected) ?? jobs[0],
     timer = data.timer;
-  const slices = calculate(data.entries),
+  const shift = data.shifts.find((x) => x.id === data.preferredShiftId)!;
+  const slices = calculated,
     week = weekKey(now),
     month = dateKey(now).slice(0, 7),
     today = dateKey(now),
@@ -351,7 +325,42 @@ function AppContent() {
       color: j?.color ?? C.green,
     });
   }
+  function openShift(value?: Shift) {
+    setFormError("");
+    setForm({
+      type: "shift",
+      id: value?.id,
+      name: value?.name ?? "",
+      kind: value?.kind ?? "day",
+      startTime: value?.startTime ?? "06:00",
+      endTime: value?.endTime ?? "14:00",
+      normHours: String(value?.normHours ?? 8),
+      autoStop: String(value?.autoStop ?? false),
+    });
+  }
+  function selectFormShift(id: string) {
+    setForm((f) => {
+      if (!f) return f;
+      const selectedShift = data.shifts.find((x) => x.id === id);
+      if (!selectedShift || f.type !== "entry") return { ...f, shiftId: id };
+      const day = f.startDate ?? dateKey(now);
+      let endDay = day;
+      if (selectedShift.endTime < selectedShift.startTime) {
+        const d = localDate(day);
+        d.setDate(d.getDate() + 1);
+        endDay = dateKey(d);
+      }
+      return {
+        ...f,
+        shiftId: id,
+        startTime: selectedShift.startTime,
+        endTime: selectedShift.endTime,
+        endDate: endDay,
+      };
+    });
+  }
   function openEntry(e?: Entry) {
+    // eslint-disable-next-line react-hooks/purity -- Read on a button press, never while rendering the nested screen helpers.
     const end = e?.end ?? Date.now();
     const start = e?.start ?? end - 8 * 3600000;
     setFormError("");
@@ -359,6 +368,7 @@ function AppContent() {
       type: "entry",
       id: e?.id,
       jobId: e?.jobId ?? job?.id ?? "",
+      shiftId: e ? (e.shift?.id ?? "legacy") : data.preferredShiftId,
       startDate: dateKey(start),
       startTime: timeLabel(start),
       endDate: dateKey(end),
@@ -379,11 +389,17 @@ function AppContent() {
     setForm({
       type: "start",
       jobId: job?.id ?? "",
+      shiftId: data.preferredShiftId,
       startDate: dateKey(now),
       startTime: timeLabel(now),
     });
   }
-  async function start(at = Date.now(), id = job?.id) {
+  async function start(
+    // eslint-disable-next-line react-hooks/purity -- The custom clock's onStart event invokes this handler.
+    at = Date.now(),
+    id = job?.id,
+    shiftId = data.preferredShiftId,
+  ) {
     if (!id || timer) return;
     const j = jobFor(id);
     if (data.entries.some((e) => e.end > at)) {
@@ -395,15 +411,11 @@ function AppContent() {
       await save(
         {
           ...data,
-          timer: {
-            jobId: id,
-            start: at,
-            breaks: [],
-            pausedAt: null,
-            rate: j.rate,
-            dailyHours: j.dailyHours,
-            overtime: j.overtime,
-          },
+          timer: makeTimer(
+            j,
+            data.shifts.find((x) => x.id === shiftId) ?? shift,
+            at,
+          ),
         },
         "Licznik uruchomiony",
       )
@@ -448,6 +460,35 @@ function AppContent() {
     if (!form) return;
     setFormError("");
     try {
+      if (form.type === "shift") {
+        if (!form.id && data.shifts.length >= 100)
+          throw new Error(
+            "Możesz zapisać do 100 profili zmian. Edytuj istniejący profil.",
+          );
+        const value: Shift = {
+          id: form.id ?? uid(),
+          name: form.name?.trim() ?? "",
+          kind: form.kind === "night" ? "night" : "day",
+          startTime: form.startTime ?? "",
+          endTime: form.endTime ?? "",
+          normHours: Number(form.normHours?.replace(",", ".")),
+          autoStop: form.autoStop === "true",
+        };
+        validateShift(value);
+        if (
+          await save(
+            {
+              ...data,
+              shifts: form.id
+                ? data.shifts.map((x) => (x.id === value.id ? value : x))
+                : [...data.shifts, value],
+            },
+            "Ustawienia zmiany zapisane",
+          )
+        )
+          setForm(null);
+        return;
+      }
       if (form.type === "job") {
         const name = form.name?.trim() ?? "",
           rate = Number(form.rate?.replace(",", ".")),
@@ -505,11 +546,13 @@ function AppContent() {
           ? oldEntry.start
           : parsedStart;
       if (form.type === "start") {
+        // eslint-disable-next-line react-hooks/purity -- Submit handler: validate against the actual button-press time.
         if (startAt > Date.now())
           throw new Error("Początek pracy nie może być w przyszłości.");
+        // eslint-disable-next-line react-hooks/purity -- Submit handler: validate against the actual button-press time.
         if (Date.now() - startAt > 7 * 86400000)
           throw new Error("Licznik można uruchomić do 7 dni wstecz.");
-        await start(startAt, id);
+        await start(startAt, id, form.shiftId);
         return;
       }
       const parsedEnd = parseLocal(form.endDate ?? "", form.endTime ?? "");
@@ -548,6 +591,26 @@ function AppContent() {
         rate: policy.rate,
         dailyHours: policy.dailyHours,
         overtime: policy.overtime,
+        ...(form.shiftId && form.shiftId !== "legacy"
+          ? {
+              shift:
+                old?.shift?.id === form.shiftId
+                  ? {
+                      ...old.shift,
+                      workDate: shiftWorkDate(old.shift, startAt),
+                    }
+                  : (() => {
+                      const selectedShift = data.shifts.find(
+                        (x) => x.id === form.shiftId,
+                      )!;
+                      return {
+                        ...selectedShift,
+                        workDate: shiftWorkDate(selectedShift, startAt),
+                      };
+                    })(),
+            }
+          : {}),
+        ...(old?.autoStopped ? { autoStopped: true } : {}),
       };
       checkEntry(entry, data.entries, timer);
       if (
@@ -618,9 +681,21 @@ function AppContent() {
       );
     }
   }
-  function row(e: Entry) {
+  function row(e: Entry, parts?: Slice[]) {
+    const applicable = (parts ?? slices).filter((x) => x.entry.id === e.id);
+    const first = applicable[0]?.date,
+      last = applicable[applicable.length - 1]?.date;
+    const lastDay = last ? localDate(last) : null;
+    lastDay?.setDate(lastDay.getDate() + 1);
+    const displayStart =
+      parts && first ? Math.max(e.start, parseLocal(first, "00:00")) : e.start;
+    const displayEnd =
+      parts && lastDay
+        ? Math.min(e.end, parseLocal(dateKey(lastDay), "00:00"))
+        : e.end;
+    const fragment = displayStart !== e.start || displayEnd !== e.end;
     const j = jobFor(e.jobId),
-      t = totals(slices.filter((x) => x.entry.id === e.id));
+      t = totals(applicable);
     return (
       <Pressable
         accessibilityRole="button"
@@ -634,10 +709,25 @@ function AppContent() {
         </View>
         <View style={{ flex: 1, gap: 5 }}>
           <Text style={s.rowTitle}>{j.name}</Text>
+          {e.shift && (
+            <Text
+              style={{
+                fontSize: 10,
+                color: e.shift.kind === "night" ? "#AFB7FF" : "#F3CD87",
+              }}
+            >
+              {e.shift.name} · norma {duration(e.shift.normHours * 60)} h
+              {e.autoStopped ? " · auto-stop" : ""}
+            </Text>
+          )}
           <Text style={s.caption}>
-            {timeLabel(e.start)} – {timeLabel(e.end)}
-            {dateKey(e.start) !== dateKey(e.end) ? " · +1 dzień" : ""} · przerwa{" "}
-            {Math.round((e.end - e.start) / 60000 - t.minutes)} min
+            {fragment ? "Fragment · " : ""}
+            {timeLabel(displayStart)} – {timeLabel(displayEnd)}
+            {dateKey(e.start) !== dateKey(e.end)
+              ? ` · do ${dateKey(e.end)}`
+              : ""}{" "}
+            · przerwa{" "}
+            {Math.round((displayEnd - displayStart) / 60000 - t.minutes)} min
           </Text>
           {!!e.note && (
             <Text numberOfLines={1} style={s.caption}>
@@ -665,7 +755,7 @@ function AppContent() {
       <View style={s.pageHeader}>
         <View style={{ flex: 1, gap: 7 }}>
           <Text style={s.eyebrow}>{eyebrow}</Text>
-          <Text style={s.title}>{title}</Text>
+          <Text style={[s.title, !wide && { fontSize: 26 }]}>{title}</Text>
           <Text style={s.subtitle}>{subtitle}</Text>
         </View>
         {action}
@@ -718,24 +808,24 @@ function AppContent() {
   );
   function home() {
     const timerJob = timer ? jobFor(timer.jobId) : job;
-    const activeMinutes = timer ? timerMinutes(timer, now) : 0;
-    const clock =
-      Math.floor(activeMinutes / 60)
-        .toString()
-        .padStart(2, "0") +
-      ":" +
-      Math.floor(activeMinutes % 60)
-        .toString()
-        .padStart(2, "0") +
-      ":" +
-      Math.floor((activeMinutes * 60) % 60)
-        .toString()
-        .padStart(2, "0");
+    const activeMinutes = timer ? timerDayMinutes(timer, now, today) : 0;
+    const target = timer?.shift ?? {
+      ...shift,
+      workDate: shiftWorkDate(shift, now),
+    };
+    const prior = totals(
+      slices.filter(
+        (x) =>
+          x.entry.jobId === timerJob?.id &&
+          x.entry.shift?.id === target.id &&
+          x.entry.shift.workDate === target.workDate,
+      ),
+    ).minutes;
     return (
       <>
         {header(
           "TWÓJ CZAS. TWOJE ZASADY.",
-          "Dobry dzień do pracy.",
+          "Twój zegar pracy.",
           new Date(now).toLocaleDateString("pl-PL", {
             weekday: "long",
             day: "numeric",
@@ -752,102 +842,24 @@ function AppContent() {
           </Pressable>,
         )}
         <View style={[s.columns, wide && { flexDirection: "row" }]}>
-          <View style={[s.timerCard, { flex: wide ? 1.4 : undefined }]}>
-            <View style={s.between}>
-              <View style={s.row}>
-                <View
-                  style={[
-                    s.liveDot,
-                    {
-                      backgroundColor: timer
-                        ? timer.pausedAt
-                          ? C.blue
-                          : C.green
-                        : C.muted,
-                    },
-                  ]}
-                />
-                <Text style={s.overline}>
-                  {timer
-                    ? timer.pausedAt
-                      ? "CZAS NA PRZERWĘ"
-                      : "W TRAKCIE PRACY"
-                    : "GOTOWY DO STARTU"}
-                </Text>
-              </View>
-              <View style={s.iconTile}>
-                <I name="timer-outline" color={C.green} />
-              </View>
-            </View>
-            <Text style={s.timerTitle}>
-              {timerJob?.name ?? "Zacznij od projektu"}
-            </Text>
-            <Text style={s.timerSub}>
-              {timerJob
-                ? `${fmt(timer?.rate ?? timerJob.rate)} / godz. · nadgodziny ×${timer?.overtime ?? timerJob.overtime}`
-                : "Dodaj pracodawcę lub projekt i ustaw stawkę."}
-            </Text>
-            <Text
-              accessibilityLabel="Czas pracy"
-              style={[s.clock, wide && { fontSize: 64 }]}
-            >
-              {clock}
-            </Text>
-            <Text style={s.timerHint}>
-              {timer
-                ? "Czas pracy bez przerw"
-                : "Każda przepracowana minuta ma znaczenie."}
-            </Text>
-            {timer ? (
-              <View style={s.row}>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    label={timer.pausedAt ? "Wznów" : "Przerwa"}
-                    icon={timer.pausedAt ? "play" : "pause"}
-                    onPress={() => void togglePause()}
-                    disabled={busy}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    label="Zakończ"
-                    icon="stop"
-                    kind="secondary"
-                    onPress={() => void stop()}
-                    disabled={busy}
-                  />
-                </View>
-              </View>
-            ) : (
-              <View style={s.row}>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    label={job ? "Rozpocznij pracę" : "Dodaj projekt"}
-                    icon={job ? "play" : "add"}
-                    onPress={() => (job ? void start() : openJob())}
-                    disabled={busy}
-                  />
-                </View>
-                {job && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Rozpocznij od wybranej godziny"
-                    style={s.startAt}
-                    onPress={openStart}
-                  >
-                    <I name="time-outline" color={C.text} />
-                  </Pressable>
-                )}
-              </View>
-            )}
-            <View style={s.timerFooter}>
-              <I name="shield-checkmark-outline" size={14} />
-              <Text style={s.caption}>
-                {timer
-                  ? "Licznik działa także po zamknięciu aplikacji"
-                  : "Bez konta. Bez reklam. Dane na Twoim telefonie."}
-              </Text>
-            </View>
+          <View style={{ flex: wide ? 1.4 : undefined }}>
+            <ShiftClock
+              now={now}
+              shift={shift}
+              shifts={data.shifts}
+              timer={timer}
+              project={timerJob?.name}
+              busy={busy}
+              priorMinutes={prior}
+              onSelect={(value) =>
+                void save({ ...data, preferredShiftId: value.id })
+              }
+              onEdit={() => openShift(shift)}
+              onStart={() => (job ? void start() : openJob())}
+              onPause={() => void togglePause()}
+              onStop={() => void stop()}
+              onStartAt={openStart}
+            />
           </View>
           <View style={[s.statsColumn, { flex: wide ? 1 : undefined }]}>
             <View style={[s.statCard, { flex: 1 }]}>
@@ -884,6 +896,27 @@ function AppContent() {
             </View>
           </View>
         </View>
+        {!timer &&
+          data.entries.length > 0 &&
+          (() => {
+            const last = [...data.entries].sort((a, b) => b.end - a.end)[0];
+            return (
+              <View style={[s.card, { marginTop: 16 }]}>
+                <View style={[s.row, { padding: 15, paddingBottom: 0 }]}>
+                  <I name="checkmark-circle" color={C.green} size={17} />
+                  <Text
+                    style={{ color: C.text, fontSize: 12, fontWeight: "600" }}
+                  >
+                    Ostatnia zmiana zakończona
+                  </Text>
+                  <Text style={[s.caption, { marginLeft: "auto" }]}>
+                    {timeLabel(last.end)}
+                  </Text>
+                </View>
+                {row(last)}
+              </View>
+            );
+          })()}
         <View style={s.sectionHeader}>
           <View style={s.row}>
             <Text style={s.sectionTitle}>Twoje projekty</Text>
@@ -1022,8 +1055,8 @@ function AppContent() {
         <View style={s.tip}>
           <I name="bulb-outline" color={C.green} size={19} />
           <Text style={[s.caption, { flex: 1, lineHeight: 20 }]}>
-            Pracujesz w nocy? Zmiany przechodzące przez północ automatycznie
-            dzielimy na dni w raportach.
+            Nocna zmiana zachowuje jedną normę godzin, także po północy. Start
+            uruchamiasz przy przyjściu; po zakończeniu licznik czeka na Ciebie.
           </Text>
         </View>
       </>
@@ -1033,7 +1066,11 @@ function AppContent() {
     const filtered = slices.filter(
       (x) =>
         (projectFilter === "all" || x.entry.jobId === projectFilter) &&
-        `${jobFor(x.entry.jobId).name} ${x.entry.note} ${x.date}`
+        (shiftFilter === "all" ||
+          (shiftFilter === "legacy"
+            ? !x.entry.shift
+            : x.entry.shift?.kind === shiftFilter)) &&
+        `${jobFor(x.entry.jobId).name} ${x.entry.note} ${x.entry.shift?.name ?? ""} ${x.date}`
           .toLocaleLowerCase()
           .includes(search.toLocaleLowerCase()),
     );
@@ -1110,6 +1147,28 @@ function AppContent() {
               active={projectFilter === j.id}
               onPress={() => {
                 setProjectFilter(j.id);
+                setPeriod("all");
+              }}
+            />
+          ))}
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
+        >
+          {[
+            { id: "all", name: "Wszystkie zmiany" },
+            { id: "day", name: "Dzienne" },
+            { id: "night", name: "Nocne" },
+            { id: "legacy", name: "Bez typu" },
+          ].map((x) => (
+            <Chip
+              key={x.id}
+              label={x.name}
+              active={shiftFilter === x.id}
+              onPress={() => {
+                setShiftFilter(x.id);
                 setPeriod("all");
               }}
             />
@@ -1216,7 +1275,7 @@ function AppContent() {
                     />
                   </Pressable>
                   {period === k || group === "days" ? (
-                    unique.map(row)
+                    unique.map((e) => row(e, list))
                   ) : (
                     <View style={s.groupPreview}>
                       <Text style={s.caption}>
@@ -1321,6 +1380,48 @@ function AppContent() {
                   </Text>
                 </View>
               </View>
+            </View>
+            <View style={[s.card, { marginBottom: 20, padding: 18, gap: 16 }]}>
+              <Text style={s.sectionTitle}>Dzienne i nocne · ten miesiąc</Text>
+              {(
+                [
+                  { kind: "day", name: "Zmiany dzienne", color: "#F3CD87" },
+                  { kind: "night", name: "Zmiany nocne", color: "#AFB7FF" },
+                  {
+                    kind: "legacy",
+                    name: "Bez przypisanej zmiany",
+                    color: C.muted,
+                  },
+                ] as const
+              ).map((item) => {
+                const list = monthSlices.filter((x) =>
+                    item.kind === "legacy"
+                      ? !x.entry.shift
+                      : x.entry.shift?.kind === item.kind,
+                  ),
+                  t = totals(list);
+                if (!list.length && item.kind === "legacy") return null;
+                return (
+                  <View key={item.kind} style={s.between}>
+                    <View style={{ gap: 5, flex: 1 }}>
+                      <Text
+                        style={{
+                          color: item.color,
+                          fontSize: 13,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text style={s.caption}>
+                        {duration(t.minutes)} h · nadgodziny {duration(t.extra)}{" "}
+                        h
+                      </Text>
+                    </View>
+                    <Text style={s.rowMoney}>{fmt(t.amount)}</Text>
+                  </View>
+                );
+              })}
             </View>
             <View style={s.card}>
               <View style={[s.between, { padding: 20 }]}>
@@ -1544,6 +1645,67 @@ function AppContent() {
             </Text>
           </View>
         </View>
+        <Text style={s.settingsHeading}>ZMIANY I NORMA GODZIN</Text>
+        <View style={{ gap: 12 }}>
+          {data.shifts.map((value) => (
+            <View key={value.id} style={[s.card, { padding: 18, gap: 15 }]}>
+              <View style={s.between}>
+                <View style={s.row}>
+                  <I
+                    name={
+                      value.kind === "night" ? "moon-outline" : "sunny-outline"
+                    }
+                    color={value.kind === "night" ? "#AFB7FF" : "#F3CD87"}
+                  />
+                  <Text style={s.rowTitle}>{value.name}</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edytuj: ${value.name}`}
+                  onPress={() => openShift(value)}
+                  style={s.iconTile}
+                >
+                  <I name="create-outline" color={C.text} />
+                </Pressable>
+              </View>
+              <View style={s.between}>
+                <Text
+                  style={{
+                    color: C.text,
+                    fontSize: 23,
+                    fontWeight: "600",
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {value.startTime} – {value.endTime}
+                </Text>
+                <Text style={s.caption}>
+                  {value.endTime < value.startTime ? "+1 dzień · " : ""}
+                  {duration(shiftDuration(value))} h
+                </Text>
+              </View>
+              <Text style={s.caption}>
+                Norma {duration(value.normHours * 60)} h ·{" "}
+                {value.autoStop
+                  ? "Automatyczne zakończenie"
+                  : "Ręczne zakończenie przyciskiem Stop"}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ marginTop: 14 }}>
+          <Button
+            label="Dodaj własną zmianę"
+            icon="add"
+            kind="secondary"
+            onPress={() => openShift()}
+          />
+        </View>
+        <Text style={s.footnote}>
+          Godziny planu i norma są niezależne. Na zmianie 17:30–03:00 możesz
+          mieć normę 8 h. Przerwy są niepłatne; północ nie zeruje normy. Zmiany
+          ustawień dotyczą kolejnych uruchomień.
+        </Text>
         <Text style={s.settingsHeading}>PREFERENCJE</Text>
         <View style={s.card}>
           <View style={{ padding: 20, gap: 15 }}>
@@ -1697,12 +1859,13 @@ function AppContent() {
             </Text>
           </View>
           <Text style={s.caption}>
-            Wersja 1.0.0 · Zrobione dla Twojego czasu
+            Wersja 1.1.0 · Zrobione dla Twojego czasu
           </Text>
           <Text style={s.footnote}>
-            Nadgodziny naliczamy dziennie, osobno dla projektu, po odjęciu
-            niepłatnych przerw. Zmiana stawek dotyczy nowych wpisów. Status
-            „opłacono” jest Twoim oznaczeniem, nie potwierdzeniem przelewu.
+            Nowe zmiany zachowują jedną normę także przez północ. Starsze wpisy
+            zachowują reguły dzienne. Zmiana stawek dotyczy nowych wpisów.
+            Status „opłacono” jest Twoim oznaczeniem, nie potwierdzeniem
+            przelewu.
           </Text>
         </View>
       </>
@@ -1840,15 +2003,19 @@ function AppContent() {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "job"
+                    {form?.type === "shift"
                       ? form.id
-                        ? "Edytuj projekt"
-                        : "Nowy projekt"
-                      : form?.type === "start"
-                        ? "Rozpocznij od…"
-                        : form?.id
-                          ? "Edytuj wpis"
-                          : "Dodaj wpis"}
+                        ? "Ustawienia zmiany"
+                        : "Własna zmiana"
+                      : form?.type === "job"
+                        ? form.id
+                          ? "Edytuj projekt"
+                          : "Nowy projekt"
+                        : form?.type === "start"
+                          ? "Rozpocznij od…"
+                          : form?.id
+                            ? "Edytuj wpis"
+                            : "Dodaj wpis"}
                   </Text>
                 </View>
                 <Pressable
@@ -1865,7 +2032,79 @@ function AppContent() {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "job" ? (
+                {form?.type === "shift" ? (
+                  <>
+                    <Field
+                      label="Nazwa zmiany"
+                      value={form.name}
+                      onChange={(v) => setField("name", v)}
+                      placeholder="np. Nocna w Bowmill"
+                    />
+                    <Text style={s.fieldLabel}>Rodzaj zmiany</Text>
+                    <View style={s.row}>
+                      <Chip
+                        label="Dzienna"
+                        active={form.kind === "day"}
+                        onPress={() => setField("kind", "day")}
+                      />
+                      <Chip
+                        label="Nocna"
+                        active={form.kind === "night"}
+                        onPress={() => setField("kind", "night")}
+                      />
+                    </View>
+                    <View style={s.row}>
+                      <Field
+                        label="Początek zmiany"
+                        value={form.startTime}
+                        onChange={(v) => setField("startTime", v)}
+                        placeholder="17:30"
+                      />
+                      <Field
+                        label="Koniec zmiany"
+                        value={form.endTime}
+                        onChange={(v) => setField("endTime", v)}
+                        placeholder="03:00"
+                      />
+                    </View>
+                    <Text style={s.caption}>
+                      {(form.endTime ?? "") < (form.startTime ?? "")
+                        ? "Koniec wypada następnego dnia. Zmiana pozostaje jednym wpisem."
+                        : "Godziny początku i końca możesz dopasować do swojego grafiku."}
+                    </Text>
+                    <Field
+                      label="Norma godzin na zmianę"
+                      numeric
+                      value={form.normHours}
+                      onChange={(v) => setField("normHours", v)}
+                    />
+                    <Text style={s.caption}>
+                      Np. 8 lub 7,5. Nadgodziny zaczynają się po przepracowaniu
+                      normy, po odjęciu przerw. Nie zerują się o północy.
+                    </Text>
+                    <Text style={s.fieldLabel}>Zakończenie licznika</Text>
+                    <View style={{ gap: 10 }}>
+                      <Chip
+                        label="Ręcznie — naciskam Stop"
+                        active={form.autoStop === "false"}
+                        onPress={() => setField("autoStop", "false")}
+                      />
+                      <Chip
+                        label="Automatycznie o godzinie końca"
+                        active={form.autoStop === "true"}
+                        onPress={() => setField("autoStop", "true")}
+                      />
+                    </View>
+                    <View style={s.tip}>
+                      <I name="information-circle-outline" color={C.green} />
+                      <Text style={[s.caption, { flex: 1, lineHeight: 20 }]}>
+                        {form.autoStop === "true"
+                          ? "Czas jest ograniczony ustawionym końcem, także gdy aplikacja jest zamknięta. Po ponownym otwarciu wpis zostanie zapisany z tą godziną. Następna zmiana wymaga naciśnięcia Start."
+                          : "Licznik czeka na naciśnięcie Stop. Planowane godziny są wskazówką; możesz pracować krócej lub dłużej."}
+                      </Text>
+                    </View>
+                  </>
+                ) : form?.type === "job" ? (
                   <>
                     <Field
                       label="Nazwa projektu lub pracodawcy"
@@ -1881,7 +2120,7 @@ function AppContent() {
                     />
                     <View style={s.row}>
                       <Field
-                        label="Nadgodziny po (h / dzień)"
+                        label="Limit starszych wpisów (h / dzień)"
                         value={form.dailyHours}
                         numeric
                         onChange={(v) => setField("dailyHours", v)}
@@ -1894,9 +2133,10 @@ function AppContent() {
                       />
                     </View>
                     <Text style={s.caption}>
-                      Przykład: po 8 godzinach ×1,25. Zwykły czas i nadgodziny
-                      liczymy osobno po odjęciu przerw. Stawki zapisujemy przy
-                      wpisie — historia pozostaje bez zmian.
+                      Mnożnik dotyczy nadgodzin tego projektu. Normę nowych
+                      zmian ustawisz w profilach zmian dziennych i nocnych.
+                      Dzienny limit zachowujemy dla starszych wpisów bez typu
+                      zmiany.
                     </Text>
                     <Text style={s.fieldLabel}>Kolor projektu</Text>
                     <View style={s.row}>
@@ -1924,6 +2164,37 @@ function AppContent() {
                   </>
                 ) : (
                   <>
+                    <Text style={s.fieldLabel}>Zmiana</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8 }}
+                    >
+                      {form.id && form.shiftId === "legacy" && (
+                        <Chip
+                          label="Bez typu (historyczny)"
+                          active
+                          onPress={() => {}}
+                        />
+                      )}
+                      {form.id &&
+                        form.shiftId !== "legacy" &&
+                        !data.shifts.some((x) => x.id === form.shiftId) && (
+                          <Chip
+                            label="Zapisana zmiana"
+                            active
+                            onPress={() => {}}
+                          />
+                        )}
+                      {data.shifts.map((x) => (
+                        <Chip
+                          key={x.id}
+                          label={x.name}
+                          active={form.shiftId === x.id}
+                          onPress={() => selectFormShift(x.id)}
+                        />
+                      ))}
+                    </ScrollView>
                     <Text style={s.fieldLabel}>Projekt</Text>
                     <View style={[s.row, { flexWrap: "wrap" }]}>
                       {data.jobs
@@ -2082,22 +2353,6 @@ function weekTitle(key: string) {
     end = localDate(key);
   end.setDate(end.getDate() + 6);
   return `${start.toLocaleDateString("pl-PL", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" })}`;
-}
-export default function App() {
-  const [loaded, error] = useFonts(Ionicons.font);
-  if (!loaded && !error)
-    return (
-      <View
-        style={{ flex: 1, backgroundColor: C.bg, justifyContent: "center" }}
-      >
-        <ActivityIndicator color={C.green} />
-      </View>
-    );
-  return (
-    <SafeAreaProvider>
-      <AppContent />
-    </SafeAreaProvider>
-  );
 }
 const s = StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg, flexDirection: "row" },

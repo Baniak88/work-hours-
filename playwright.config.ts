@@ -5,6 +5,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: "http://127.0.0.1:8081",
+    timezoneId: "Europe/London",
     ...devices["iPhone 13"],
     defaultBrowserType: "chromium",
     launchOptions: {
@@ -15,7 +16,7 @@ export default defineConfig({
   },
   reporter: "list",
   webServer: {
-    command: "python -m http.server 8081 --bind 0.0.0.0 --directory dist",
+    command: "python scripts/serve-preview.py",
     url: "http://127.0.0.1:8081",
     reuseExistingServer: true,
   },
