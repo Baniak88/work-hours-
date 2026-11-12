@@ -91,6 +91,7 @@ export function themeColor(value: string, name: ThemeName = "navy"): string {
     "#606977": p.muted,
     "#737D8C": p.muted,
     "#858D9B": p.muted,
+    "#BCB7AD": p.muted,
   };
   return (colors[base] ?? value.slice(0, 7)) + suffix;
 }

@@ -154,6 +154,9 @@ test("all three palettes preserve text contrast and map colours including transp
   }
   assert.equal(themeColor("#DCE2EA70", "light"), themes.light.accent + "70");
   assert.equal(themeColor("transparent", "light"), "transparent");
+  assert.ok(
+    contrast(themeColor("#BCB7AD", "light"), themes.light.raised) >= 4.5,
+  );
 });
 test("time display switches formats without changing minute precision or stored earnings", () => {
   assert.equal(duration(225), "3:45");
