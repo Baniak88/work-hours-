@@ -1,6 +1,8 @@
 export type OvertimePolicy = {
   overtimeMode?: "multiplier" | "fixed";
   overtimeRate?: number;
+  shiftAllowancePercent?: number;
+  allowanceOnOvertime?: boolean;
 };
 export type Job = OvertimePolicy & {
   id: string;
@@ -10,6 +12,7 @@ export type Job = OvertimePolicy & {
   overtime: number;
   color: string;
   archived?: boolean;
+  demo?: boolean;
 };
 export type Break = { start: number; end: number };
 export type Shift = {
@@ -34,6 +37,7 @@ export type Entry = OvertimePolicy & {
   overtime: number;
   shift?: ShiftRecord;
   autoStopped?: boolean;
+  demo?: boolean;
 };
 export type Timer = OvertimePolicy & {
   jobId: string;
@@ -47,7 +51,7 @@ export type Timer = OvertimePolicy & {
   plannedEnd?: number;
 };
 export type State = {
-  version: 3;
+  version: 4;
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
@@ -87,7 +91,7 @@ export const defaultShifts = (): Shift[] => [
   },
 ];
 export const freshState = (): State => ({
-  version: 3,
+  version: 4,
   jobs: [],
   entries: [],
   timer: null,
@@ -140,13 +144,38 @@ export function overtimeHourlyRate(
     : policy.rate * policy.overtime;
 }
 export function overtimeSnapshot(policy: OvertimePolicy): OvertimePolicy {
-  return policy.overtimeMode === "fixed"
-    ? { overtimeMode: "fixed", overtimeRate: policy.overtimeRate }
-    : policy.overtimeMode === "multiplier"
-      ? { overtimeMode: "multiplier" }
-      : {};
+  const overtime: OvertimePolicy =
+    policy.overtimeMode === "fixed"
+      ? { overtimeMode: "fixed", overtimeRate: policy.overtimeRate }
+      : policy.overtimeMode === "multiplier"
+        ? { overtimeMode: "multiplier" }
+        : {};
+  return {
+    ...overtime,
+    ...(policy.shiftAllowancePercent !== undefined
+      ? {
+          shiftAllowancePercent: policy.shiftAllowancePercent,
+          allowanceOnOvertime: policy.allowanceOnOvertime ?? false,
+        }
+      : {}),
+  };
+}
+export function allowanceHourlyRate(policy: OvertimePolicy & { rate: number }) {
+  return (policy.rate * (policy.shiftAllowancePercent ?? 0)) / 100;
 }
 export function validateOvertime(policy: OvertimePolicy) {
+  if (
+    policy.shiftAllowancePercent !== undefined &&
+    (!Number.isFinite(policy.shiftAllowancePercent) ||
+      policy.shiftAllowancePercent < 0 ||
+      policy.shiftAllowancePercent > 1000)
+  )
+    throw new Error("Shift allowance musi wynosić od 0 do 1000% stawki Basic.");
+  if (
+    policy.allowanceOnOvertime !== undefined &&
+    typeof policy.allowanceOnOvertime !== "boolean"
+  )
+    throw new Error("Wybierz, czy dodatek dotyczy nadgodzin.");
   if (
     policy.overtimeMode !== undefined &&
     !["fixed", "multiplier"].includes(policy.overtimeMode)
@@ -302,7 +331,12 @@ export function calculate(entries: Entry[]): Slice[] {
         minutes,
         regular,
         extra,
-        amount: (regular * e.rate + extra * overtimeHourlyRate(e)) / 60,
+        amount:
+          (regular * (e.rate + allowanceHourlyRate(e)) +
+            extra *
+              (overtimeHourlyRate(e) +
+                (e.allowanceOnOvertime ? allowanceHourlyRate(e) : 0))) /
+          60,
       });
       used.set(key, previous + minutes);
       start = end;
@@ -389,6 +423,10 @@ export function csv(state: State, entries = state.entries) {
       "Kwota",
       "Waluta",
       "Notatka",
+      "Shift allowance (%)",
+      "Dodatek za godzinę",
+      "Dodatek także za nadgodziny",
+      "Kwota dodatku",
     ],
     ...calculate(entries).map((s) => [
       s.date,
@@ -413,6 +451,14 @@ export function csv(state: State, entries = state.entries) {
       s.amount.toFixed(2),
       state.currency,
       s.entry.note,
+      s.entry.shiftAllowancePercent ?? 0,
+      allowanceHourlyRate(s.entry).toFixed(2),
+      s.entry.allowanceOnOvertime ? "Tak" : "Nie",
+      (
+        ((s.regular + (s.entry.allowanceOnOvertime ? s.extra : 0)) *
+          allowanceHourlyRate(s.entry)) /
+        60
+      ).toFixed(2),
     ]),
   ];
   return "\uFEFF" + rows.map((r) => r.map(quote).join(";")).join("\r\n");
@@ -458,7 +504,7 @@ export function validateBackup(input: unknown): State {
         (i === 0 || p.start >= b[i - 1].end),
     );
   if (
-    (version !== 1 && version !== 2 && version !== 3) ||
+    (version !== 1 && version !== 2 && version !== 3 && version !== 4) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.timeFormat !== undefined &&
       !["clock", "decimal"].includes(s.timeFormat)) ||
@@ -481,7 +527,8 @@ export function validateBackup(input: unknown): State {
         !!j.name.trim() &&
         policy(j) &&
         /^#[a-f\d]{6}$/i.test(j.color) &&
-        (j.archived === undefined || typeof j.archived === "boolean"),
+        (j.archived === undefined || typeof j.archived === "boolean") &&
+        (j.demo === undefined || typeof j.demo === "boolean"),
     )
   )
     return fail();
@@ -541,6 +588,7 @@ export function validateBackup(input: unknown): State {
         text(e.note) &&
         isRecord(e.shift) &&
         (e.autoStopped === undefined || typeof e.autoStopped === "boolean") &&
+        (e.demo === undefined || typeof e.demo === "boolean") &&
         policy(e),
     )
   )
@@ -583,9 +631,9 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   return version === 1
-    ? { ...s, version: 3, shifts: defaultShifts(), preferredShiftId: "day" }
-    : version === 2
-      ? { ...s, version: 3 }
+    ? { ...s, version: 4, shifts: defaultShifts(), preferredShiftId: "day" }
+    : version !== 4
+      ? { ...s, version: 4 }
       : s;
 }
 export function demoState(): State {
@@ -597,6 +645,7 @@ export function demoState(): State {
     dailyHours: 8,
     overtime: 1.25,
     color: "#B4F272",
+    demo: true,
   };
   state.jobs = [job];
   for (let i = 1; i <= 26; i++) {
@@ -612,6 +661,7 @@ export function demoState(): State {
     if (end.getTime() > Date.now()) continue;
     state.entries.push({
       id: uid(),
+      demo: true,
       jobId: job.id,
       start: d.getTime(),
       end: end.getTime(),

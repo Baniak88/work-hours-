@@ -24,8 +24,8 @@ const manifest = {
   scope: "/",
   display: "standalone",
   orientation: "portrait",
-  background_color: "#101314",
-  theme_color: "#101314",
+  background_color: "#111214",
+  theme_color: "#111214",
   icons: [
     {
       src: "/app-icon.png",
@@ -44,7 +44,7 @@ html = html.replace('<html lang="en">', '<html lang="pl">');
 html = html.replace(
   "</head>",
   `
-<meta name="theme-color" content="#101314">
+<meta name="theme-color" content="#111214">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Work Hours">
@@ -59,7 +59,7 @@ html = html.replace(
 );
 html = html.replace(
   "</head>",
-  `<style>html,body,#root{background:#101314}body{overscroll-behavior-y:none}button,a{-webkit-tap-highlight-color:transparent}</style></head>`,
+  `<style>html,body,#root{background:#111214}body{overscroll-behavior-y:none}button,a{-webkit-tap-highlight-color:transparent}</style></head>`,
 );
 await writeFile(path.join(root, "index.html"), html);
 await writeFile(

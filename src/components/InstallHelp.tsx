@@ -25,7 +25,7 @@ export default function InstallHelp() {
         <Ionicons
           name="phone-portrait-outline"
           size={22}
-          color="#B4F272"
+          color="#DCE2EA"
           accessible={false}
         />
         <Text style={s.title}>Zainstaluj na iPhonie</Text>
@@ -36,7 +36,7 @@ export default function InstallHelp() {
       </Text>
       <Text
         accessibilityLiveRegion="polite"
-        style={[s.status, ready && { color: "#B4F272" }]}
+        style={[s.status, ready && { color: "#DCE2EA" }]}
       >
         {ready
           ? "✓ Gotowa do pracy offline na tym urządzeniu"
@@ -57,12 +57,12 @@ const s = StyleSheet.create({
     padding: 18,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#334144",
-    backgroundColor: "#1B2325",
+    borderColor: "#34363C",
+    backgroundColor: "#1C1D20",
     gap: 12,
   },
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
-  title: { fontSize: 16, fontWeight: "600", color: "#F4F8F5" },
-  body: { fontSize: 13, lineHeight: 20, color: "#A6B4B6" },
-  status: { fontSize: 12, lineHeight: 18, color: "#A6B4B6" },
+  title: { fontSize: 16, fontWeight: "600", color: "#F4F4F5" },
+  body: { fontSize: 13, lineHeight: 20, color: "#AFB2BB" },
+  status: { fontSize: 12, lineHeight: 18, color: "#AFB2BB" },
 });

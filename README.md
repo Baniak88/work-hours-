@@ -2,13 +2,23 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.4 — proste stawki i usuwanie przykładów
+
+- **Ustawienia → Stawki → wybierz miejsce pracy**: trzy pola: **Basic** (kwota za godzinę), **Shift allowance** (edytowalny procent Basic) i **Overtime rate** (osobna kwota za godzinę po normie). Formularz pokazuje stawkę przed normą i po niej. Przełącznik „Dodatek także do nadgodzin” określa, czy dodatek liczony od Basic doliczać do Overtime.
+- Przykład: Basic **£20**, allowance **15%**, Overtime **£35**, norma **8 h**, płatna praca **10 h** daje **8 × £23 + 2 × £35 = £254**. Z dodatkiem także na nadgodzinach: **£260**. Niepłatne przerwy są odliczane, a nocna zmiana ma jedną normę przez północ.
+- **Ustawienia → Usuń dane przykładowe** usuwa przykłady po potwierdzeniu, zachowując własne wpisy i aktywny licznik. Przykłady z 1.3 są rozpoznawane po pełnym wzorcu wygenerowanych wpisów (data utworzenia, godziny, przerwy, stawki, profil i notatka), a nie po samej nazwie Bowmill. Nowe przykłady mają jawne oznaczenie.
+- **Ustawienia → Wyczyść wpisy i projekty** usuwa całą ewidencję i oznaczenia wypłat z tego urządzenia po potwierdzeniu. Zachowuje profile zmian, walutę i format czasu. Najpierw trzeba zakończyć aktywną zmianę. Do odzyskania historii potrzebna jest kopia JSON.
+- **Pozostałe → Zarządzaj miejscami pracy** rozdziela archiwizację (zachowuje wpisy) i usunięcie projektu z jego wpisami. Podstawowe ustawienia pokazują najpierw stawki i kompaktową listę zmian; format czasu i waluta są w rozwijanej sekcji.
+- Interfejs używa grafitu, szarości i jasnych akcentów zamiast jaskrawej zieleni. Nowy formularz korzysta z kwotowej stawki Overtime; dotychczasowe mnożniki w historii pozostają obsługiwane bez przeliczania zapisów.
+- **Kopie JSON mają format 4**, aby starsze aplikacje nie zignorowały dodatku procentowego. Kopie 1–3 są odczytywane z zachowaniem wcześniejszych zarobków. Przed przywróceniem kopii 4 na drugim telefonie zaktualizuj aplikację.
+
 ## iPhone — bezpłatna instalacja z Safari (1.3)
 
 **[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Wersja hostowana przez Sites jest prywatna — jeśli pojawi się logowanie, użyj konta ChatGPT właściciela tej aplikacji. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
 
 1. Otwórz powyższy adres w **Safari**.
 2. Wybierz **Udostępnij → Do ekranu początkowego → Dodaj**. Jeżeli jest opcja „Otwórz jako aplikację”, włącz ją.
-3. Uruchom ikonę **Work Hours** i pozostaw połączenie z internetem. W **Więcej → Instalacja i offline** zaczekaj na „Gotowa do pracy offline na tym urządzeniu”. Od tej chwili kalendarz, licznik, ustawienia i zapis są dostępne bez internetu.
+3. Uruchom ikonę **Work Hours** i pozostaw połączenie z internetem. W **Ustawienia → Instalacja i offline** zaczekaj na „Gotowa do pracy offline na tym urządzeniu”. Od tej chwili kalendarz, licznik, ustawienia i zapis są dostępne bez internetu.
 4. Aby przenieść dane z Androida, zapisz tam kopię JSON i wczytaj ją w aplikacji na iPhonie. Zapis w Safari i w ikonie na ekranie może być oddzielny; sprawdź dane po uruchomieniu z ikony.
 
 To wersja PWA dodawana do ekranu głównego: nie wymaga App Store, komputera, Expo Go ani płatnego Apple Developer. Natywny plik IPA pozostaje osobną opcją wymagającą podpisu Apple. Bezpłatny Personal Team z Xcode wymaga Maca i ponownego podpisania po 7 dniach ([zasady Apple](https://developer.apple.com/support/compare-memberships/)).
@@ -18,7 +28,7 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 ## Czytelność i format czasu — wersja 1.3
 
 - Kalendarz ma osobne wiersze tygodni, większe pola i napisy, wyróżnione weekendy oraz czytelniejsze sumy miesiąca. Puste dni nie pokazują zbędnych kropek.
-- **Więcej → Wyświetlanie czasu**: wybierz **Godziny i minuty** (3:45) albo **Godziny dziesiętne** (3,75 h). Wybór jest zapamiętywany i obejmuje kalendarz, raporty i normy. Zegar zmiany nadal pokazuje GG:MM:SS; stawki i obliczenia zachowują pełną dokładność.
+- **Ustawienia → Wyświetlanie czasu**: wybierz **Godziny i minuty** (3:45) albo **Godziny dziesiętne** (3,75 h). Wybór jest zapamiętywany i obejmuje kalendarz, raporty i normy. Zegar zmiany nadal pokazuje GG:MM:SS; stawki i obliczenia zachowują pełną dokładność.
 - Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
 - Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
 
@@ -59,7 +69,7 @@ Przykład: £20/h, nadgodziny £35/h, norma 8 h i 9:30 płatnej pracy = **£212,
 
 ## Zmiany dzienne i nocne — wersja 1.1
 
-- **Więcej → Zmiany i norma godzin:** edytuj nazwę, rodzaj, początek, koniec i normę albo dodaj własny profil. Planowana długość i norma są niezależne.
+- **Ustawienia → Zmiany i norma godzin:** edytuj nazwę, rodzaj, początek, koniec i normę albo dodaj własny profil. Planowana długość i norma są niezależne.
 - **Pulpit:** wybierz zmianę i projekt, naciśnij **Start zmiany** przy przyjściu. Zegar zapisuje faktyczny czas, bez zaokrąglania do początku grafiku.
 - **Przerwa / Wznów:** przerwa nie wlicza się do normy. Wskaźnik pokazuje czas do normy i nadgodziny.
 - **Zakończ zmianę:** zapisuje rzeczywisty koniec. Opcjonalny **Auto-stop** ogranicza czas do najbliższego wystąpienia ustawionej godziny końca. Przed Startem widoczna jest data i godzina końca. Następna zmiana wymaga ponownego naciśnięcia Start.
@@ -143,6 +153,8 @@ Publikacja w sklepach jest osobnym etapem, wymagającym kont właściciela, podp
 - Przeniesienie między Androidem i iPhonem: zapisz kopię JSON, prześlij plik na drugi telefon i użyj „Przywróć z pliku”. Przywrócenie zastępuje obecne dane. Nie ma automatycznej synchronizacji.
 
 ## Kontrole
+
+Wersja 1.4: sprawdzono 37 testów domeny (w tym dodatki procentowe, historyczne stawki, migrację i usuwanie przykładów), lint, TypeScript i eksport JS Android/iOS/web. Testy interfejsu Playwright dostosowano do nowych pól; nie uruchomiono ich dla 1.4, ponieważ w tym środowisku Sites nie ma narzędzia cua_repl.js do wymaganej ścieżki podglądu.
 
 Wersja 1.3: sprawdzono 31 testów domeny, 4 testy offline (pełne zasoby i leniwie ładowane ekrany, tryb bez sieci, odrzucenie przekierowań logowania, aktualizację pamięci podręcznej), lint, TypeScript oraz eksport JS Android/iOS/web. Nie wykonano jeszcze instalacji ani testu Safari na fizycznym iPhonie. Środowisko Sites nie udostępnia narzędzia cua_repl.js, więc podgląd przeglądarkowy nowej wersji nie został sprawdzony.
 

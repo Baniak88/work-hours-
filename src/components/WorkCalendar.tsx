@@ -22,13 +22,13 @@ type Props = {
   onMonth: (month: string) => void;
 };
 const C = {
-  card: "#1B2325",
-  line: "#303D40",
-  muted: "#96A7AA",
-  text: "#F4F8F5",
-  green: "#B4F272",
-  day: "#F3CD87",
-  night: "#AFB7FF",
+  card: "#1C1D20",
+  line: "#34363C",
+  muted: "#A0A3AB",
+  text: "#F4F4F5",
+  green: "#DCE2EA",
+  day: "#C7C9CD",
+  night: "#9DAAC0",
 };
 export default function WorkCalendar(p: Props) {
   const { metric } = p;
@@ -120,7 +120,7 @@ export default function WorkCalendar(p: Props) {
               onPress={() => p.onMetric(key)}
               style={[
                 s.metricButton,
-                metric === key && { backgroundColor: "#3B4943" },
+                metric === key && { backgroundColor: "#3A3D45" },
               ]}
             >
               <Text
@@ -173,11 +173,11 @@ export default function WorkCalendar(p: Props) {
                       s.cell,
                       selected && { backgroundColor: C.green },
                       !selected &&
-                        t.minutes > 0 && { backgroundColor: "#26352B" },
+                        t.minutes > 0 && { backgroundColor: "#2B2E35" },
                       !selected && today && { borderColor: C.green },
                       i >= 5 &&
                         !selected &&
-                        !parts.length && { backgroundColor: "#202B2D" },
+                        !parts.length && { backgroundColor: "#222428" },
                     ]}
                   >
                     <Text
@@ -185,9 +185,9 @@ export default function WorkCalendar(p: Props) {
                         s.dayNumber,
                         {
                           color: selected
-                            ? "#152010"
+                            ? "#17181B"
                             : day > p.today
-                              ? "#9AA9AB"
+                              ? "#A0A3AB"
                               : C.text,
                         },
                       ]}
@@ -198,7 +198,7 @@ export default function WorkCalendar(p: Props) {
                       numberOfLines={1}
                       style={[
                         s.value,
-                        { color: selected ? "#263B1B" : C.muted },
+                        { color: selected ? "#33363D" : C.muted },
                       ]}
                     >
                       {parts.length
@@ -212,7 +212,7 @@ export default function WorkCalendar(p: Props) {
                         <View
                           style={[
                             s.dot,
-                            { backgroundColor: selected ? "#8C691E" : C.day },
+                            { backgroundColor: selected ? "#5C5E64" : C.day },
                           ]}
                         />
                       )}
@@ -220,7 +220,7 @@ export default function WorkCalendar(p: Props) {
                         <View
                           style={[
                             s.dot,
-                            { backgroundColor: selected ? "#514794" : C.night },
+                            { backgroundColor: selected ? "#596779" : C.night },
                           ]}
                         />
                       )}
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 9,
-    backgroundColor: "#283437",
+    backgroundColor: "#2C2E33",
   },
   month: {
     flex: 1,
@@ -314,7 +314,7 @@ const s = StyleSheet.create({
   metric: {
     flexDirection: "row",
     padding: 3,
-    backgroundColor: "#121B1D",
+    backgroundColor: "#151619",
     borderRadius: 8,
   },
   metricButton: {

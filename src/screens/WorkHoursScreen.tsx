@@ -20,13 +20,13 @@ import {
   Entry,
   Job,
   overtimeHourlyRate,
+  allowanceHourlyRate,
   overtimeSnapshot,
   validateOvertime,
   State,
   Shift,
   Slice,
   makeTimer,
-  shiftDuration,
   shiftWorkDate,
   validateShift,
   calculate,
@@ -49,23 +49,29 @@ import {
 } from "../domain";
 import { useWorkHours } from "../WorkHoursProvider";
 import { router } from "expo-router";
+import {
+  clearWorkData,
+  removeSampleData,
+  sampleEntryIds,
+  removeJobData,
+} from "../dataManagement";
 import InstallHelp from "../components/InstallHelp";
 import ShiftClock from "../components/ShiftClock";
 import WorkCalendar from "../components/WorkCalendar";
 import { exportFile, importFile } from "../files";
 
 const C = {
-  bg: "#101314",
-  card: "#1B2021",
-  raised: "#252B2D",
-  line: "#303638",
-  text: "#F4F5F1",
-  muted: "#929D9D",
-  green: "#B4F272",
-  blue: "#8CB8F7",
-  red: "#FF9B91",
+  bg: "#111214",
+  card: "#1C1D20",
+  raised: "#282A2F",
+  line: "#34363C",
+  text: "#F4F4F5",
+  muted: "#A0A3AB",
+  green: "#DCE2EA",
+  blue: "#AEBED1",
+  red: "#ECAAA5",
 };
-const COLORS = [C.green, C.blue, "#D9AFF7", "#F4C582", "#F29BB5"];
+
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
 type Tab = "home" | "entries" | "reports" | "settings";
 type Form = {
@@ -84,7 +90,7 @@ const tabs: { key: Tab; label: string; icon: Icon }[] = [
   { key: "home", label: "Pulpit", icon: "grid-outline" },
   { key: "entries", label: "Kalendarz", icon: "calendar-outline" },
   { key: "reports", label: "Raporty", icon: "stats-chart-outline" },
-  { key: "settings", label: "Więcej", icon: "options-outline" },
+  { key: "settings", label: "Ustawienia", icon: "options-outline" },
 ];
 function I({
   name,
@@ -214,7 +220,7 @@ function Field({
         value={value ?? ""}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor="#657172"
+        placeholderTextColor="#7F838D"
         keyboardType={numeric ? "decimal-pad" : "default"}
         multiline={multiline}
         style={[s.input, multiline && { height: 85, textAlignVertical: "top" }]}
@@ -273,7 +279,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [form, setForm] = useState<Form | null>(null),
     [formError, setFormError] = useState(""),
-    [confirm, setConfirm] = useState<Confirm | null>(null);
+    [confirm, setConfirm] = useState<Confirm | null>(null),
+    [preferencesOpen, setPreferencesOpen] = useState(false),
+    [managementOpen, setManagementOpen] = useState(false);
   const [search, setSearch] = useState(""),
     [projectFilter, setProjectFilter] = useState("all"),
     [shiftFilter, setShiftFilter] = useState("all"),
@@ -286,6 +294,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     [calendarMonth, setCalendarMonth] = useState(() =>
       dateKey(now).slice(0, 7),
     );
+  const samples = useMemo(
+    () => (state ? sampleEntryIds(state) : new Set<string>()),
+    [state],
+  );
   const calculated = useMemo(
     () => calculate(state?.entries ?? []),
     [state?.entries],
@@ -331,12 +343,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     setForm({
       type: "job",
       id: j?.id,
-      name: j?.name ?? "",
-      rate: String(j?.rate ?? 23.15),
+      name: j?.name ?? "Moja praca",
+      rate: j ? String(j.rate) : "",
       dailyHours: String(j?.dailyHours ?? 8),
       overtime: String(j?.overtime ?? 1.25),
-      overtimeMode: j?.overtimeMode ?? "multiplier",
-      overtimeRate: String(j ? overtimeHourlyRate(j) : 28.94),
+      overtimeMode: "fixed",
+      overtimeRate: j ? String(overtimeHourlyRate(j)) : "",
+      shiftAllowancePercent: String(j?.shiftAllowancePercent ?? 0),
+      allowanceOnOvertime: String(j?.allowanceOnOvertime ?? false),
       color: j?.color ?? C.green,
     });
   }
@@ -354,59 +368,91 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   function rateFields() {
     if (!form) return null;
     const base = Number(form.rate?.replace(",", ".")),
-      mult = Number(form.overtime?.replace(",", "."));
-    const effective =
-      form.overtimeMode === "fixed"
-        ? Number(form.overtimeRate?.replace(",", "."))
-        : base * mult;
+      percent = Number(form.shiftAllowancePercent?.replace(",", ".")),
+      overtime = Number(form.overtimeRate?.replace(",", ".")),
+      allowance = (base * percent) / 100;
     return (
-      <View style={{ gap: 13 }}>
+      <View style={{ gap: 14 }}>
         <Field
-          label={`Stawka godzinowa (${data.currency})`}
+          label={`Basic — stawka podstawowa (${data.currency}/h)`}
           numeric
           value={form.rate}
           onChange={(v) => updateRate("rate", v)}
+          placeholder="np. 20,00"
         />
-        <Text style={s.fieldLabel}>Stawka nadgodzin</Text>
-        <View style={s.row}>
-          <Chip
-            label="Mnożnik"
-            active={form.overtimeMode !== "fixed"}
-            onPress={() => updateRate("overtimeMode", "multiplier")}
-          />
-          <Chip
-            label="Kwota za godzinę"
-            active={form.overtimeMode === "fixed"}
-            onPress={() => updateRate("overtimeMode", "fixed")}
-          />
-        </View>
-        {form.overtimeMode === "fixed" ? (
-          <Field
-            label={`Nadgodziny za godzinę (${data.currency})`}
-            numeric
-            value={form.overtimeRate}
-            onChange={(v) => updateRate("overtimeRate", v)}
-          />
-        ) : (
-          <Field
-            label="Mnożnik nadgodzin"
-            numeric
-            value={form.overtime}
-            onChange={(v) => updateRate("overtime", v)}
-          />
-        )}
-        <View
-          style={[
-            s.between,
-            { padding: 12, backgroundColor: "#233020", borderRadius: 10 },
-          ]}
+        <Field
+          label="Shift allowance — dodatek (%)"
+          numeric
+          value={form.shiftAllowancePercent}
+          onChange={(v) => updateRate("shiftAllowancePercent", v)}
+          placeholder="np. 15"
+        />
+        <Text style={s.caption}>
+          Procent stawki Basic. Wpisz 0, jeśli nie masz dodatku.
+        </Text>
+        <Field
+          label={`Overtime rate — nadgodziny (${data.currency}/h)`}
+          numeric
+          value={form.overtimeRate}
+          onChange={(v) => updateRate("overtimeRate", v)}
+          placeholder="np. 30,00"
+        />
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityLabel="Dodatek także do nadgodzin"
+          accessibilityState={{ checked: form.allowanceOnOvertime === "true" }}
+          onPress={() =>
+            updateRate(
+              "allowanceOnOvertime",
+              String(form.allowanceOnOvertime !== "true"),
+            )
+          }
+          style={[s.row, { paddingVertical: 8, minHeight: 44 }]}
         >
-          <Text style={s.caption}>Zwykła / nadgodzina</Text>
-          <Text style={{ color: C.green, fontSize: 13, fontWeight: "600" }}>
-            {Number.isFinite(base) ? fmt(base) : "—"} /{" "}
-            {Number.isFinite(effective) ? fmt(effective) : "—"}
+          <I
+            name={
+              form.allowanceOnOvertime === "true"
+                ? "checkbox"
+                : "square-outline"
+            }
+            color={C.green}
+          />
+          <Text style={[s.caption, { flex: 1 }]}>
+            Dodatek także do nadgodzin
           </Text>
+        </Pressable>
+        <View
+          style={{
+            padding: 14,
+            gap: 10,
+            backgroundColor: C.raised,
+            borderRadius: 12,
+          }}
+        >
+          <View style={s.between}>
+            <Text style={s.caption}>Do normy · Basic + dodatek</Text>
+            <Text style={s.rowTitle}>
+              {Number.isFinite(base + allowance) ? fmt(base + allowance) : "—"}
+              /h
+            </Text>
+          </View>
+          <View style={s.between}>
+            <Text style={s.caption}>Po normie · Overtime</Text>
+            <Text style={s.rowTitle}>
+              {Number.isFinite(overtime + allowance)
+                ? fmt(
+                    overtime +
+                      (form.allowanceOnOvertime === "true" ? allowance : 0),
+                  )
+                : "—"}
+              /h
+            </Text>
+          </View>
         </View>
+        <Text style={s.caption}>
+          Nadgodziny zaczynają się po normie ustawionej dla zmiany. Przerwy są
+          niepłatne.
+        </Text>
       </View>
     );
   }
@@ -419,7 +465,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             jobId: id,
             rate: String(j.rate),
             overtime: String(j.overtime),
-            overtimeMode: j.overtimeMode ?? "multiplier",
+            overtimeMode: "fixed",
+            shiftAllowancePercent: String(j.shiftAllowancePercent ?? 0),
+            allowanceOnOvertime: String(j.allowanceOnOvertime ?? false),
             overtimeRate: String(overtimeHourlyRate(j)),
             ratesExpanded: "false",
             ratesDirty: "false",
@@ -498,7 +546,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       note: e?.note ?? "",
       rate: String(entryPolicy?.rate ?? 0),
       overtime: String(entryPolicy?.overtime ?? 1.25),
-      overtimeMode: entryPolicy?.overtimeMode ?? "multiplier",
+      overtimeMode: "fixed",
+      shiftAllowancePercent: String(entryPolicy?.shiftAllowancePercent ?? 0),
+      allowanceOnOvertime: String(entryPolicy?.allowanceOnOvertime ?? false),
       overtimeRate: String(entryPolicy ? overtimeHourlyRate(entryPolicy) : 0),
       ratesExpanded: "false",
       ratesDirty: "false",
@@ -615,6 +665,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           dailyHours = Number(form.dailyHours?.replace(",", ".")),
           overtime = Number(form.overtime?.replace(",", "."));
         const overtimePolicy = {
+          shiftAllowancePercent: Number(
+            form.shiftAllowancePercent?.replace(",", "."),
+          ),
+          allowanceOnOvertime: form.allowanceOnOvertime === "true",
           overtimeMode:
             form.overtimeMode === "fixed"
               ? ("fixed" as const)
@@ -648,6 +702,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           ...overtimePolicy,
           color: form.color ?? C.green,
           archived: data.jobs.find((j) => j.id === form.id)?.archived,
+          demo: data.jobs.find((j) => j.id === form.id)?.demo,
         };
         if (
           await save(
@@ -718,6 +773,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         form.ratesDirty === "true"
           ? {
               rate: Number(form.rate?.replace(",", ".")),
+              shiftAllowancePercent: Number(
+                form.shiftAllowancePercent?.replace(",", "."),
+              ),
+              allowanceOnOvertime: form.allowanceOnOvertime === "true",
               overtime: Number(form.overtime?.replace(",", ".")),
               overtimeMode:
                 form.overtimeMode === "fixed"
@@ -778,6 +837,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             }
           : {}),
         ...(old?.autoStopped ? { autoStopped: true } : {}),
+        ...(old?.demo ? { demo: true } : {}),
       };
       checkEntry(entry, data.entries, timer);
       if (
@@ -874,16 +934,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         style={s.entryRow}
         onPress={() => openEntry(e)}
       >
-        <View style={[s.entryMark, { backgroundColor: j.color + "19" }]}>
-          <I name="briefcase-outline" color={j.color} size={19} />
+        <View style={[s.entryMark, { backgroundColor: C.muted + "19" }]}>
+          <I name="briefcase-outline" color={C.muted} size={19} />
         </View>
         <View style={{ flex: 1, gap: 5 }}>
-          <Text style={s.rowTitle}>{j.name}</Text>
+          <Text style={s.rowTitle}>
+            {j.name}
+            {e.demo ? " · przykład" : ""}
+          </Text>
           {e.shift && (
             <Text
               style={{
                 fontSize: 10,
-                color: e.shift.kind === "night" ? "#AFB7FF" : "#F3CD87",
+                color: e.shift.kind === "night" ? "#9DAAC0" : "#C7C9CD",
               }}
             >
               {e.shift.name} · norma {duration(e.shift.normHours * 60)} h
@@ -1161,10 +1224,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <View
                         style={[
                           s.projectIcon,
-                          { backgroundColor: j.color + "18" },
+                          { backgroundColor: C.muted + "18" },
                         ]}
                       >
-                        <I name="briefcase-outline" color={j.color} />
+                        <I name="briefcase-outline" color={C.muted} />
                       </View>
                       <View style={{ gap: 5, flex: 1 }}>
                         <Text style={s.rowTitle}>{j.name}</Text>
@@ -1250,7 +1313,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           {data.jobs.map((j) => (
             <Chip
               key={j.id}
-              dot={j.color}
+              dot={C.muted}
               label={j.name + (j.archived ? " · archiwum" : "")}
               active={projectFilter === j.id}
               onPress={() => {
@@ -1679,8 +1742,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <Text style={s.sectionTitle}>Dzienne i nocne · ten miesiąc</Text>
               {(
                 [
-                  { kind: "day", name: "Zmiany dzienne", color: "#F3CD87" },
-                  { kind: "night", name: "Zmiany nocne", color: "#AFB7FF" },
+                  { kind: "day", name: "Zmiany dzienne", color: "#C7C9CD" },
+                  { kind: "night", name: "Zmiany nocne", color: "#9DAAC0" },
                   {
                     kind: "legacy",
                     name: "Bez przypisanej zmiany",
@@ -1735,7 +1798,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           {
                             height: `${(d.minutes / max) * 100}%`,
                             backgroundColor:
-                              d.key === today ? C.green : "#46633C",
+                              d.key === today ? C.green : "#606977",
                             minHeight: d.minutes ? 4 : 0,
                           },
                         ]}
@@ -1777,7 +1840,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <View key={j.id} style={s.projectReport}>
                       <View style={s.between}>
                         <View style={s.row}>
-                          <View style={[s.dot, { backgroundColor: j.color }]} />
+                          <View style={[s.dot, { backgroundColor: C.muted }]} />
                           <Text style={s.rowTitle}>{j.name}</Text>
                         </View>
                         <Text style={s.rowMoney}>{fmt(t.amount)}</Text>
@@ -1787,7 +1850,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           style={{
                             width: `${total.minutes ? (t.minutes / total.minutes) * 100 : 0}%`,
                             height: 5,
-                            backgroundColor: j.color,
+                            backgroundColor: C.muted,
                             borderRadius: 4,
                           }}
                         />
@@ -1846,18 +1909,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <View
                         style={[
                           s.pill,
-                          { backgroundColor: paid ? "#263A28" : "#393329" },
+                          { backgroundColor: paid ? "#292C32" : "#303138" },
                         ]}
                       >
                         <I
                           name={paid ? "checkmark-circle" : "hourglass-outline"}
                           size={13}
-                          color={paid ? C.green : "#F4C582"}
+                          color={paid ? C.green : "#BCB7AD"}
                         />
                         <Text
                           style={[
                             s.pillText,
-                            { color: paid ? C.green : "#F4C582" },
+                            { color: paid ? C.green : "#BCB7AD" },
                           ]}
                         >
                           {paid ? "Opłacono" : "Do rozliczenia"}
@@ -1920,313 +1983,379 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       </Pressable>
     );
   }
+  function requestSampleRemoval() {
+    setConfirm({
+      title: "Usunąć dane przykładowe?",
+      body: `Usuniemy ${samples.size} przykładowych wpisów i nieużywany projekt przykładowy. Twoje własne wpisy, aktywny licznik, stawki i ustawienia zostaną zachowane.`,
+      label: "Usuń przykłady",
+      danger: true,
+      action: () => {
+        void save(removeSampleData(data), "Dane przykładowe usunięte").then(
+          (ok) => {
+            if (ok) setConfirm(null);
+          },
+        );
+      },
+    });
+  }
   function settings() {
     return (
       <>
         {header(
-          "PO TWOJEMU",
-          "Twoje miejsce pracy.",
-          "Proste ustawienia. Pełna kontrola nad danymi.",
+          "USTAWIENIA",
+          "Stawki i zmiany.",
+          "Wszystko, czego potrzebujesz do rozliczenia pracy.",
         )}
-        <View style={s.privacyCard}>
-          <I name="shield-checkmark-outline" size={27} color={C.green} />
-          <View style={{ gap: 7, flex: 1 }}>
-            <Text style={s.rowTitle}>Twoje dane zostają u Ciebie</Text>
-            <Text style={[s.caption, { lineHeight: 21 }]}>
-              Aplikacja działa offline, bez konta i reklam. Pamiętaj o
-              regularnym zapisywaniu kopii — usunięcie aplikacji może usunąć
-              dane.
+        {(samples.size > 0 || data.jobs.some((j) => j.demo)) && (
+          <View style={[s.card, { padding: 16, gap: 12, marginBottom: 20 }]}>
+            <View style={s.row}>
+              <I name="information-circle-outline" color={C.green} />
+              <Text style={s.rowTitle}>Masz dane przykładowe</Text>
+            </View>
+            <Text style={s.caption}>
+              {samples.size} wpisów do wypróbowania aplikacji. Możesz je usunąć,
+              zachowując własną historię.
             </Text>
+            <Button
+              label="Usuń dane przykładowe"
+              icon="trash-outline"
+              kind="secondary"
+              onPress={requestSampleRemoval}
+            />
           </View>
-        </View>
-        <Text style={s.settingsHeading}>ZMIANY I NORMA GODZIN</Text>
+        )}
+        <Text style={s.settingsHeading}>STAWKI</Text>
         <View style={{ gap: 12 }}>
-          {data.shifts.map((value) => (
-            <View key={value.id} style={[s.card, { padding: 18, gap: 15 }]}>
+          {jobs.map((j) => (
+            <Pressable
+              key={j.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Ustawienia projektu ${j.name}`}
+              onPress={() => openJob(j)}
+              style={[s.card, { padding: 16, gap: 16 }]}
+            >
               <View style={s.between}>
-                <View style={s.row}>
-                  <I
-                    name={
-                      value.kind === "night" ? "moon-outline" : "sunny-outline"
-                    }
-                    color={value.kind === "night" ? "#AFB7FF" : "#F3CD87"}
-                  />
-                  <Text style={s.rowTitle}>{value.name}</Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edytuj: ${value.name}`}
-                  onPress={() => openShift(value)}
-                  style={s.iconTile}
-                >
-                  <I name="create-outline" color={C.text} />
-                </Pressable>
+                <Text style={s.rowTitle}>{j.name}</Text>
+                <I name="create-outline" color={C.text} />
               </View>
-              <View style={s.between}>
-                <Text
-                  style={{
-                    color: C.text,
-                    fontSize: 23,
-                    fontWeight: "600",
-                    fontVariant: ["tabular-nums"],
-                  }}
-                >
-                  {value.startTime} – {value.endTime}
-                </Text>
-                <Text style={s.caption}>
-                  {value.endTime < value.startTime ? "+1 dzień · " : ""}
-                  {duration(shiftDuration(value))} h
-                </Text>
+              <View style={[s.row, { gap: 8 }]}>
+                {[
+                  { label: "Basic / h", value: fmt(j.rate) },
+                  {
+                    label: "Allowance",
+                    value: `${j.shiftAllowancePercent ?? 0}%`,
+                  },
+                  { label: "Overtime / h", value: fmt(overtimeHourlyRate(j)) },
+                ].map((v) => (
+                  <View key={v.label} style={{ flex: 1, gap: 6 }}>
+                    <Text style={s.caption}>{v.label}</Text>
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      style={[s.rowTitle, { fontSize: 17 }]}
+                    >
+                      {v.value}
+                    </Text>
+                  </View>
+                ))}
               </View>
               <Text style={s.caption}>
-                Norma {duration(value.normHours * 60)} h ·{" "}
-                {value.autoStop
-                  ? "Automatyczne zakończenie"
-                  : "Ręczne zakończenie przyciskiem Stop"}
+                Do normy {fmt(j.rate + allowanceHourlyRate(j))}/h · po normie{" "}
+                {fmt(
+                  overtimeHourlyRate(j) +
+                    (j.allowanceOnOvertime ? allowanceHourlyRate(j) : 0),
+                )}
+                /h
               </Text>
-            </View>
+            </Pressable>
           ))}
-        </View>
-        <View style={{ marginTop: 14 }}>
           <Button
-            label="Dodaj własną zmianę"
+            label={
+              jobs.length
+                ? "Dodaj miejsce pracy"
+                : "Ustaw stawki i miejsce pracy"
+            }
             icon="add"
-            kind="secondary"
-            onPress={() => openShift()}
+            kind={jobs.length ? "secondary" : "primary"}
+            onPress={() => openJob()}
           />
         </View>
-        <Text style={s.footnote}>
-          Godziny planu i norma są niezależne. Na zmianie 17:30–03:00 możesz
-          mieć normę 8 h. Przerwy są niepłatne; północ nie zeruje normy. Zmiany
-          ustawień dotyczą kolejnych uruchomień.
-        </Text>
-        {Platform.OS === "web" && (
-          <>
-            <Text style={s.settingsHeading}>INSTALACJA I OFFLINE</Text>
-            <InstallHelp />
-          </>
-        )}
-        <Text style={s.settingsHeading}>WYŚWIETLANIE CZASU</Text>
-        <View
-          accessibilityRole="radiogroup"
-          accessibilityLabel="Format czasu pracy"
-          style={s.card}
-        >
-          {(
-            [
-              {
-                key: "clock",
-                title: "Godziny i minuty",
-                example: "3:45 = 3 godz. 45 min",
-              },
-              {
-                key: "decimal",
-                title: "Godziny dziesiętne",
-                example: "3,75 h = 3 godz. 45 min",
-              },
-            ] as const
-          ).map((option, index) => {
-            const active = (data.timeFormat ?? "clock") === option.key;
-            return (
-              <Pressable
-                key={option.key}
-                accessibilityRole="radio"
-                accessibilityLabel={option.title}
-                accessibilityState={{ checked: active }}
-                disabled={busy}
-                onPress={() => void save({ ...data, timeFormat: option.key })}
-                style={({ pressed }) => ({
-                  padding: 18,
-                  minHeight: 72,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                  borderTopWidth: index ? 1 : 0,
-                  borderColor: C.line,
-                  opacity: pressed ? 0.7 : 1,
-                })}
-              >
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={s.rowTitle}>{option.title}</Text>
-                  <Text style={s.caption}>{option.example}</Text>
-                </View>
-                <I
-                  name={active ? "checkmark-circle" : "ellipse-outline"}
-                  color={active ? C.green : C.muted}
-                  size={24}
-                />
-              </Pressable>
-            );
-          })}
+        <Text style={s.settingsHeading}>ZMIANY I NORMA</Text>
+        <View style={s.card}>
+          {data.shifts.map((v) => (
+            <Pressable
+              key={v.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Edytuj: ${v.name}`}
+              onPress={() => openShift(v)}
+              style={s.settingRow}
+            >
+              <I
+                name={v.kind === "night" ? "moon-outline" : "sunny-outline"}
+                color={C.text}
+              />
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={s.rowTitle}>{v.name}</Text>
+                <Text style={s.caption}>
+                  {v.startTime}–{v.endTime}
+                  {v.endTime < v.startTime ? " (+1 dzień)" : ""} · norma{" "}
+                  {duration(v.normHours * 60)} h
+                </Text>
+                <Text style={s.caption}>
+                  {v.autoStop ? "Automatyczny stop" : "Stop przyciskiem"}
+                </Text>
+              </View>
+              <I name="chevron-forward" size={18} />
+            </Pressable>
+          ))}
+          {settingRow(
+            "add-outline",
+            "Dodaj własną zmianę",
+            "Godziny, norma i sposób zakończenia",
+            () => openShift(),
+          )}
+        </View>
+        <Text style={s.settingsHeading}>TWOJE DANE</Text>
+        <View style={s.card}>
+          {settingRow(
+            "download-outline",
+            "Zapisz kopię zapasową",
+            "Przenieś godziny i stawki w pliku JSON",
+            () => void download("json"),
+          )}
+          {settingRow(
+            "document-text-outline",
+            "Eksportuj raport CSV",
+            "Godziny, dodatki i zarobki",
+            () => void download("csv"),
+          )}
+          {settingRow(
+            "cloud-upload-outline",
+            "Przywróć z pliku",
+            "Wczytaj wcześniej zapisaną kopię",
+            () => void restore(),
+          )}
+          {settingRow(
+            "trash-outline",
+            "Wyczyść wpisy i projekty",
+            `${data.entries.length} wpisów · ${data.jobs.length} miejsc pracy`,
+            () => {
+              if (timer) {
+                setNotice("Najpierw zakończ aktywną zmianę.");
+                return;
+              }
+              setConfirm({
+                title: "Wyczyścić ewidencję?",
+                body: `Usuniemy wszystkie ${data.entries.length} wpisów, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.`,
+                label: "Wyczyść ewidencję",
+                danger: true,
+                action: () => {
+                  void save(clearWorkData(data), "Ewidencja wyczyszczona").then(
+                    (ok) => {
+                      if (ok) {
+                        setSelected("");
+                        setConfirm(null);
+                      }
+                    },
+                  );
+                },
+              });
+            },
+          )}
         </View>
         <Text style={s.footnote}>
-          Format dotyczy kalendarza, podsumowań i normy. Zegar zmiany pokazuje
-          godziny, minuty i sekundy. Kwoty oraz dokładność obliczeń pozostają
-          takie same.
+          Dane są zapisane na tym urządzeniu. Przed usunięciem lub zmianą
+          telefonu zachowaj kopię JSON.
         </Text>
-        <Text style={s.settingsHeading}>PREFERENCJE</Text>
+        <Text style={s.settingsHeading}>POZOSTAŁE</Text>
         <View style={s.card}>
-          <View style={{ padding: 20, gap: 15 }}>
-            <View style={s.row}>
-              <I name="cash-outline" color={C.blue} />
+          {settingRow(
+            "options-outline",
+            "Wyświetlanie i waluta",
+            "Format czasu, GBP / PLN / EUR",
+            () => setPreferencesOpen(!preferencesOpen),
+          )}
+          {preferencesOpen && (
+            <View style={{ padding: 16, gap: 16 }}>
+              <Text style={s.rowTitle}>Wyświetlanie czasu</Text>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Format czasu pracy"
+                style={{ gap: 8 }}
+              >
+                {(
+                  [
+                    {
+                      key: "clock",
+                      title: "Godziny i minuty",
+                      example: "3:45 = 3 godz. 45 min",
+                    },
+                    {
+                      key: "decimal",
+                      title: "Godziny dziesiętne",
+                      example: "3,75 h = 3 godz. 45 min",
+                    },
+                  ] as const
+                ).map((v) => {
+                  const active = (data.timeFormat ?? "clock") === v.key;
+                  return (
+                    <Pressable
+                      key={v.key}
+                      accessibilityRole="radio"
+                      accessibilityLabel={v.title}
+                      accessibilityState={{ checked: active }}
+                      disabled={busy}
+                      onPress={() => void save({ ...data, timeFormat: v.key })}
+                      style={[s.row, { minHeight: 56 }]}
+                    >
+                      <I
+                        name={active ? "radio-button-on" : "radio-button-off"}
+                        color={active ? C.green : C.muted}
+                      />
+                      <View style={{ flex: 1, gap: 5 }}>
+                        <Text style={s.rowTitle}>{v.title}</Text>
+                        <Text style={s.caption}>{v.example}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Text style={s.rowTitle}>Waluta</Text>
+              <View style={s.row}>
+                {(["GBP", "PLN", "EUR"] as const).map((c) => (
+                  <Chip
+                    key={c}
+                    label={c}
+                    active={data.currency === c}
+                    onPress={() => {
+                      if (c === data.currency) return;
+                      setConfirm({
+                        title: `Zmienić walutę na ${c}?`,
+                        body: "Oznaczenie waluty zmieni się w całej historii. Stawki nie zostaną przeliczone według kursów.",
+                        label: "Zmień walutę",
+                        action: () => {
+                          void save({ ...data, currency: c }).then((ok) => {
+                            if (ok) setConfirm(null);
+                          });
+                        },
+                      });
+                    }}
+                  />
+                ))}
+              </View>
             </View>
-            <View style={s.row}>
-              {(["GBP", "PLN", "EUR"] as const).map((c) => (
-                <Chip
-                  key={c}
-                  label={{ GBP: "£ GBP", PLN: "zł PLN", EUR: "€ EUR" }[c]}
-                  active={data.currency === c}
+          )}
+          {settingRow(
+            "folder-outline",
+            "Zarządzaj miejscami pracy",
+            "Archiwizuj lub usuń wybrany projekt",
+            () => setManagementOpen(!managementOpen),
+          )}
+          {managementOpen &&
+            data.jobs.map((j) => (
+              <View
+                key={j.id}
+                style={{
+                  padding: 16,
+                  gap: 12,
+                  borderTopWidth: 1,
+                  borderColor: C.line,
+                }}
+              >
+                <Text style={s.rowTitle}>
+                  {j.name}
+                  {j.archived ? " · archiwum" : ""}
+                </Text>
+                <Button
+                  label={
+                    j.archived ? `Przywróć ${j.name}` : `Archiwizuj ${j.name}`
+                  }
+                  kind="secondary"
+                  small
                   onPress={() => {
-                    if (c === data.currency) return;
+                    if (timer?.jobId === j.id) {
+                      setNotice("Najpierw zakończ aktywną zmianę.");
+                      return;
+                    }
+                    void save(
+                      {
+                        ...data,
+                        jobs: data.jobs.map((x) =>
+                          x.id === j.id ? { ...x, archived: !x.archived } : x,
+                        ),
+                      },
+                      j.archived
+                        ? "Projekt przywrócony"
+                        : "Projekt w archiwum — wpisy zachowane",
+                    );
+                  }}
+                />
+                <Button
+                  label={`Usuń ${j.name} i wpisy`}
+                  kind="danger"
+                  small
+                  onPress={() => {
+                    if (timer?.jobId === j.id) {
+                      setNotice("Najpierw zakończ aktywną zmianę.");
+                      return;
+                    }
                     setConfirm({
-                      title: `Zmienić walutę na ${c}?`,
-                      body: "Waluta zmieni się we wszystkich projektach i raportach. Wartości stawek pozostaną takie same — aplikacja nie przelicza kursów walut.",
-                      label: "Zmień walutę",
+                      title: `Usunąć ${j.name}?`,
+                      body: `Usuniemy projekt oraz ${data.entries.filter((e) => e.jobId === j.id).length} jego wpisów. Inne miejsca pracy zostaną zachowane. Przywrócenie wymaga kopii JSON.`,
+                      label: "Usuń projekt i wpisy",
+                      danger: true,
                       action: () => {
-                        void save({ ...data, currency: c }).then((ok) => {
+                        void save(
+                          removeJobData(data, j.id),
+                          "Projekt i wpisy usunięte",
+                        ).then((ok) => {
                           if (ok) setConfirm(null);
                         });
                       },
                     });
                   }}
                 />
-              ))}
-            </View>
-          </View>
+              </View>
+            ))}
+          {!data.entries.length &&
+            !timer &&
+            settingRow(
+              "sparkles-outline",
+              "Wypróbuj dane przykładowe",
+              "Przykład z możliwością usunięcia",
+              () =>
+                setConfirm({
+                  title: "Wczytać przykład?",
+                  body: "Przykład zastąpi obecną listę projektów. To fikcyjne godziny; usuniesz je przyciskiem Usuń dane przykładowe.",
+                  label: "Wczytaj przykład",
+                  action: () => {
+                    void save(
+                      {
+                        ...demoState(),
+                        currency: data.currency,
+                        timeFormat: data.timeFormat,
+                        calendarMetric: data.calendarMetric,
+                      },
+                      "Wczytano dane przykładowe",
+                    ).then((ok) => {
+                      if (ok) {
+                        setConfirm(null);
+                        setTab("home");
+                      }
+                    });
+                  },
+                }),
+            )}
         </View>
-        <Text style={s.settingsHeading}>DANE I EKSPORT</Text>
-        <View style={s.card}>
-          {settingRow(
-            "download-outline",
-            "Eksportuj raport CSV",
-            "Wszystkie wpisy, godziny i zarobki",
-            () => void download("csv"),
-          )}
-          {settingRow(
-            "cloud-download-outline",
-            "Zapisz kopię zapasową",
-            "Plik JSON z projektami, wpisami i licznikiem",
-            () => void download("json"),
-          )}
-          {settingRow(
-            "cloud-upload-outline",
-            "Przywróć z pliku",
-            "Przenieś dane lub odzyskaj swoją kopię",
-            () => void restore(),
-          )}
-        </View>
-        <Text style={s.settingsHeading}>PROJEKTY</Text>
-        <View style={s.card}>
-          {data.jobs.map((j) => (
-            <View key={j.id} style={s.settingRow}>
-              <View style={[s.dot, { backgroundColor: j.color }]} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Ustawienia projektu ${j.name}`}
-                style={{ flex: 1, gap: 5 }}
-                onPress={() => openJob(j)}
-              >
-                <Text style={s.rowTitle}>
-                  {j.name}
-                  {j.archived ? " · archiwum" : ""}
-                </Text>
-                <Text style={s.caption}>
-                  {fmt(j.rate)} / h · nadgodziny {fmt(overtimeHourlyRate(j))} /
-                  h
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  j.archived
-                    ? `Przywróć projekt ${j.name}`
-                    : `Archiwizuj projekt ${j.name}`
-                }
-                style={{ padding: 10 }}
-                onPress={() => {
-                  if (timer?.jobId === j.id) {
-                    setNotice("Zakończ licznik przed archiwizacją projektu.");
-                    return;
-                  }
-                  setConfirm({
-                    title: j.archived
-                      ? "Przywrócić projekt?"
-                      : "Archiwizować projekt?",
-                    body: "Wszystkie historyczne wpisy i raporty zostają zachowane.",
-                    label: j.archived ? "Przywróć" : "Archiwizuj",
-                    action: () => {
-                      void save({
-                        ...data,
-                        jobs: data.jobs.map((x) =>
-                          x.id === j.id ? { ...x, archived: !x.archived } : x,
-                        ),
-                      }).then((ok) => {
-                        if (ok) setConfirm(null);
-                      });
-                    },
-                  });
-                }}
-              >
-                <I name={j.archived ? "refresh-outline" : "archive-outline"} />
-              </Pressable>
-            </View>
-          ))}
-          {settingRow(
-            "add-circle-outline",
-            "Dodaj projekt",
-            "Osobna stawka i reguły nadgodzin",
-            () => openJob(),
-          )}
-        </View>
-        {!data.entries.length && !timer && (
+        {Platform.OS === "web" && (
           <>
-            <Text style={s.settingsHeading}>SPRAWDŹ MOŻLIWOŚCI</Text>
-            <View style={s.card}>
-              {settingRow(
-                "sparkles-outline",
-                "Wypróbuj dane przykładowe",
-                "Projekt Bowmill i ostatnie tygodnie pracy",
-                () =>
-                  setConfirm({
-                    title: "Wczytać przykład?",
-                    body: "Zastąpi aktualną listę projektów przykładowym projektem Bowmill. Przykładowe wpisy nie przedstawiają Twojej rzeczywistej pracy.",
-                    label: "Wczytaj przykład",
-                    action: () => {
-                      void save(demoState(), "Wczytano dane przykładowe").then(
-                        (ok) => {
-                          if (ok) {
-                            setConfirm(null);
-                            setTab("home");
-                          }
-                        },
-                      );
-                    },
-                  }),
-              )}
-            </View>
+            <Text style={s.settingsHeading}>INSTALACJA I OFFLINE</Text>
+            <InstallHelp />
           </>
         )}
-        <View style={s.about}>
-          <View style={s.row}>
-            <View style={s.brandIcon}>
-              <I name="time" color={C.bg} size={20} />
-            </View>
-            <Text style={s.brandName}>
-              work<Text style={{ color: C.green }}>hours</Text>
-              <Text style={{ color: C.muted }}> /</Text>
-            </Text>
-          </View>
-          <Text style={s.caption}>
-            Wersja 1.3.0 · Zrobione dla Twojego czasu
-          </Text>
-          <Text style={s.footnote}>
-            Nowe zmiany zachowują jedną normę także przez północ. Starsze wpisy
-            zachowują reguły dzienne. Zmiana stawek dotyczy nowych wpisów.
-            Status „opłacono” jest Twoim oznaczeniem, nie potwierdzeniem
-            przelewu.
-          </Text>
-        </View>
+        <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
+          Work Hours · 1.4.0 · dane na Twoim urządzeniu
+        </Text>
       </>
     );
   }
@@ -2472,41 +2601,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       placeholder="np. Bowmill"
                     />
                     {rateFields()}
-                    <Field
-                      label="Limit starszych wpisów (h / dzień)"
-                      numeric
-                      value={form.dailyHours}
-                      onChange={(v) => setField("dailyHours", v)}
-                    />
                     <Text style={s.caption}>
-                      Stawki dotyczą nowych wpisów i kolejnych liczników. Normę
-                      nowych zmian ustawisz w profilach zmian dziennych i
-                      nocnych. Dzienny limit zachowujemy dla starszych wpisów
-                      bez typu zmiany.
+                      Nowe stawki dotyczą kolejnych zmian. Zapisane wpisy
+                      zachowują swoje stawki; możesz je poprawić w edycji wpisu.
                     </Text>
-                    <Text style={s.fieldLabel}>Kolor projektu</Text>
-                    <View style={s.row}>
-                      {COLORS.map((c) => (
-                        <Pressable
-                          key={c}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Kolor ${c}`}
-                          onPress={() => setField("color", c)}
-                          style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 20,
-                            backgroundColor: c,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {form.color === c && (
-                            <I name="checkmark" color={C.bg} />
-                          )}
-                        </Pressable>
-                      ))}
-                    </View>
                   </>
                 ) : (
                   <>
@@ -2549,7 +2647,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           <Chip
                             key={j.id}
                             label={j.name}
-                            dot={j.color}
+                            dot={C.muted}
                             active={form?.jobId === j.id}
                             onPress={() => selectEntryJob(j.id)}
                           />
@@ -2822,7 +2920,7 @@ const s = StyleSheet.create({
   timerCard: {
     backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: "#3A4930",
+    borderColor: "#393C44",
     padding: 23,
     borderRadius: 22,
     overflow: "hidden",
@@ -2904,7 +3002,7 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   pill: {
-    backgroundColor: "#2B3826",
+    backgroundColor: "#2B2E34",
     paddingVertical: 5,
     paddingHorizontal: 8,
     borderRadius: 6,
@@ -2947,7 +3045,7 @@ const s = StyleSheet.create({
   card: {
     backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: "#2A3031",
+    borderColor: "#2A2C31",
     borderRadius: 18,
     overflow: "hidden",
   },
@@ -2960,7 +3058,7 @@ const s = StyleSheet.create({
   emptyIcon: {
     width: 58,
     height: 58,
-    backgroundColor: "#2B3826",
+    backgroundColor: "#2B2E34",
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
@@ -3057,7 +3155,7 @@ const s = StyleSheet.create({
     borderColor: C.line,
     backgroundColor: C.card,
   },
-  chipActive: { backgroundColor: C.raised, borderColor: "#718060" },
+  chipActive: { backgroundColor: C.raised, borderColor: "#858D9B" },
   chips: { gap: 8, paddingVertical: 18 },
   searchBox: {
     backgroundColor: C.card,
@@ -3087,12 +3185,12 @@ const s = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 8,
   },
-  segmentActive: { backgroundColor: "#343C3B" },
+  segmentActive: { backgroundColor: "#34363C" },
   segmentText: { fontSize: 12, color: C.muted, fontWeight: "600" },
   summaryStrip: {
-    backgroundColor: "#20291D",
+    backgroundColor: "#23252A",
     borderWidth: 1,
-    borderColor: "#35452C",
+    borderColor: "#353841",
     borderRadius: 16,
     padding: 18,
     flexDirection: "row",
@@ -3118,7 +3216,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#22292A",
+    backgroundColor: "#222428",
   },
   groupTitle: { fontSize: 14, color: C.text, fontWeight: "600" },
   groupPreview: {
@@ -3192,9 +3290,9 @@ const s = StyleSheet.create({
   },
   privacyCard: {
     padding: 22,
-    backgroundColor: "#20291D",
+    backgroundColor: "#23252A",
     borderWidth: 1,
-    borderColor: "#35452C",
+    borderColor: "#353841",
     borderRadius: 17,
     flexDirection: "row",
     gap: 17,
@@ -3222,9 +3320,9 @@ const s = StyleSheet.create({
     right: 20,
     maxWidth: 600,
     alignSelf: "center",
-    backgroundColor: "#303D2A",
+    backgroundColor: "#30333A",
     borderWidth: 1,
-    borderColor: "#5F754B",
+    borderColor: "#737D8C",
     padding: 16,
     borderRadius: 13,
     flexDirection: "row",
@@ -3261,7 +3359,7 @@ const s = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: -0.7,
   },
-  fieldLabel: { fontSize: 12, color: "#BFC8C5", fontWeight: "500" },
+  fieldLabel: { fontSize: 12, color: "#BCC0C8", fontWeight: "500" },
   input: {
     padding: 14,
     color: C.text,

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   calculate,
   duration,
+  allowanceHourlyRate,
+  demoState,
   overtimeHourlyRate,
   checkEntry,
   csv,
@@ -25,6 +27,13 @@ import {
   type Job,
 } from "../src/domain";
 import { calendarDays, moveMonth } from "../src/calendar";
+import {
+  clearWorkData,
+  markLegacySamples,
+  removeJobData,
+  removeSampleData,
+  sampleEntryIds,
+} from "../src/dataManagement";
 const job: Job = {
   id: "job",
   name: "Bowmill",
@@ -55,6 +64,143 @@ test("time display switches formats without changing minute precision or stored 
   assert.equal(validateBackup(state).timeFormat, undefined);
   assert.throws(() => validateBackup({ ...state, timeFormat: "invalid" }));
   assert.throws(() => validateBackup({ ...state, calendarMetric: "invalid" }));
+});
+test("percentage allowance applies to Basic up to the shift norm, then the separate overtime rate", () => {
+  const e = entry("2026-10-20", "06:00", "16:00", {
+    shiftAllowancePercent: 15,
+    overtimeMode: "fixed",
+    overtimeRate: 35,
+  });
+  assert.equal(allowanceHourlyRate(e), 3);
+  assert.equal(totals(calculate([e])).amount, 8 * 23 + 2 * 35);
+  assert.equal(
+    totals(calculate([{ ...e, allowanceOnOvertime: true }])).amount,
+    8 * 23 + 2 * 38,
+  );
+  assert.equal(
+    totals(calculate([{ ...e, shiftAllowancePercent: 0 }])).amount,
+    8 * 20 + 2 * 35,
+  );
+});
+test("allowance respects unpaid breaks and one norm for an overnight shift", () => {
+  const shift = defaultShifts()[1];
+  const policy = {
+    ...job,
+    shiftAllowancePercent: 12.5,
+    overtimeMode: "fixed" as const,
+    overtimeRate: 35,
+  };
+  const t = makeTimer(policy, shift, stamp("2026-10-20", "17:30"));
+  t.breaks = [
+    { start: stamp("2026-10-20", "23:45"), end: stamp("2026-10-21", "00:15") },
+  ];
+  const e = finishTimer(t, stamp("2026-10-21", "03:00"));
+  const parts = calculate([e]);
+  assert.equal(parts.length, 2);
+  assert.equal(totals(parts).minutes, 540);
+  assert.equal(totals(parts).amount, 8 * 22.5 + 35);
+  assert.equal(e.shiftAllowancePercent, 12.5);
+  policy.shiftAllowancePercent = 80;
+  assert.equal(totals(calculate([e])).amount, 215);
+});
+test("allowance policies survive backup and CSV, reject malformed values, and migrate version 3 without pay changes", () => {
+  const state = freshState();
+  state.jobs = [
+    { ...job, shiftAllowancePercent: 15, allowanceOnOvertime: true },
+  ];
+  state.entries = [entry("2026-10-20", "06:00", "16:00", state.jobs[0])];
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(state))), state);
+  assert.match(csv(state), /Shift allowance \(%\)/);
+  assert.match(csv(state), /Dodatek także za nadgodziny/);
+  for (const invalid of [-1, Infinity, 1001, "15"]) {
+    assert.throws(() =>
+      validateBackup({
+        ...state,
+        jobs: [{ ...job, shiftAllowancePercent: invalid }],
+      }),
+    );
+  }
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      jobs: [{ ...job, allowanceOnOvertime: "yes" }],
+    }),
+  );
+  const previous = {
+    ...freshState(),
+    version: 3,
+    jobs: [job],
+    entries: [entry()],
+  };
+  assert.equal(validateBackup(previous).version, 4);
+  assert.deepEqual(
+    totals(calculate(validateBackup(previous).entries)),
+    totals(calculate(previous.entries)),
+  );
+});
+test("sample removal preserves real entries and an active timer, including work recorded under the demo job", () => {
+  const state = demoState();
+  assert.ok(state.entries.length > 0);
+  const personal = entry("2026-01-10", "06:00", "14:00", {
+    id: "personal",
+    jobId: state.jobs[0].id,
+  });
+  state.entries.push(personal);
+  state.timer = makeTimer(state.jobs[0], state.shifts[0], Date.now());
+  const next = removeSampleData(state);
+  assert.deepEqual(next.entries, [personal]);
+  assert.equal(next.jobs.length, 1);
+  assert.deepEqual(next.timer, state.timer);
+  assert.equal(sampleEntryIds(next).size, 0);
+  assert.ok(state.entries.length > 1);
+});
+test("legacy examples are recognized by their complete fingerprint, not the Bowmill name alone", () => {
+  const state = demoState();
+  state.jobs = state.jobs.map(({ demo: _demo, ...j }) => j);
+  state.entries = state.entries.map(({ demo: _demo, ...e }) => e);
+  assert.equal(sampleEntryIds(state).size, state.entries.length);
+  const marked = markLegacySamples(state);
+  assert.equal(
+    marked.entries.every((e) => e.demo),
+    true,
+  );
+  assert.equal(removeSampleData(marked).entries.length, 0);
+  assert.equal(removeSampleData(marked).jobs.length, 0);
+  state.entries[0].rate = 99;
+  const retained = state.entries[0];
+  assert.deepEqual(removeSampleData(state).entries, [retained]);
+  const personal = {
+    ...freshState(),
+    jobs: [{ ...job, name: "Bowmill" }],
+    entries: [entry()],
+  };
+  assert.equal(sampleEntryIds(personal).size, 0);
+  assert.deepEqual(removeSampleData(personal).entries, personal.entries);
+});
+test("clearing work data preserves shift preferences, while project deletion affects only that project", () => {
+  const state = freshState();
+  state.currency = "PLN";
+  state.timeFormat = "decimal";
+  state.jobs = [job, { ...job, id: "other" }];
+  state.entries = [
+    entry(),
+    entry("2026-10-21", "06:00", "14:00", {
+      id: "other-entry",
+      jobId: "other",
+    }),
+  ];
+  const removed = removeJobData(state, "job");
+  assert.equal(removed.entries.length, 1);
+  assert.equal(removed.entries[0].jobId, "other");
+  const cleared = clearWorkData(state);
+  assert.equal(cleared.entries.length, 0);
+  assert.equal(cleared.jobs.length, 0);
+  assert.equal(cleared.currency, "PLN");
+  assert.equal(cleared.timeFormat, "decimal");
+  assert.deepEqual(cleared.shifts, state.shifts);
+  state.timer = makeTimer(job, state.shifts[0], Date.now());
+  assert.throws(() => clearWorkData(state), /zakończ/);
+  assert.throws(() => removeJobData(state, job.id), /zakończ/);
 });
 test("a timer accidentally left running over a week can still be saved and restored", () => {
   const state = freshState();
@@ -194,7 +340,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 4 }));
+  assert.throws(() => validateBackup({ ...s, version: 5 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -363,7 +509,7 @@ test("version 1 migrates without changing existing entries, pay, or running time
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 3);
+  assert.equal(next.version, 4);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -500,7 +646,7 @@ test("calendar grids start on Monday, include leap day and contain no adjacent-m
   assert.equal(moveMonth("2026-12", 1), "2027-01");
   assert.equal(moveMonth("2026-01", -1), "2025-12");
 });
-test("version 2 backups migrate unchanged to version 3 so old readers reject new fixed-rate data", () => {
+test("version 2 backups migrate unchanged to version 4 so old readers reject new pay policies", () => {
   const legacy = {
     ...freshState(),
     version: 2,
@@ -508,7 +654,7 @@ test("version 2 backups migrate unchanged to version 3 so old readers reject new
     entries: [entry()],
   };
   const migrated = validateBackup(legacy);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.deepEqual(migrated.entries, legacy.entries);
   assert.deepEqual(migrated.shifts, legacy.shifts);
   assert.equal(totals(calculate(migrated.entries)).amount, 210);

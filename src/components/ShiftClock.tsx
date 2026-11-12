@@ -11,14 +11,14 @@ import {
   type Timer,
 } from "../domain";
 const color = {
-  bg: "#111719",
-  card: "#1B2325",
-  line: "#334144",
-  green: "#B4F272",
-  muted: "#9CAEB0",
-  white: "#F4F8F5",
-  night: "#AFB7FF",
-  day: "#F3CD87",
+  bg: "#111214",
+  card: "#1C1D20",
+  line: "#34363C",
+  green: "#DCE2EA",
+  muted: "#A0A3AB",
+  white: "#F4F4F5",
+  night: "#9DAAC0",
+  day: "#C7C9CD",
 };
 type Props = {
   timeFormat?: "clock" | "decimal";
@@ -77,7 +77,7 @@ function Action({
       style={({ pressed }) => [
         styles.action,
         {
-          backgroundColor: primary ? color.green : "#2D393C",
+          backgroundColor: primary ? color.green : "#2C2E33",
           opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
         },
       ]}
@@ -116,7 +116,7 @@ export default function ShiftClock(p: Props) {
   const accent = shift.kind === "night" ? color.night : color.day;
   return (
     <View
-      style={[styles.card, { borderColor: active ? "#6F9448" : color.line }]}
+      style={[styles.card, { borderColor: active ? "#9CA7B8" : color.line }]}
     >
       <View style={styles.between}>
         <View style={{ gap: 6 }}>
@@ -155,7 +155,7 @@ export default function ShiftClock(p: Props) {
               style={[
                 styles.choice,
                 s.id === p.shift.id && {
-                  backgroundColor: "#39433E",
+                  backgroundColor: "#35383F",
                   borderColor: color.green,
                 },
               ]}
@@ -211,7 +211,7 @@ export default function ShiftClock(p: Props) {
             style={[styles.between, { marginTop: 12, alignItems: "flex-end" }]}
           >
             <Text style={styles.hours}>
-              {shift.startTime} <Text style={{ color: "#778A8D" }}>—</Text>{" "}
+              {shift.startTime} <Text style={{ color: "#92969F" }}>—</Text>{" "}
               {shift.endTime}
             </Text>
             {shift.endTime < shift.startTime && (
@@ -230,7 +230,7 @@ export default function ShiftClock(p: Props) {
                   ? active.pausedAt === null
                     ? color.green
                     : color.night
-                  : "#738385",
+                  : "#81848C",
               },
             ]}
           />
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     width: 43,
     height: 43,
     borderRadius: 13,
-    backgroundColor: "#2D393C",
+    backgroundColor: "#2C2E33",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -391,9 +391,9 @@ const styles = StyleSheet.create({
   schedule: {
     borderRadius: 15,
     padding: 12,
-    backgroundColor: "#141C1F",
+    backgroundColor: "#17181B",
     borderWidth: 1,
-    borderColor: "#2D3A3E",
+    borderColor: "#34363C",
   },
   norm: { color: color.muted, fontSize: 11 },
   hours: {
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 5,
-    backgroundColor: "#35423C",
+    backgroundColor: "#34363C",
     borderRadius: 5,
     overflow: "hidden",
     marginVertical: 5,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     height: 50,
     width: 48,
     borderRadius: 14,
-    backgroundColor: "#2D393C",
+    backgroundColor: "#2C2E33",
     alignItems: "center",
     justifyContent: "center",
   },

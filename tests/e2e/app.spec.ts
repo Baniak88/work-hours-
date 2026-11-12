@@ -14,8 +14,11 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
     .getByRole("textbox", { name: "Nazwa projektu lub pracodawcy" })
     .fill("Bowmill");
   await page
-    .getByRole("textbox", { name: "Stawka godzinowa (GBP)" })
+    .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
+  await page
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
+    .fill("25");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Wybierz projekt Bowmill" }),
@@ -77,7 +80,7 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
     .last()
     .click();
   await expect(page.getByText("Opłacono", { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: /Zapisz kopię zapasową/ }).click();
   const backupDownload = await download;
@@ -113,7 +116,7 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page.getByRole("button", { name: /Wypróbuj dane przykładowe/ }).click();
   await page
     .getByRole("button", { name: "Wczytaj przykład", exact: true })
@@ -189,10 +192,13 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     .getByRole("textbox", { name: "Nazwa projektu lub pracodawcy" })
     .fill("Bowmill");
   await page
-    .getByRole("textbox", { name: "Stawka godzinowa (GBP)" })
+    .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
+  await page
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
+    .fill("25");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
-  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page
     .getByRole("button", { name: "Edytuj: Zmiana nocna", exact: true })
     .click();
@@ -261,7 +267,7 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
   await page.waitForURL("http://127.0.0.1:8081/");
   await page.reload();
   await expect(page.getByText("GOTOWY DO STARTU")).toBeVisible();
-  await page.getByRole("tab", { name: "Więcej", exact: true }).click();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: /Zapisz kopię zapasową/ }).click();
   const saved = JSON.parse(
@@ -286,13 +292,13 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("textbox", { name: "Nazwa projektu lub pracodawcy" })
     .fill("Bowmill");
   await page
-    .getByRole("textbox", { name: "Stawka godzinowa (GBP)" })
+    .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("button", { name: "Kwota za godzinę", exact: true })
-    .click();
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
+    .fill("25");
   await page
-    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
     .fill("35");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
@@ -341,7 +347,7 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("button", { name: "Edytuj projekt Bowmill", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
     .fill("45");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
@@ -359,10 +365,10 @@ test("fixed overtime rates, monthly calendar, overnight day details, historical 
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" }),
+    page.getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" }),
   ).toHaveValue("35");
   await page
-    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .getByRole("textbox", { name: "Overtime rate — nadgodziny (GBP/h)" })
     .fill("40");
   await page
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
