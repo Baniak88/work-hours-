@@ -55,6 +55,8 @@ export type State = {
   paidWeeks: string[];
   shifts: Shift[];
   preferredShiftId: string;
+  timeFormat?: "clock" | "decimal";
+  calendarMetric?: "hours" | "money";
 };
 export type Slice = {
   entry: Entry;
@@ -112,7 +114,16 @@ export function timeLabel(value: number) {
     minute: "2-digit",
   });
 }
-export function duration(minutes: number) {
+export function duration(
+  minutes: number,
+  format: "clock" | "decimal" = "clock",
+) {
+  if (format === "decimal")
+    return (Math.max(0, minutes) / 60).toLocaleString("pl-PL", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: false,
+    });
   const m = Math.max(0, Math.round(minutes));
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
 }
@@ -449,6 +460,10 @@ export function validateBackup(input: unknown): State {
   if (
     (version !== 1 && version !== 2 && version !== 3) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
+    (s.timeFormat !== undefined &&
+      !["clock", "decimal"].includes(s.timeFormat)) ||
+    (s.calendarMetric !== undefined &&
+      !["hours", "money"].includes(s.calendarMetric)) ||
     !Array.isArray(s.jobs) ||
     !Array.isArray(s.entries) ||
     !Array.isArray(s.paidWeeks) ||

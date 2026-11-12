@@ -2,6 +2,26 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## iPhone — bezpłatna instalacja z Safari (1.3)
+
+**[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Wersja hostowana przez Sites jest prywatna — jeśli pojawi się logowanie, użyj konta ChatGPT właściciela tej aplikacji. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
+
+1. Otwórz powyższy adres w **Safari**.
+2. Wybierz **Udostępnij → Do ekranu początkowego → Dodaj**. Jeżeli jest opcja „Otwórz jako aplikację”, włącz ją.
+3. Uruchom ikonę **Work Hours** i pozostaw połączenie z internetem. W **Więcej → Instalacja i offline** zaczekaj na „Gotowa do pracy offline na tym urządzeniu”. Od tej chwili kalendarz, licznik, ustawienia i zapis są dostępne bez internetu.
+4. Aby przenieść dane z Androida, zapisz tam kopię JSON i wczytaj ją w aplikacji na iPhonie. Zapis w Safari i w ikonie na ekranie może być oddzielny; sprawdź dane po uruchomieniu z ikony.
+
+To wersja PWA dodawana do ekranu głównego: nie wymaga App Store, komputera, Expo Go ani płatnego Apple Developer. Natywny plik IPA pozostaje osobną opcją wymagającą podpisu Apple. Bezpłatny Personal Team z Xcode wymaga Maca i ponownego podpisania po 7 dniach ([zasady Apple](https://developer.apple.com/support/compare-memberships/)).
+
+Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i ponownym otwarciu odtwarza czas, przerwy i auto-stop. Nie uruchamia stałego procesu w tle. Przeglądarka może usunąć dane po wyczyszczeniu jej pamięci, dlatego regularnie zapisuj kopię JSON. Pierwsze pobranie i aktualizacje wymagają internetu; aktualizacja offline aktywuje się po zamknięciu wszystkich okien aplikacji i ponownym otwarciu.
+
+## Czytelność i format czasu — wersja 1.3
+
+- Kalendarz ma osobne wiersze tygodni, większe pola i napisy, wyróżnione weekendy oraz czytelniejsze sumy miesiąca. Puste dni nie pokazują zbędnych kropek.
+- **Więcej → Wyświetlanie czasu**: wybierz **Godziny i minuty** (3:45) albo **Godziny dziesiętne** (3,75 h). Wybór jest zapamiętywany i obejmuje kalendarz, raporty i normy. Zegar zmiany nadal pokazuje GG:MM:SS; stawki i obliczenia zachowują pełną dokładność.
+- Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
+- Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
+
 ## Instalator Android 1.2.0
 
 **[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.2.0/work-hours-1.2.0.apk)** · około 91 MB.
@@ -124,13 +144,16 @@ Publikacja w sklepach jest osobnym etapem, wymagającym kont właściciela, podp
 
 ## Kontrole
 
-Sprawdzono: 30 testów domeny, 4 scenariusze Playwright (w tym szerokości 320 i 390 px oraz nocny auto-stop po ponownym otwarciu), lint, TypeScript, eksport Android/iOS/web i 20/20 kontroli Expo Doctor. Testy interfejsu wykonano w Chromium; nie zastępują testów na fizycznym telefonie.
+Wersja 1.3: sprawdzono 31 testów domeny, 4 testy offline (pełne zasoby i leniwie ładowane ekrany, tryb bez sieci, odrzucenie przekierowań logowania, aktualizację pamięci podręcznej), lint, TypeScript oraz eksport JS Android/iOS/web. Nie wykonano jeszcze instalacji ani testu Safari na fizycznym iPhonie. Środowisko Sites nie udostępnia narzędzia cua_repl.js, więc podgląd przeglądarkowy nowej wersji nie został sprawdzony.
+
+Wersja 1.2: sprawdzono 30 testów domeny, 4 scenariusze Playwright (w tym szerokości 320 i 390 px oraz nocny auto-stop po ponownym otwarciu), lint, TypeScript, eksport Android/iOS/web i 20/20 kontroli Expo Doctor. Testy interfejsu wykonano w Chromium; nie zastępują testów na fizycznym telefonie.
 
 ```sh
 npm run lint
 npm run typecheck
 npm test
 npm run export
+npm run test:pwa
 npm run test:e2e
 npx expo-doctor
 ```

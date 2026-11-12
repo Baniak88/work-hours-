@@ -1,7 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Slice, duration, localDate, money, totals } from "../domain";
+import {
+  Slice,
+  duration as formatDuration,
+  localDate,
+  money,
+  totals,
+} from "../domain";
 import { calendarDays, moveMonth } from "../calendar";
 type Props = {
   month: string;
@@ -9,6 +15,9 @@ type Props = {
   today: string;
   slices: Slice[];
   currency: string;
+  timeFormat?: "clock" | "decimal";
+  metric: "hours" | "money";
+  onMetric: (metric: "hours" | "money") => void;
   onSelect: (day: string) => void;
   onMonth: (month: string) => void;
 };
@@ -22,7 +31,8 @@ const C = {
   night: "#AFB7FF",
 };
 export default function WorkCalendar(p: Props) {
-  const [metric, setMetric] = useState<"hours" | "money">("hours");
+  const { metric } = p;
+  const duration = (minutes: number) => formatDuration(minutes, p.timeFormat);
   const byDay = useMemo(() => {
     const map = new Map<string, Slice[]>();
     p.slices.forEach((s) => {
@@ -70,20 +80,26 @@ export default function WorkCalendar(p: Props) {
         </Pressable>
       </View>
       <View style={s.summary}>
-        <Text accessibilityLabel="Godziny w miesiącu" style={s.amount}>
-          {duration(monthTotals.minutes)} <Text style={s.unit}>h pracy</Text>
-        </Text>
-        <Text
-          accessibilityLabel="Zarobki w miesiącu"
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={[
-            s.amount,
-            { color: C.green, flexShrink: 1, textAlign: "right" },
-          ]}
-        >
-          {money(monthTotals.amount, p.currency)}
-        </Text>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={s.caption}>Czas pracy</Text>
+          <Text accessibilityLabel="Godziny w miesiącu" style={s.amount}>
+            {duration(monthTotals.minutes)} <Text style={s.unit}>h</Text>
+          </Text>
+        </View>
+        <View style={{ flex: 1, gap: 3, alignItems: "flex-end" }}>
+          <Text style={s.caption}>Zarobki</Text>
+          <Text
+            accessibilityLabel="Zarobki w miesiącu"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={[
+              s.amount,
+              { color: C.green, flexShrink: 1, textAlign: "right" },
+            ]}
+          >
+            {money(monthTotals.amount, p.currency)}
+          </Text>
+        </View>
       </View>
       <View style={s.toolbar}>
         <View style={s.legend}>
@@ -101,7 +117,7 @@ export default function WorkCalendar(p: Props) {
                 i ? "Kwoty w kalendarzu" : "Godziny w kalendarzu"
               }
               accessibilityState={{ selected: metric === key }}
-              onPress={() => setMetric(key)}
+              onPress={() => p.onMetric(key)}
               style={[
                 s.metricButton,
                 metric === key && { backgroundColor: "#3B4943" },
@@ -109,7 +125,7 @@ export default function WorkCalendar(p: Props) {
             >
               <Text
                 style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   color: metric === key ? C.text : C.muted,
                 }}
               >
@@ -126,82 +142,95 @@ export default function WorkCalendar(p: Props) {
           </Text>
         ))}
       </View>
-      <View style={s.grid}>
-        {cells.map((day, i) => {
-          if (!day) return <View key={"empty" + i} style={s.cellSlot} />;
-          const parts = byDay.get(day) ?? [],
-            t = totals(parts),
-            selected = day === p.selected,
-            today = day === p.today;
-          const kinds = new Set(
-            parts.filter((x) => x.minutes > 0).map((x) => x.entry.shift?.kind),
-          );
-          const amount = new Intl.NumberFormat("en-GB", {
-            style: "currency",
-            currency: p.currency,
-            maximumFractionDigits: 0,
-            notation: t.amount >= 1000 ? "compact" : "standard",
-          }).format(t.amount);
-          return (
-            <View key={day} style={s.cellSlot}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Dzień ${day}, ${duration(t.minutes)} godzin, ${money(t.amount, p.currency)}`}
-                accessibilityState={{ selected }}
-                onPress={() => p.onSelect(day)}
-                style={[
-                  s.cell,
-                  selected && { backgroundColor: C.green },
-                  !selected && t.minutes > 0 && { backgroundColor: "#26352B" },
-                  !selected && today && { borderColor: C.green },
-                ]}
-              >
-                <Text
-                  style={[
-                    s.dayNumber,
-                    {
-                      color: selected
-                        ? "#152010"
-                        : day > p.today
-                          ? "#6E8083"
-                          : C.text,
-                    },
-                  ]}
-                >
-                  {Number(day.slice(-2))}
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={[s.value, { color: selected ? "#263B1B" : C.muted }]}
-                >
-                  {parts.length
-                    ? metric === "hours"
-                      ? duration(t.minutes)
-                      : amount
-                    : "·"}
-                </Text>
-                <View style={s.dots}>
-                  {kinds.has("day") && (
-                    <View
+      <View>
+        {Array.from({ length: cells.length / 7 }, (_, week) => (
+          <View key={week} style={s.weekRow}>
+            {cells.slice(week * 7, week * 7 + 7).map((day, i) => {
+              if (!day) return <View key={"empty" + i} style={s.cellSlot} />;
+              const parts = byDay.get(day) ?? [],
+                t = totals(parts),
+                selected = day === p.selected,
+                today = day === p.today;
+              const kinds = new Set(
+                parts
+                  .filter((x) => x.minutes > 0)
+                  .map((x) => x.entry.shift?.kind),
+              );
+              const amount = new Intl.NumberFormat("en-GB", {
+                style: "currency",
+                currency: p.currency,
+                maximumFractionDigits: 0,
+                notation: t.amount >= 1000 ? "compact" : "standard",
+              }).format(t.amount);
+              return (
+                <View key={day} style={s.cellSlot}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Dzień ${day}, ${duration(t.minutes)} godzin, ${money(t.amount, p.currency)}`}
+                    accessibilityState={{ selected }}
+                    onPress={() => p.onSelect(day)}
+                    style={[
+                      s.cell,
+                      selected && { backgroundColor: C.green },
+                      !selected &&
+                        t.minutes > 0 && { backgroundColor: "#26352B" },
+                      !selected && today && { borderColor: C.green },
+                      i >= 5 &&
+                        !selected &&
+                        !parts.length && { backgroundColor: "#202B2D" },
+                    ]}
+                  >
+                    <Text
                       style={[
-                        s.dot,
-                        { backgroundColor: selected ? "#8C691E" : C.day },
+                        s.dayNumber,
+                        {
+                          color: selected
+                            ? "#152010"
+                            : day > p.today
+                              ? "#9AA9AB"
+                              : C.text,
+                        },
                       ]}
-                    />
-                  )}
-                  {kinds.has("night") && (
-                    <View
+                    >
+                      {Number(day.slice(-2))}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
                       style={[
-                        s.dot,
-                        { backgroundColor: selected ? "#514794" : C.night },
+                        s.value,
+                        { color: selected ? "#263B1B" : C.muted },
                       ]}
-                    />
-                  )}
+                    >
+                      {parts.length
+                        ? metric === "hours"
+                          ? duration(t.minutes)
+                          : amount
+                        : ""}
+                    </Text>
+                    <View style={s.dots}>
+                      {kinds.has("day") && (
+                        <View
+                          style={[
+                            s.dot,
+                            { backgroundColor: selected ? "#8C691E" : C.day },
+                          ]}
+                        />
+                      )}
+                      {kinds.has("night") && (
+                        <View
+                          style={[
+                            s.dot,
+                            { backgroundColor: selected ? "#514794" : C.night },
+                          ]}
+                        />
+                      )}
+                    </View>
+                  </Pressable>
                 </View>
-              </Pressable>
-            </View>
-          );
-        })}
+              );
+            })}
+          </View>
+        ))}
       </View>
       <View style={s.footer}>
         <Text style={s.caption}>
@@ -224,12 +253,12 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.line,
     borderRadius: 17,
-    padding: 10,
+    padding: 12,
   },
   header: { flexDirection: "row", gap: 4, alignItems: "center" },
   arrow: {
-    width: 33,
-    height: 34,
+    width: 40,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 9,
@@ -244,13 +273,15 @@ const s = StyleSheet.create({
     textTransform: "capitalize",
   },
   today: {
-    padding: 9,
+    paddingHorizontal: 9,
+    minHeight: 44,
+    justifyContent: "center",
     marginLeft: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: C.line,
   },
-  todayText: { color: C.green, fontSize: 11, fontWeight: "600" },
+  todayText: { color: C.green, fontSize: 12, fontWeight: "600" },
   summary: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -261,9 +292,9 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: C.line,
   },
-  caption: { fontSize: 9, color: C.muted },
+  caption: { fontSize: 11, lineHeight: 16, color: C.muted },
   amount: {
-    fontSize: 21,
+    fontSize: 22,
     color: C.text,
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
@@ -272,31 +303,39 @@ const s = StyleSheet.create({
   unit: { fontSize: 12, color: C.muted },
   toolbar: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 6,
     marginBottom: 8,
   },
   legend: { flexDirection: "row", alignItems: "center", gap: 4 },
-  dot: { width: 4, height: 4, borderRadius: 2 },
+  dot: { width: 5, height: 5, borderRadius: 3 },
   metric: {
     flexDirection: "row",
     padding: 3,
     backgroundColor: "#121B1D",
     borderRadius: 8,
   },
-  metricButton: { paddingHorizontal: 7, paddingVertical: 6, borderRadius: 5 },
+  metricButton: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
   week: { flexDirection: "row", marginBottom: 5 },
   weekday: {
     width: "14.285714%",
     textAlign: "center",
     color: C.muted,
-    fontSize: 10,
+    fontSize: 11,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-  cellSlot: { width: "14.285714%", padding: 1 },
+  weekRow: { flexDirection: "row" },
+  cellSlot: { flex: 1, minWidth: 0, padding: 1 },
   cell: {
-    height: 38,
+    minHeight: 48,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: "transparent",
     borderRadius: 9,
@@ -304,12 +343,12 @@ const s = StyleSheet.create({
     alignItems: "center",
     gap: 2,
   },
-  dayNumber: { fontSize: 12, fontWeight: "600" },
-  value: { fontSize: 9, fontVariant: ["tabular-nums"] },
-  dots: { height: 4, flexDirection: "row", alignItems: "center", gap: 2 },
+  dayNumber: { fontSize: 14, fontWeight: "600" },
+  value: { fontSize: 10, fontVariant: ["tabular-nums"] },
+  dots: { height: 5, flexDirection: "row", alignItems: "center", gap: 2 },
   footer: {
     paddingTop: 8,
-    marginTop: 6,
+    marginTop: 10,
     borderTopWidth: 1,
     borderColor: C.line,
     flexDirection: "row",

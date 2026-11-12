@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  duration,
   overtimeHourlyRate,
   checkEntry,
   csv,
@@ -33,6 +34,28 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("time display switches formats without changing minute precision or stored earnings", () => {
+  assert.equal(duration(225), "3:45");
+  assert.equal(duration(225, "decimal"), "3,75");
+  assert.equal(duration(4050, "decimal"), "67,50");
+  assert.equal(duration(-10, "decimal"), "0,00");
+  assert.equal(duration(1, "decimal"), "0,02");
+  const state = freshState();
+  state.jobs = [job];
+  state.entries = [entry()];
+  const before = totals(calculate(state.entries));
+  const restored = validateBackup({
+    ...state,
+    timeFormat: "decimal",
+    calendarMetric: "money",
+  });
+  assert.equal(restored.timeFormat, "decimal");
+  assert.equal(restored.calendarMetric, "money");
+  assert.deepEqual(totals(calculate(restored.entries)), before);
+  assert.equal(validateBackup(state).timeFormat, undefined);
+  assert.throws(() => validateBackup({ ...state, timeFormat: "invalid" }));
+  assert.throws(() => validateBackup({ ...state, calendarMetric: "invalid" }));
+});
 test("a timer accidentally left running over a week can still be saved and restored", () => {
   const state = freshState();
   state.jobs = [job];

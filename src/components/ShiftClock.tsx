@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   dateKey,
-  duration,
+  duration as formatDuration,
   shiftEnd,
   timerMinutes,
   timeLabel,
@@ -21,6 +21,7 @@ const color = {
   day: "#F3CD87",
 };
 type Props = {
+  timeFormat?: "clock" | "decimal";
   now: number;
   shift: Shift;
   shifts: Shift[];
@@ -94,6 +95,7 @@ function Action({
   );
 }
 export default function ShiftClock(p: Props) {
+  const duration = (minutes: number) => formatDuration(minutes, p.timeFormat);
   const active = p.timer,
     shift = active?.shift ?? p.shift,
     worked = active ? timerMinutes(active, p.now) : 0,
@@ -266,7 +268,7 @@ export default function ShiftClock(p: Props) {
             }}
           />
         </View>
-        <View style={styles.between}>
+        <View style={[styles.between, { flexWrap: "wrap" }]}>
           <Text style={styles.small}>
             {progressMinutes < norm
               ? `Do normy ${duration(norm - progressMinutes)} h`
@@ -403,7 +405,7 @@ const styles = StyleSheet.create({
   },
   nextDay: { color: color.muted, fontSize: 10, paddingBottom: 3 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  small: { fontSize: 10, color: color.muted },
+  small: { fontSize: 11, lineHeight: 16, color: color.muted },
   elapsed: {
     fontSize: 46,
     color: color.white,

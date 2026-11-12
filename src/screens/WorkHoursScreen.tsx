@@ -34,7 +34,7 @@ import {
   csv,
   dateKey,
   demoState,
-  duration,
+  duration as formatDuration,
   finishTimer,
   localDate,
   minutesWorked,
@@ -49,6 +49,7 @@ import {
 } from "../domain";
 import { useWorkHours } from "../WorkHoursProvider";
 import { router } from "expo-router";
+import InstallHelp from "../components/InstallHelp";
 import ShiftClock from "../components/ShiftClock";
 import WorkCalendar from "../components/WorkCalendar";
 import { exportFile, importFile } from "../files";
@@ -322,6 +323,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   const total = totals(slices),
     todayTotal = totals(slices.filter((x) => x.date === today));
   const fmt = (n: number) => money(n, data.currency);
+  const duration = (minutes: number) =>
+    formatDuration(minutes, data.timeFormat);
   const jobFor = (id: string) => data.jobs.find((j) => j.id === id)!;
   function openJob(j?: Job) {
     setFormError("");
@@ -1011,6 +1014,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         <View style={[s.columns, wide && { flexDirection: "row" }]}>
           <View style={{ flex: wide ? 1.4 : undefined }}>
             <ShiftClock
+              timeFormat={data.timeFormat}
               now={now}
               shift={shift}
               shifts={data.shifts}
@@ -1395,6 +1399,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             today={today}
             slices={filtered}
             currency={data.currency}
+            timeFormat={data.timeFormat}
+            metric={data.calendarMetric ?? "hours"}
+            onMetric={(calendarMetric) =>
+              void save({ ...data, calendarMetric })
+            }
             onSelect={chooseDay}
             onMonth={chooseMonth}
           />
@@ -1418,11 +1427,26 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             {unique.length ? (
               unique.map((e) => row(e, selectedSlices))
             ) : (
-              <View style={{ padding: 22, gap: 8 }}>
+              <View style={{ padding: 18, gap: 12 }}>
                 <Text style={s.rowTitle}>Brak wpisów w tym dniu</Text>
                 <Text style={s.caption}>
-                  Wybierz inny dzień albo dodaj zakończoną zmianę.
+                  {calendarDate > today
+                    ? "Wpis dodasz po zakończeniu pracy w tym dniu."
+                    : "Dodaj przepracowaną zmianę lub wybierz inny dzień."}
                 </Text>
+                {calendarDate <= today && (
+                  <Button
+                    label="Dodaj zmianę w tym dniu"
+                    icon="add"
+                    kind="secondary"
+                    small
+                    onPress={() =>
+                      jobs.length
+                        ? openEntry(undefined, calendarDate)
+                        : openJob()
+                    }
+                  />
+                )}
               </View>
             )}
           </View>
@@ -1976,6 +2000,70 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           mieć normę 8 h. Przerwy są niepłatne; północ nie zeruje normy. Zmiany
           ustawień dotyczą kolejnych uruchomień.
         </Text>
+        {Platform.OS === "web" && (
+          <>
+            <Text style={s.settingsHeading}>INSTALACJA I OFFLINE</Text>
+            <InstallHelp />
+          </>
+        )}
+        <Text style={s.settingsHeading}>WYŚWIETLANIE CZASU</Text>
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Format czasu pracy"
+          style={s.card}
+        >
+          {(
+            [
+              {
+                key: "clock",
+                title: "Godziny i minuty",
+                example: "3:45 = 3 godz. 45 min",
+              },
+              {
+                key: "decimal",
+                title: "Godziny dziesiętne",
+                example: "3,75 h = 3 godz. 45 min",
+              },
+            ] as const
+          ).map((option, index) => {
+            const active = (data.timeFormat ?? "clock") === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                accessibilityRole="radio"
+                accessibilityLabel={option.title}
+                accessibilityState={{ checked: active }}
+                disabled={busy}
+                onPress={() => void save({ ...data, timeFormat: option.key })}
+                style={({ pressed }) => ({
+                  padding: 18,
+                  minHeight: 72,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  borderTopWidth: index ? 1 : 0,
+                  borderColor: C.line,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={s.rowTitle}>{option.title}</Text>
+                  <Text style={s.caption}>{option.example}</Text>
+                </View>
+                <I
+                  name={active ? "checkmark-circle" : "ellipse-outline"}
+                  color={active ? C.green : C.muted}
+                  size={24}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={s.footnote}>
+          Format dotyczy kalendarza, podsumowań i normy. Zegar zmiany pokazuje
+          godziny, minuty i sekundy. Kwoty oraz dokładność obliczeń pozostają
+          takie same.
+        </Text>
         <Text style={s.settingsHeading}>PREFERENCJE</Text>
         <View style={s.card}>
           <View style={{ padding: 20, gap: 15 }}>
@@ -2130,7 +2218,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </Text>
           </View>
           <Text style={s.caption}>
-            Wersja 1.2.0 · Zrobione dla Twojego czasu
+            Wersja 1.3.0 · Zrobione dla Twojego czasu
           </Text>
           <Text style={s.footnote}>
             Nowe zmiany zachowują jedną normę także przez północ. Starsze wpisy
@@ -2200,7 +2288,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             s.content,
-            { padding: wide ? 36 : 20, paddingBottom: 40 },
+            { padding: wide ? 36 : 16, paddingBottom: 40 },
           ]}
         >
           {tab === "home"
@@ -2693,7 +2781,14 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   bottomNav: { flexDirection: "row", paddingTop: 14, paddingHorizontal: 8 },
-  navItem: { flex: 1, alignItems: "center", gap: 6, paddingBottom: 4 },
+  navItem: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingBottom: 4,
+  },
   navText: { fontSize: 12, fontWeight: "500" },
   pageHeader: {
     flexDirection: "row",
@@ -2797,7 +2892,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.line,
   },
-  caption: { fontSize: 11, color: C.muted },
+  caption: { fontSize: 12, lineHeight: 18, color: C.muted },
   statsColumn: { gap: 14 },
   statCard: { padding: 21, borderRadius: 20, backgroundColor: C.card, gap: 15 },
   label: { fontSize: 12, color: C.muted },
