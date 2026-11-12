@@ -19,6 +19,9 @@ import {
   Break,
   Entry,
   Job,
+  overtimeHourlyRate,
+  overtimeSnapshot,
+  validateOvertime,
   State,
   Shift,
   Slice,
@@ -47,6 +50,7 @@ import {
 import { useWorkHours } from "../WorkHoursProvider";
 import { router } from "expo-router";
 import ShiftClock from "../components/ShiftClock";
+import WorkCalendar from "../components/WorkCalendar";
 import { exportFile, importFile } from "../files";
 
 const C = {
@@ -77,7 +81,7 @@ type Confirm = {
 };
 const tabs: { key: Tab; label: string; icon: Icon }[] = [
   { key: "home", label: "Pulpit", icon: "grid-outline" },
-  { key: "entries", label: "Wpisy", icon: "time-outline" },
+  { key: "entries", label: "Kalendarz", icon: "calendar-outline" },
   { key: "reports", label: "Raporty", icon: "stats-chart-outline" },
   { key: "settings", label: "Więcej", icon: "options-outline" },
 ];
@@ -275,6 +279,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     [group, setGroup] = useState<"days" | "weeks" | "months" | "jobs">("weeks"),
     [period, setPeriod] = useState("all"),
     [reportMode, setReportMode] = useState<"summary" | "payments">("summary");
+  const [entryView, setEntryView] = useState<"calendar" | "list">("calendar"),
+    [showFilters, setShowFilters] = useState(false),
+    [calendarDate, setCalendarDate] = useState(() => dateKey(now)),
+    [calendarMonth, setCalendarMonth] = useState(() =>
+      dateKey(now).slice(0, 7),
+    );
   const calculated = useMemo(
     () => calculate(state?.entries ?? []),
     [state?.entries],
@@ -322,8 +332,97 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       rate: String(j?.rate ?? 23.15),
       dailyHours: String(j?.dailyHours ?? 8),
       overtime: String(j?.overtime ?? 1.25),
+      overtimeMode: j?.overtimeMode ?? "multiplier",
+      overtimeRate: String(j ? overtimeHourlyRate(j) : 28.94),
       color: j?.color ?? C.green,
     });
+  }
+  function updateRate(key: string, value: string) {
+    setForm((f) =>
+      f
+        ? {
+            ...f,
+            [key]: value,
+            ...(f.type === "entry" ? { ratesDirty: "true" } : {}),
+          }
+        : f,
+    );
+  }
+  function rateFields() {
+    if (!form) return null;
+    const base = Number(form.rate?.replace(",", ".")),
+      mult = Number(form.overtime?.replace(",", "."));
+    const effective =
+      form.overtimeMode === "fixed"
+        ? Number(form.overtimeRate?.replace(",", "."))
+        : base * mult;
+    return (
+      <View style={{ gap: 13 }}>
+        <Field
+          label={`Stawka godzinowa (${data.currency})`}
+          numeric
+          value={form.rate}
+          onChange={(v) => updateRate("rate", v)}
+        />
+        <Text style={s.fieldLabel}>Stawka nadgodzin</Text>
+        <View style={s.row}>
+          <Chip
+            label="Mnożnik"
+            active={form.overtimeMode !== "fixed"}
+            onPress={() => updateRate("overtimeMode", "multiplier")}
+          />
+          <Chip
+            label="Kwota za godzinę"
+            active={form.overtimeMode === "fixed"}
+            onPress={() => updateRate("overtimeMode", "fixed")}
+          />
+        </View>
+        {form.overtimeMode === "fixed" ? (
+          <Field
+            label={`Nadgodziny za godzinę (${data.currency})`}
+            numeric
+            value={form.overtimeRate}
+            onChange={(v) => updateRate("overtimeRate", v)}
+          />
+        ) : (
+          <Field
+            label="Mnożnik nadgodzin"
+            numeric
+            value={form.overtime}
+            onChange={(v) => updateRate("overtime", v)}
+          />
+        )}
+        <View
+          style={[
+            s.between,
+            { padding: 12, backgroundColor: "#233020", borderRadius: 10 },
+          ]}
+        >
+          <Text style={s.caption}>Zwykła / nadgodzina</Text>
+          <Text style={{ color: C.green, fontSize: 13, fontWeight: "600" }}>
+            {Number.isFinite(base) ? fmt(base) : "—"} /{" "}
+            {Number.isFinite(effective) ? fmt(effective) : "—"}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+  function selectEntryJob(id: string) {
+    const j = jobFor(id);
+    setForm((f) =>
+      f
+        ? {
+            ...f,
+            jobId: id,
+            rate: String(j.rate),
+            overtime: String(j.overtime),
+            overtimeMode: j.overtimeMode ?? "multiplier",
+            overtimeRate: String(overtimeHourlyRate(j)),
+            ratesExpanded: "false",
+            ratesDirty: "false",
+          }
+        : f,
+    );
   }
   function openShift(value?: Shift) {
     setFormError("");
@@ -359,10 +458,22 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       };
     });
   }
-  function openEntry(e?: Entry) {
+  function openEntry(e?: Entry, onDate?: string) {
     // eslint-disable-next-line react-hooks/purity -- Read on a button press, never while rendering the nested screen helpers.
-    const end = e?.end ?? Date.now();
-    const start = e?.start ?? end - 8 * 3600000;
+    const timestamp = Date.now();
+    let end = e?.end ?? timestamp,
+      start = e?.start ?? end - 8 * 3600000;
+    if (!e && onDate) {
+      start = parseLocal(onDate, shift.startTime);
+      const endDate = localDate(onDate);
+      if (shift.endTime < shift.startTime)
+        endDate.setDate(endDate.getDate() + 1);
+      end = Math.min(parseLocal(dateKey(endDate), shift.endTime), timestamp);
+      if (start >= end)
+        start = Math.max(parseLocal(onDate, "00:00"), end - 3600000);
+    }
+    const entryPolicy = e ?? job;
+
     setFormError("");
     setForm({
       type: "entry",
@@ -382,6 +493,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           : 30,
       ),
       note: e?.note ?? "",
+      rate: String(entryPolicy?.rate ?? 0),
+      overtime: String(entryPolicy?.overtime ?? 1.25),
+      overtimeMode: entryPolicy?.overtimeMode ?? "multiplier",
+      overtimeRate: String(entryPolicy ? overtimeHourlyRate(entryPolicy) : 0),
+      ratesExpanded: "false",
+      ratesDirty: "false",
     });
   }
   function openStart() {
@@ -494,6 +611,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           rate = Number(form.rate?.replace(",", ".")),
           dailyHours = Number(form.dailyHours?.replace(",", ".")),
           overtime = Number(form.overtime?.replace(",", "."));
+        const overtimePolicy = {
+          overtimeMode:
+            form.overtimeMode === "fixed"
+              ? ("fixed" as const)
+              : ("multiplier" as const),
+          ...(form.overtimeMode === "fixed"
+            ? { overtimeRate: Number(form.overtimeRate?.replace(",", ".")) }
+            : {}),
+        };
+        if (form.overtimeMode === "fixed" && !form.overtimeRate?.trim())
+          throw new Error("Podaj stawkę nadgodzin za godzinę.");
+        validateOvertime(overtimePolicy);
         if (!name || name.length > 80)
           throw new Error("Podaj nazwę projektu (do 80 znaków).");
         if (
@@ -513,6 +642,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           rate,
           dailyHours,
           overtime,
+          ...overtimePolicy,
           color: form.color ?? C.green,
           archived: data.jobs.find((j) => j.id === form.id)?.archived,
         };
@@ -581,6 +711,39 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           ? [{ start: end - breakMinutes * 60000, end }]
           : [];
       const policy = old && old.jobId === id ? old : j;
+      const entryPolicy =
+        form.ratesDirty === "true"
+          ? {
+              rate: Number(form.rate?.replace(",", ".")),
+              overtime: Number(form.overtime?.replace(",", ".")),
+              overtimeMode:
+                form.overtimeMode === "fixed"
+                  ? ("fixed" as const)
+                  : ("multiplier" as const),
+              ...(form.overtimeMode === "fixed"
+                ? { overtimeRate: Number(form.overtimeRate?.replace(",", ".")) }
+                : {}),
+            }
+          : policy;
+      if (
+        !Number.isFinite(entryPolicy.rate) ||
+        entryPolicy.rate < 0 ||
+        entryPolicy.rate > 100000
+      )
+        throw new Error("Podaj prawidłową stawkę godzinową.");
+      if (
+        !Number.isFinite(entryPolicy.overtime) ||
+        entryPolicy.overtime < 1 ||
+        entryPolicy.overtime > 10
+      )
+        throw new Error("Mnożnik musi wynosić od 1 do 10.");
+      if (
+        form.ratesDirty === "true" &&
+        (!form.rate?.trim() ||
+          (form.overtimeMode === "fixed" && !form.overtimeRate?.trim()))
+      )
+        throw new Error("Uzupełnij stawkę godzinową i stawkę nadgodzin.");
+      validateOvertime(entryPolicy);
       const entry: Entry = {
         id: form.id ?? uid(),
         jobId: id,
@@ -588,9 +751,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         end,
         breaks,
         note: form.note?.trim() ?? "",
-        rate: policy.rate,
+        rate: entryPolicy.rate,
         dailyHours: policy.dailyHours,
-        overtime: policy.overtime,
+        overtime: entryPolicy.overtime,
+        ...overtimeSnapshot(entryPolicy),
         ...(form.shiftId && form.shiftId !== "legacy"
           ? {
               shift:
@@ -623,8 +787,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           },
           "Wpis zapisany",
         )
-      )
+      ) {
+        setCalendarDate(dateKey(startAt));
+        setCalendarMonth(dateKey(startAt).slice(0, 7));
         setForm(null);
+      }
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Nie udało się zapisać.");
     }
@@ -861,13 +1028,27 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               onStartAt={openStart}
             />
           </View>
-          <View style={[s.statsColumn, { flex: wide ? 1 : undefined }]}>
-            <View style={[s.statCard, { flex: 1 }]}>
+          <View
+            style={[
+              s.statsColumn,
+              {
+                flex: wide ? 1 : undefined,
+                flexDirection: wide ? "column" : "row",
+              },
+            ]}
+          >
+            <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
               <View style={s.between}>
-                <Text style={s.label}>Zarobki w tym tygodniu</Text>
+                <Text style={s.label}>Ten tydzień</Text>
                 <I name="wallet-outline" color={C.green} />
               </View>
-              <Text style={s.bigMoney}>{fmt(ws.amount)}</Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[s.bigMoney, !wide && { fontSize: 23 }]}
+              >
+                {fmt(ws.amount)}
+              </Text>
               <View style={s.row}>
                 <View style={s.pill}>
                   <I name="time-outline" color={C.green} size={12} />
@@ -876,17 +1057,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <Text style={s.caption}>od poniedziałku</Text>
               </View>
             </View>
-            <View style={[s.statCard, { flex: 1 }]}>
+            <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
               <View style={s.between}>
                 <Text style={s.label}>Dzisiaj</Text>
                 <I name="sunny-outline" color={C.blue} />
               </View>
               <View style={s.between}>
-                <Text style={s.statNumber}>
+                <Text style={[s.statNumber, !wide && { fontSize: 23 }]}>
                   {duration(todayTotal.minutes + activeMinutes)}{" "}
                   <Text style={s.unit}>h</Text>
                 </Text>
-                <Text style={s.todayMoney}>{fmt(todayTotal.amount)}</Text>
+                <Text style={[s.todayMoney, !wide && { fontSize: 12 }]}>
+                  {fmt(todayTotal.amount)}
+                </Text>
               </View>
               <Text style={s.caption}>
                 {timer
@@ -981,7 +1164,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       </View>
                       <View style={{ gap: 5, flex: 1 }}>
                         <Text style={s.rowTitle}>{j.name}</Text>
-                        <Text style={s.caption}>{fmt(j.rate)} / godz.</Text>
+                        <Text style={s.caption}>
+                          {fmt(j.rate)} / h · OT {fmt(overtimeHourlyRate(j))} /
+                          h
+                        </Text>
                       </View>
                       {job?.id === j.id && (
                         <I name="checkmark-circle" color={C.green} size={18} />
@@ -1007,102 +1193,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             })}
           </View>
         )}
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Ostatnie wpisy</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setTab("entries");
-              setProjectFilter("all");
-              setPeriod("all");
-            }}
-          >
-            <Text style={s.textLink}>Zobacz wszystkie →</Text>
-          </Pressable>
-        </View>
-        <View style={s.card}>
-          {data.entries.length ? (
-            [...data.entries]
-              .sort((a, b) => b.start - a.start)
-              .slice(0, 4)
-              .map((e) => (
-                <View key={e.id}>
-                  <Text style={s.dateLabel}>
-                    {new Date(e.start).toLocaleDateString("pl-PL", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "long",
-                    })}
-                  </Text>
-                  {row(e)}
-                </View>
-              ))
-          ) : (
-            <Empty
-              title="Tutaj zacznie się Twoja historia"
-              body="Uruchom licznik lub dodaj pierwszą zmianę ręcznie."
-              action={
-                <Button
-                  label="Dodaj wpis"
-                  icon="add"
-                  kind="secondary"
-                  onPress={() => (jobs.length ? openEntry() : openJob())}
-                />
-              }
-            />
-          )}
-        </View>
-        <View style={s.tip}>
-          <I name="bulb-outline" color={C.green} size={19} />
-          <Text style={[s.caption, { flex: 1, lineHeight: 20 }]}>
-            Nocna zmiana zachowuje jedną normę godzin, także po północy. Start
-            uruchamiasz przy przyjściu; po zakończeniu licznik czeka na Ciebie.
-          </Text>
+        <View style={{ marginTop: 14 }}>
+          <Button
+            label="Otwórz kalendarz"
+            icon="calendar-outline"
+            kind="secondary"
+            onPress={() => setTab("entries")}
+          />
         </View>
       </>
     );
   }
-  function entries() {
-    const filtered = slices.filter(
-      (x) =>
-        (projectFilter === "all" || x.entry.jobId === projectFilter) &&
-        (shiftFilter === "all" ||
-          (shiftFilter === "legacy"
-            ? !x.entry.shift
-            : x.entry.shift?.kind === shiftFilter)) &&
-        `${jobFor(x.entry.jobId).name} ${x.entry.note} ${x.entry.shift?.name ?? ""} ${x.date}`
-          .toLocaleLowerCase()
-          .includes(search.toLocaleLowerCase()),
-    );
-    const key = (x: (typeof slices)[number]) =>
-      group === "days"
-        ? x.date
-        : group === "weeks"
-          ? weekKey(localDate(x.date))
-          : group === "months"
-            ? x.date.slice(0, 7)
-            : x.entry.jobId;
-    const grouped = new Map<string, typeof slices>();
-    filtered.forEach((x) => {
-      const k = key(x);
-      grouped.set(k, [...(grouped.get(k) ?? []), x]);
-    });
-    const ft = totals(
-      period === "all" ? filtered : filtered.filter((x) => key(x) === period),
-    );
+  function entryFilters() {
     return (
       <>
-        {header(
-          "EWIDENCJA PRACY",
-          "Twój czas w szczegółach.",
-          "Wszystkie zmiany, przerwy i zarobki w jednym miejscu.",
-          <Button
-            label="Dodaj wpis"
-            icon="add"
-            small={!wide}
-            onPress={() => (jobs.length ? openEntry() : openJob())}
-          />,
-        )}
         <View style={[s.searchBox, s.row]}>
           <I name="search-outline" />
           <TextInput
@@ -1174,6 +1278,172 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             />
           ))}
         </ScrollView>
+      </>
+    );
+  }
+  function entryViewToggle() {
+    return (
+      <View style={[s.row, { marginBottom: 12 }]}>
+        <View style={[s.segment, { flex: 1 }]}>
+          {(["calendar", "list"] as const).map((v, i) => (
+            <Pressable
+              key={v}
+              accessibilityRole="tab"
+              accessibilityLabel={i ? "Widok listy" : "Widok kalendarza"}
+              accessibilityState={{ selected: entryView === v }}
+              onPress={() => setEntryView(v)}
+              style={[s.segmentItem, entryView === v && s.segmentActive]}
+            >
+              <Text
+                style={[s.segmentText, entryView === v && { color: C.text }]}
+              >
+                {i ? "Lista" : "Kalendarz"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Pokaż filtry"
+          accessibilityState={{ expanded: showFilters }}
+          onPress={() => setShowFilters(!showFilters)}
+          style={s.avatar}
+        >
+          <I name="filter-outline" color={showFilters ? C.green : C.muted} />
+        </Pressable>
+      </View>
+    );
+  }
+  function chooseDay(day: string) {
+    setCalendarDate(day);
+    setCalendarMonth(day.slice(0, 7));
+  }
+  function chooseMonth(value: string) {
+    setCalendarMonth(value);
+    setCalendarDate(value === month ? today : value + "-01");
+  }
+  function entries() {
+    const filtered = slices.filter(
+      (x) =>
+        (projectFilter === "all" || x.entry.jobId === projectFilter) &&
+        (shiftFilter === "all" ||
+          (shiftFilter === "legacy"
+            ? !x.entry.shift
+            : x.entry.shift?.kind === shiftFilter)) &&
+        `${jobFor(x.entry.jobId).name} ${x.entry.note} ${x.entry.shift?.name ?? ""} ${x.date}`
+          .toLocaleLowerCase()
+          .includes(search.toLocaleLowerCase()),
+    );
+    const key = (x: (typeof slices)[number]) =>
+      group === "days"
+        ? x.date
+        : group === "weeks"
+          ? weekKey(localDate(x.date))
+          : group === "months"
+            ? x.date.slice(0, 7)
+            : x.entry.jobId;
+    const grouped = new Map<string, typeof slices>();
+    filtered.forEach((x) => {
+      const k = key(x);
+      grouped.set(k, [...(grouped.get(k) ?? []), x]);
+    });
+    const ft = totals(
+      period === "all" ? filtered : filtered.filter((x) => key(x) === period),
+    );
+    if (entryView === "calendar") {
+      const selectedSlices = filtered.filter((x) => x.date === calendarDate),
+        dayTotals = totals(selectedSlices);
+      const unique = [
+        ...new Map(selectedSlices.map((x) => [x.entry.id, x.entry])).values(),
+      ].sort((a, b) => a.start - b.start);
+      return (
+        <>
+          <View style={[s.between, { marginBottom: 12, marginTop: 2 }]}>
+            <Text
+              style={{
+                color: C.text,
+                fontSize: 23,
+                fontWeight: "700",
+                letterSpacing: -0.6,
+              }}
+            >
+              Kalendarz pracy.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dodaj wpis"
+              disabled={calendarDate > today}
+              onPress={() =>
+                jobs.length ? openEntry(undefined, calendarDate) : openJob()
+              }
+              style={[
+                s.avatar,
+                {
+                  backgroundColor: C.green,
+                  opacity: calendarDate > today ? 0.4 : 1,
+                },
+              ]}
+            >
+              <I name="add" color={C.bg} size={23} />
+            </Pressable>
+          </View>
+          {entryViewToggle()}
+          {showFilters && entryFilters()}
+          <WorkCalendar
+            month={calendarMonth}
+            selected={calendarDate}
+            today={today}
+            slices={filtered}
+            currency={data.currency}
+            onSelect={chooseDay}
+            onMonth={chooseMonth}
+          />
+          <View style={[s.sectionHeader, { marginTop: 17, marginBottom: 10 }]}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[s.sectionTitle, { fontSize: 15 }]}>
+                {localDate(calendarDate).toLocaleDateString("pl-PL", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </Text>
+              <Text style={s.caption}>
+                {duration(dayTotals.minutes)} h · nadgodziny{" "}
+                {duration(dayTotals.extra)} h
+              </Text>
+            </View>
+            <Text style={s.rowMoney}>{fmt(dayTotals.amount)}</Text>
+          </View>
+          <View style={s.card}>
+            {unique.length ? (
+              unique.map((e) => row(e, selectedSlices))
+            ) : (
+              <View style={{ padding: 22, gap: 8 }}>
+                <Text style={s.rowTitle}>Brak wpisów w tym dniu</Text>
+                <Text style={s.caption}>
+                  Wybierz inny dzień albo dodaj zakończoną zmianę.
+                </Text>
+              </View>
+            )}
+          </View>
+        </>
+      );
+    }
+    return (
+      <>
+        {header(
+          "EWIDENCJA PRACY",
+          "Twój czas w szczegółach.",
+          "Wszystkie zmiany, przerwy i zarobki w jednym miejscu.",
+          <Button
+            label="Dodaj wpis"
+            icon="add"
+            small={!wide}
+            onPress={() => (jobs.length ? openEntry() : openJob())}
+          />,
+        )}
+        {entryViewToggle()}
+        {showFilters && entryFilters()}
         <View style={s.segment}>
           {(["days", "weeks", "months", "jobs"] as const).map((k, i) => (
             <Pressable
@@ -1774,7 +2044,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   {j.archived ? " · archiwum" : ""}
                 </Text>
                 <Text style={s.caption}>
-                  {fmt(j.rate)} / godz. · po {j.dailyHours} h ×{j.overtime}
+                  {fmt(j.rate)} / h · nadgodziny {fmt(overtimeHourlyRate(j))} /
+                  h
                 </Text>
               </Pressable>
               <Pressable
@@ -1859,7 +2130,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </Text>
           </View>
           <Text style={s.caption}>
-            Wersja 1.1.0 · Zrobione dla Twojego czasu
+            Wersja 1.2.0 · Zrobione dla Twojego czasu
           </Text>
           <Text style={s.footnote}>
             Nowe zmiany zachowują jedną normę także przez północ. Starsze wpisy
@@ -2112,31 +2383,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       onChange={(v) => setField("name", v)}
                       placeholder="np. Bowmill"
                     />
+                    {rateFields()}
                     <Field
-                      label={`Stawka godzinowa (${data.currency})`}
-                      value={form.rate}
+                      label="Limit starszych wpisów (h / dzień)"
                       numeric
-                      onChange={(v) => setField("rate", v)}
+                      value={form.dailyHours}
+                      onChange={(v) => setField("dailyHours", v)}
                     />
-                    <View style={s.row}>
-                      <Field
-                        label="Limit starszych wpisów (h / dzień)"
-                        value={form.dailyHours}
-                        numeric
-                        onChange={(v) => setField("dailyHours", v)}
-                      />
-                      <Field
-                        label="Mnożnik nadgodzin"
-                        value={form.overtime}
-                        numeric
-                        onChange={(v) => setField("overtime", v)}
-                      />
-                    </View>
                     <Text style={s.caption}>
-                      Mnożnik dotyczy nadgodzin tego projektu. Normę nowych
-                      zmian ustawisz w profilach zmian dziennych i nocnych.
-                      Dzienny limit zachowujemy dla starszych wpisów bez typu
-                      zmiany.
+                      Stawki dotyczą nowych wpisów i kolejnych liczników. Normę
+                      nowych zmian ustawisz w profilach zmian dziennych i
+                      nocnych. Dzienny limit zachowujemy dla starszych wpisów
+                      bez typu zmiany.
                     </Text>
                     <Text style={s.fieldLabel}>Kolor projektu</Text>
                     <View style={s.row}>
@@ -2205,7 +2463,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                             label={j.name}
                             dot={j.color}
                             active={form?.jobId === j.id}
-                            onPress={() => setField("jobId", j.id)}
+                            onPress={() => selectEntryJob(j.id)}
                           />
                         ))}
                     </View>
@@ -2250,6 +2508,38 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           nocnej zmiany ustaw datę zakończenia na następny
                           dzień.
                         </Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Edytuj stawki tego wpisu"
+                          onPress={() =>
+                            setField(
+                              "ratesExpanded",
+                              form.ratesExpanded === "true" ? "false" : "true",
+                            )
+                          }
+                          style={[s.between, { paddingVertical: 10 }]}
+                        >
+                          <Text style={{ color: C.green, fontSize: 13 }}>
+                            Stawki tego wpisu
+                          </Text>
+                          <I
+                            name={
+                              form.ratesExpanded === "true"
+                                ? "chevron-up"
+                                : "chevron-down"
+                            }
+                            color={C.green}
+                          />
+                        </Pressable>
+                        {form.ratesExpanded === "true" && (
+                          <>
+                            {rateFields()}
+                            <Text style={s.caption}>
+                              Zmiana stawek przeliczy wyłącznie ten wpis. Inne
+                              zmiany i projekt pozostaną bez zmian.
+                            </Text>
+                          </>
+                        )}
                         <Field
                           label="Notatka (opcjonalnie)"
                           value={form.note}

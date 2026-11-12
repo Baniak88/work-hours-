@@ -181,7 +181,7 @@ export default function ShiftClock(p: Props) {
         </ScrollView>
       )}
       {active && !active.shift ? (
-        <View style={[styles.schedule, { marginTop: 20, gap: 7 }]}>
+        <View style={[styles.schedule, { marginTop: 12, gap: 7 }]}>
           <Text style={{ color: color.white, fontSize: 13, fontWeight: "600" }}>
             Licznik z poprzedniej wersji
           </Text>
@@ -218,7 +218,7 @@ export default function ShiftClock(p: Props) {
           </View>
         </View>
       )}
-      <View style={{ paddingVertical: active ? 23 : 14, gap: 7 }}>
+      <View style={{ paddingVertical: active ? 16 : 10, gap: 7 }}>
         <View style={styles.row}>
           <View
             style={[
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.card,
     borderRadius: 24,
     borderWidth: 1,
-    padding: 20,
+    padding: 16,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 9 },
   between: {
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   wallClock: {
-    fontSize: 29,
+    fontSize: 25,
     color: color.white,
     fontVariant: ["tabular-nums"],
     letterSpacing: 1,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  choices: { gap: 9, paddingVertical: 19 },
+  choices: { gap: 9, paddingVertical: 11 },
   choice: {
     borderWidth: 1,
     borderColor: color.line,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   schedule: {
     borderRadius: 15,
-    padding: 15,
+    padding: 12,
     backgroundColor: "#141C1F",
     borderWidth: 1,
     borderColor: "#2D3A3E",
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3 },
   small: { fontSize: 10, color: color.muted },
   elapsed: {
-    fontSize: 55,
+    fontSize: 46,
     color: color.white,
     fontWeight: "300",
     fontVariant: ["tabular-nums"],
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     marginVertical: 5,
   },
   action: {
-    minHeight: 55,
+    minHeight: 50,
     borderRadius: 14,
     flexDirection: "row",
     justifyContent: "center",
@@ -430,8 +430,8 @@ const styles = StyleSheet.create({
   },
   actionLabel: { fontSize: 14, fontWeight: "700" },
   startAt: {
-    height: 55,
-    width: 53,
+    height: 50,
+    width: 48,
     borderRadius: 14,
     backgroundColor: "#2D393C",
     alignItems: "center",
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     borderTopWidth: 1,
     borderColor: color.line,
-    paddingTop: 16,
-    marginTop: 20,
+    paddingTop: 12,
+    marginTop: 12,
   },
 });

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  overtimeHourlyRate,
   checkEntry,
   csv,
   dateKey,
@@ -22,6 +23,7 @@ import {
   type Entry,
   type Job,
 } from "../src/domain";
+import { calendarDays, moveMonth } from "../src/calendar";
 const job: Job = {
   id: "job",
   name: "Bowmill",
@@ -169,7 +171,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 3 }));
+  assert.throws(() => validateBackup({ ...s, version: 4 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -338,7 +340,7 @@ test("version 1 migrates without changing existing entries, pay, or running time
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 2);
+  assert.equal(next.version, 3);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -387,4 +389,104 @@ test("shift backup validates snapshots and rejects malformed hours, norms and de
       timer: null,
     }),
   );
+});
+
+test("fixed overtime pays its hourly amount independently of the base-rate multiplier", () => {
+  const e = entry(undefined, "06:00", "16:00", {
+    overtimeMode: "fixed",
+    overtimeRate: 37,
+    breaks: [
+      {
+        start: stamp("2026-10-20", "12:00"),
+        end: stamp("2026-10-20", "12:30"),
+      },
+    ],
+  });
+  assert.equal(totals(calculate([e])).amount, 215.5);
+  assert.equal(overtimeHourlyRate(e), 37);
+  assert.equal(
+    totals(calculate([{ ...e, overtimeMode: "multiplier", overtime: 2 }]))
+      .amount,
+    220,
+  );
+  assert.equal(totals(calculate([{ ...e, overtimeRate: 0 }])).amount, 160);
+});
+test("fixed overtime snapshots persist through a live timer and later project changes", () => {
+  const employer = { ...job, overtimeMode: "fixed" as const, overtimeRate: 35 };
+  const timer = makeTimer(
+    employer,
+    defaultShifts()[1],
+    stamp("2026-10-20", "17:30"),
+  );
+  employer.overtimeRate = 45;
+  employer.rate = 30;
+  const e = finishTimer(timer, stamp("2026-10-21", "03:00"));
+  assert.equal(e.overtimeRate, 35);
+  assert.equal(e.rate, 20);
+  assert.equal(totals(calculate([e])).amount, 212.5);
+  const state = freshState();
+  state.jobs = [employer];
+  state.entries = [e];
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(state))), state);
+});
+test("invalid fixed rates and unknown modes are rejected without changing legacy entries", () => {
+  const state = freshState();
+  state.jobs = [job];
+  state.entries = [entry()];
+  const baseline = totals(calculate(state.entries));
+  for (const policy of [
+    { overtimeMode: "fixed" },
+    { overtimeMode: "fixed", overtimeRate: -1 },
+    { overtimeMode: "fixed", overtimeRate: Infinity },
+    { overtimeMode: "unknown", overtimeRate: 30 },
+  ])
+    assert.throws(() =>
+      validateBackup({ ...state, jobs: [{ ...job, ...policy }] }),
+    );
+  assert.deepEqual(totals(calculate(validateBackup(state).entries)), baseline);
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      entries: [{ ...entry(), overtimeMode: "fixed", overtimeRate: -5 }],
+    }),
+  );
+});
+test("CSV exports the effective overtime rate and leaves the multiplier blank for fixed pay", () => {
+  const state = freshState();
+  state.jobs = [job];
+  state.entries = [
+    entry(undefined, "06:00", "16:00", {
+      overtimeMode: "fixed",
+      overtimeRate: 35,
+    }),
+  ];
+  const output = csv(state);
+  assert.ok(output.includes('"Stawka nadgodzin za godzinę"'));
+  assert.ok(output.includes('"";"Stawka godzinowa";"35.00"'));
+});
+test("calendar grids start on Monday, include leap day and contain no adjacent-month duplicates", () => {
+  const november = calendarDays("2026-11");
+  assert.equal(november.length, 42);
+  assert.equal(november[6], "2026-11-01");
+  assert.equal(november.filter(Boolean).length, 30);
+  const february = calendarDays("2028-02");
+  assert.equal(february.filter(Boolean).length, 29);
+  assert.ok(february.includes("2028-02-29"));
+  const march = calendarDays("2026-03");
+  assert.equal(new Set(march.filter(Boolean)).size, 31);
+  assert.equal(moveMonth("2026-12", 1), "2027-01");
+  assert.equal(moveMonth("2026-01", -1), "2025-12");
+});
+test("version 2 backups migrate unchanged to version 3 so old readers reject new fixed-rate data", () => {
+  const legacy = {
+    ...freshState(),
+    version: 2,
+    jobs: [job],
+    entries: [entry()],
+  };
+  const migrated = validateBackup(legacy);
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(migrated.entries, legacy.entries);
+  assert.deepEqual(migrated.shifts, legacy.shifts);
+  assert.equal(totals(calculate(migrated.entries)).amount, 210);
 });

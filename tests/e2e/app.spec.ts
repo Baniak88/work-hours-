@@ -20,7 +20,8 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
   await expect(
     page.getByRole("button", { name: "Wybierz projekt Bowmill" }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await page.getByRole("tab", { name: "Widok listy", exact: true }).click();
   await page.getByRole("button", { name: "Dodaj wpis", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Data rozpoczęcia", exact: true })
@@ -103,7 +104,8 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
     page.getByText("Bowmill restored", { exact: true }),
   ).toBeVisible();
   await page.reload();
-  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await page.getByRole("tab", { name: "Widok listy", exact: true }).click();
   await expect(page.getByText("£197.50").first()).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -145,7 +147,8 @@ test("demo preview on mobile and desktop has no horizontal overflow", async ({
   ).toBeInViewport();
   await page.screenshot({ path: "artifacts/mobile-small.png", scale: "css" });
   await page.setViewportSize({ width: 390, height: 664 });
-  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await page.getByRole("tab", { name: "Widok listy", exact: true }).click();
   await expect(page.getByText("Twój czas w szczegółach.")).toBeInViewport();
   await page.screenshot({
     path: "artifacts/mobile-entries.png",
@@ -223,14 +226,17 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     path: "artifacts/mobile-night-active.png",
     scale: "css",
   });
-  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await page.getByRole("tab", { name: "Widok listy", exact: true }).click();
   await page.clock.setFixedTime(new Date("2026-11-11T10:00:00Z"));
   // Reload simulates closing the application before the scheduled end.
   await page.reload();
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
   await expect(page.getByText("GOTOWY DO STARTU")).toBeVisible();
   await expect(page.getByText("Ostatnia zmiana zakończona")).toBeVisible();
-  await page.getByRole("tab", { name: "Wpisy", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await page.getByRole("tab", { name: "Widok listy", exact: true }).click();
+  await page.getByRole("button", { name: "Pokaż filtry", exact: true }).click();
   await page.getByRole("button", { name: "Nocne", exact: true }).click();
   await expect(page.getByText("£200.00").first()).toBeVisible();
   await page.getByRole("tab", { name: "Dni", exact: true }).click();
@@ -264,4 +270,141 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
   expect(saved.entries).toHaveLength(1);
   expect(saved.timer).toBeNull();
   expect(saved.entries[0].shift.kind).toBe("night");
+});
+
+test("fixed overtime rates, monthly calendar, overnight day details, historical correction and deletion", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-11-12T12:00:00Z"));
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Utwórz projekt", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Nazwa projektu lub pracodawcy" })
+    .fill("Bowmill");
+  await page
+    .getByRole("textbox", { name: "Stawka godzinowa (GBP)" })
+    .fill("20");
+  await page
+    .getByRole("button", { name: "Kwota za godzinę", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .fill("35");
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await expect(page.getByText("Kalendarz pracy.")).toBeVisible();
+  await page.getByRole("button", { name: /^Dzień 2026-11-10,/ }).click();
+  await page.getByRole("button", { name: "Dodaj wpis", exact: true }).click();
+  await page.getByRole("button", { name: "Zmiana nocna", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Data rozpoczęcia", exact: true }),
+  ).toHaveValue("2026-11-10");
+  await expect(
+    page.getByRole("textbox", { name: "Data zakończenia", exact: true }),
+  ).toHaveValue("2026-11-11");
+  await page
+    .getByRole("textbox", { name: "Niepłatna przerwa (minuty)" })
+    .fill("0");
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await expect(
+    page.getByText("£212.50", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /^Dzień 2026-11-10, 6:30 godzin, £130.00/,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /^Dzień 2026-11-11, 3:00 godzin, £82.50/ })
+    .click();
+  await expect(page.getByText("£82.50", { exact: true }).first()).toBeVisible();
+  await page
+    .getByRole("tab", { name: "Kwoty w kalendarzu", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Zamknij komunikat" }).click();
+  await page
+    .getByText("Kalendarz pracy.", { exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    page.getByRole("button", { name: /^Dzień 2026-11-30,/ }),
+  ).toBeInViewport();
+  await page.screenshot({
+    path: "artifacts/calendar-fixed-rates.png",
+    scale: "css",
+  });
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Edytuj projekt Bowmill", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .fill("45");
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
+  await expect(
+    page.getByText("£212.50", { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^Dzień 2026-11-10,/ }).click();
+  await page
+    .getByRole("button", {
+      name: "Edytuj wpis Bowmill 2026-11-10",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
+    .click();
+  await expect(
+    page.getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" }),
+  ).toHaveValue("35");
+  await page
+    .getByRole("textbox", { name: "Nadgodziny za godzinę (GBP)" })
+    .fill("40");
+  await page
+    .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Zapisz", exact: true }).click();
+  await expect(
+    page.getByText("£220.00", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /^Dzień 2026-11-11, 3:00 godzin, £90.00/,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Poprzedni miesiąc" }).click();
+  await expect(
+    page.getByText("październik 2026", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Następny miesiąc" }).click();
+  await expect(
+    page.getByText("£220.00", { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Przejdź do dzisiaj" }).click();
+  await expect(page.getByText("Brak wpisów w tym dniu")).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "artifacts/calendar-small.png", scale: "css" });
+  await page.getByRole("button", { name: /^Dzień 2026-11-10,/ }).click();
+  await page
+    .getByRole("button", {
+      name: "Edytuj wpis Bowmill 2026-11-10",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("button", { name: "Usuń wpis", exact: true }).click();
+  await page.getByRole("button", { name: "Usuń wpis", exact: true }).click();
+  await expect(page.getByText("Brak wpisów w tym dniu")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^Dzień 2026-11-11, 0:00 godzin, £0.00/ }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
 });
