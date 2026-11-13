@@ -1,0 +1,24 @@
+{
+  "name": "Work Hours",
+  "version": "1.5.0",
+  "platform": "android",
+  "applicationId": "com.baniak88.workhours",
+  "versionCode": 3,
+  "buildId": "1c6cb8e1-c570-428e-a0e6-5503eee0d129",
+  "buildUrl": "https://expo.dev/accounts/neospecto82/projects/work-hours/builds/1c6cb8e1-c570-428e-a0e6-5503eee0d129",
+  "downloadUrl": "https://expo.dev/artifacts/eas/ANkJ7_KZTFmkoE9umHE8syx6qyxtosTznRjmYqOdVFM.apk",
+  "sizeBytes": 91312018,
+  "sha256": "901686d224365d141c0eedd58ae6ae2480e1306e87aa4dc8c1dd23582bc8ed71",
+  "signerCertificateSha256": "9653ffed5f72cabe9c22f0d2246076d9f847f9ca79be9972d5cf0eec826a39ef",
+  "signatureVerified": true,
+  "signatureScheme": "v2",
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "verifiedAt": "2026-11-13T00:00:25.137119+00:00",
+  "githubReleaseUrl": "https://github.com/Baniak88/work-hours-/releases/tag/v1.5.0",
+  "githubDownloadUrl": "https://github.com/Baniak88/work-hours-/releases/download/v1.5.0/work-hours-1.5.0.apk"
+}
