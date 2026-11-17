@@ -8,8 +8,11 @@
   "sourceCommit": "1b95c7baec428c812b964eb742a319466844cd89",
   "status": "succeeded",
   "url": "https://work-hours-osobiste.daintypersimmon4.chatgpt.site",
-  "audience": "owner-private",
+  "audience": "public",
   "deviceTested": false,
   "domainTests": 42,
-  "serviceWorkerUnitTests": 4
+  "serviceWorkerUnitTests": 4,
+  "accessRevision": 2,
+  "accessUpdatedAt": "2026-11-17T22:14:44.495127+00:00",
+  "anonymousHttpVerified": true
 }

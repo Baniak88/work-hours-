@@ -24,12 +24,13 @@ Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, na
 
 ## iPhone — bezpłatna instalacja z Safari (1.5)
 
-**[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Wersja hostowana przez Sites jest prywatna — jeśli pojawi się logowanie, użyj konta ChatGPT właściciela tej aplikacji. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
+**[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Link jest dostępny bez logowania do ChatGPT i można go wysłać koledze. Udostępniona jest sama aplikacja; każdy użytkownik ma własne dane na swoim urządzeniu. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
 
-1. Otwórz powyższy adres w **Safari**.
-2. Wybierz **Udostępnij → Do ekranu początkowego → Dodaj**. Jeżeli jest opcja „Otwórz jako aplikację”, włącz ją.
-3. Uruchom ikonę **Work Hours** i pozostaw połączenie z internetem. W **Ustawienia → Instalacja i offline** zaczekaj na „Gotowa do pracy offline na tym urządzeniu”. Od tej chwili kalendarz, licznik, ustawienia i zapis są dostępne bez internetu.
-4. Aby przenieść dane z Androida, zapisz tam kopię JSON i wczytaj ją w aplikacji na iPhonie. Zapis w Safari i w ikonie na ekranie może być oddzielny; sprawdź dane po uruchomieniu z ikony.
+1. Otwórz powyższy adres w **Safari**. Jeśli masz nadal wcześniejszy ekran logowania, odśwież stronę okrągłą strzałką przy pasku adresu. Konto ChatGPT nie jest potrzebne.
+2. Na dole Safari naciśnij **Udostępnij** (kwadrat ze strzałką w górę), następnie **Do ekranu początkowego → Dodaj**. Jeżeli jest opcja „Otwórz jako aplikację”, włącz ją.
+3. Uruchom ikonę **Work Hours**. Przy pierwszym uruchomieniu pozostaw internet do potwierdzenia gotowości offline w ustawieniach. Kolejne uruchomienia działają bez sieci.
+
+Historię z Androida przeniesiesz kopią JSON: zapisz ją na Androidzie i przywróć na iPhonie. Przed rozpoczęciem ewidencji sprawdź dane po uruchomieniu z ikony, ponieważ zapis Safari i aplikacji na ekranie może być oddzielny.
 
 To wersja PWA dodawana do ekranu głównego: nie wymaga App Store, komputera, Expo Go ani płatnego Apple Developer. Natywny plik IPA pozostaje osobną opcją wymagającą podpisu Apple. Bezpłatny Personal Team z Xcode wymaga Maca i ponownego podpisania po 7 dniach ([zasady Apple](https://developer.apple.com/support/compare-memberships/)).
 
