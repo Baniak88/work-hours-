@@ -3,14 +3,15 @@
   "version": "1.6.0",
   "platform": "pwa",
   "project_id": "appgprj_6af5240dd4948191bcbd46a6dece3d37",
-  "deployment_id": "appgdep_6afcdcb0dfac8191bb91cbce3b69e0cd",
-  "version_id": "appgprj_6af5240dd4948191bcbd46a6dece3d37~appgver_b1bdfcc0ee208191a2c1a8c9123b301e",
-  "sourceCommit": "0553f613105b0134ccbc64091f721f457126ca87",
+  "deployment_id": "appgdep_6afcdf0fce6c8191a8cd58915b935240",
+  "version_id": "appgprj_6af5240dd4948191bcbd46a6dece3d37~appgver_6db0d7a700dc8191b9583c3b70379c57",
+  "sourceCommit": "41b4ff86c85b9dfb78f3253a4e247b6ba4e2eb40",
   "status": "succeeded",
   "url": "https://work-hours-osobiste.daintypersimmon4.chatgpt.site",
   "audience": "public",
   "deviceTested": false,
   "domainTests": 51,
-  "serviceWorkerUnitTests": 4,
-  "anonymousHttpVerified": true
+  "serviceWorkerUnitTests": 5,
+  "anonymousHttpVerified": true,
+  "anonymousFontVerified": true
 }
