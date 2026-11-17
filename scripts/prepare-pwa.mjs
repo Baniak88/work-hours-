@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, writeFile, copyFile } from "node:fs/promises";
+import {
+  readdir,
+  readFile,
+  writeFile,
+  copyFile,
+  rename,
+  rm,
+} from "node:fs/promises";
 import path from "node:path";
 
 const root = path.resolve("dist");
@@ -12,6 +19,44 @@ async function files(directory) {
     }),
   );
   return nested.flat();
+}
+// Static hosts may exclude node_modules paths, including exported fonts/images.
+// Keep these runtime assets under a public path and invalidate every script URL
+// because the rewritten bundles no longer match Expo's original content hashes.
+const exportedAssets = path.join(root, "assets/node_modules");
+let hasExportedAssets = false;
+try {
+  await readdir(exportedAssets);
+  hasExportedAssets = true;
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+}
+if (hasExportedAssets) {
+  await rm(path.join(root, "assets/vendor"), { recursive: true, force: true });
+  await rename(exportedAssets, path.join(root, "assets/vendor"));
+  const scripts = (await files(path.join(root, "_expo/static/js/web")))
+    .filter((f) => f.endsWith(".js"))
+    .sort();
+  const fingerprint = createHash("sha256").update("public-assets-v1");
+  for (const f of scripts) fingerprint.update(await readFile(f));
+  const prefix = `pwa-${fingerprint.digest("hex").slice(0, 12)}-`;
+  const names = scripts.map((f) => [
+    path.basename(f),
+    prefix + path.basename(f),
+  ]);
+  const textFiles = (await files(root)).filter((f) =>
+    /\.(js|html|json)$/.test(f),
+  );
+  for (const f of textFiles) {
+    let text = (await readFile(f, "utf8")).replaceAll(
+      "assets/node_modules/",
+      "assets/vendor/",
+    );
+    for (const [before, after] of names) text = text.replaceAll(before, after);
+    await writeFile(f, text);
+  }
+  for (const f of scripts)
+    await rename(f, path.join(path.dirname(f), prefix + path.basename(f)));
 }
 await copyFile("assets/icon.png", path.join(root, "app-icon.png"));
 const manifest = {
@@ -96,7 +141,9 @@ self.addEventListener('install', (event) => {
     // A failed or expired sign-in must never become the offline application.
     await Promise.all(ASSETS.map(async (url) => {
       const response = await fetch(new Request(url, { credentials: 'same-origin', cache: 'reload' }));
-      if (!response.ok || response.redirected) throw new Error('Offline asset unavailable');
+      if (!response.ok || response.redirected ||
+          (!url.endsWith('.html') && response.headers.get('content-type')?.includes('text/html')))
+        throw new Error('Offline asset unavailable');
       await cache.put(url, response);
     }));
     // Updates activate after all previous app windows close, preserving active forms.

@@ -56,9 +56,14 @@ function runtime(failure = "") {
         typeof request === "string" ? request : request.url,
         ORIGIN,
       );
-      if (failure && url.pathname === "/index.html") {
+      if (
+        (["http", "redirect"].includes(failure) &&
+          url.pathname === "/index.html") ||
+        (failure === "asset-html" && url.pathname.endsWith(".ttf"))
+      ) {
         const r = new Response("Sign in", {
           status: failure === "http" ? 401 : 200,
+          headers: { "Content-Type": "text/html" },
         });
         if (failure === "redirect")
           Object.defineProperty(r, "redirected", { value: true });
@@ -136,11 +141,29 @@ test("all application routes and lazy scripts remain available after disconnecti
   assert.equal(await r.request("/", "navigate", "POST"), undefined);
   assert.equal(await r.request("https://other.example/"), undefined);
 });
-test("expired sign-in or failed downloads prevent offline installation", async () => {
-  for (const failure of ["http", "redirect"]) {
+test("expired sign-in, HTML in place of assets or failed downloads prevent offline installation", async () => {
+  for (const failure of ["http", "redirect", "asset-html"]) {
     const r = runtime(failure);
     await assert.rejects(r.lifecycle("install"), /Offline asset unavailable/);
     assert.equal(r.claimed, false);
+  }
+});
+test("exported fonts use a public path and are available offline as binary assets", async () => {
+  assert.doesNotMatch(worker, /assets\/node_modules\//);
+  const r = runtime();
+  await r.lifecycle("install");
+  await r.lifecycle("activate");
+  r.disconnect();
+  const stored = [...r.stores.values()][0];
+  const fonts = [...stored.keys()].filter((url) => url.endsWith(".ttf"));
+  assert.ok(fonts.length > 0);
+  for (const font of fonts) {
+    assert.match(font, /^\/assets\/vendor\//);
+    const actual = Buffer.from(
+      await (await r.request(font, "cors")).arrayBuffer(),
+    );
+    assert.deepEqual(actual, await readFile("dist" + decodeURIComponent(font)));
+    assert.equal(actual[0], 0);
   }
 });
 test("activation clears obsolete app caches and preserves unrelated storage", async () => {

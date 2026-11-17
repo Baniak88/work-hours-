@@ -22,7 +22,7 @@ Zegar pokazuje postęp tygodnia i czas do nadgodzin. Raporty i kalendarz korzyst
 
 **Nowe kopie JSON mają format 5**, aby starsza aplikacja nie pominęła reguł tygodniowych. Kopie 1–4 są migrowane bez przeliczania dotychczasowych kwot. Przed przeniesieniem nowej kopii na drugi telefon zaktualizuj obie aplikacje.
 
-Weryfikacja: **51 testów obliczeń, danych i preferencji**, **4 testy offline**, lint, TypeScript i eksport JS Android/iOS/web. W tym rozdzielenie podstawy Basic / z dodatkiem / dawnej formuły, oba progi bez podwójnego naliczania, niepełna norma 37:30, przerwa przez granicę tygodnia, różne miejsca pracy, podzielone sesje, migrowane stawki i eksport wybranego wpisu z pełnym kontekstem. Nie wykonano testu na fizycznym telefonie ani testów UI w przeglądarce: środowisko Sites nie udostępnia wymaganego cua_repl.js. Scenariusze Playwright dostosowano do nowych nazw pól.
+Weryfikacja: **51 testów obliczeń, danych i preferencji**, **5 testów offline**, lint, TypeScript i eksport JS Android/iOS/web. W tym rozdzielenie podstawy Basic / z dodatkiem / dawnej formuły, oba progi bez podwójnego naliczania, niepełna norma 37:30, przerwa przez granicę tygodnia, różne miejsca pracy, podzielone sesje, migrowane stawki i eksport wybranego wpisu z pełnym kontekstem. Nie wykonano testu na fizycznym telefonie ani testów UI w przeglądarce: środowisko Sites nie udostępnia wymaganego cua_repl.js. Scenariusze Playwright dostosowano do nowych nazw pól. W publikacji webowej pliki czcionek i obrazów są przenoszone spod blokowanej ścieżki node_modules do publicznego katalogu vendor; skrypty dostają nowe adresy. Obsługa offline odrzuca HTML zwracany zamiast czcionki lub skryptu.
 
 ## Wersja 1.5 — nadgodziny procentowo, jedna zmiana, języki i motywy
 
