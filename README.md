@@ -2,6 +2,13 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Pobieranie i udostępnianie
+
+- **Android:** [instrukcja i instalator APK 1.6.1](docs/android/README.md).
+- **iPhone:** [instrukcja instalacji z Safari](docs/iphone/README.md).
+
+Link do wersji dla iPhone’a oraz bezpośredni link APK z wydania możesz wysłać przez e-mail lub WhatsApp. Każdy użytkownik przechowuje własne dane na swoim urządzeniu.
+
 ## Wersja 1.6 — podstawa nadgodzin i norma tygodnia
 
 W **Ustawienia → Stawki → wybierz miejsce pracy**:
