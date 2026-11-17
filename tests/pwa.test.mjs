@@ -164,6 +164,8 @@ test("exported fonts use a public path and are available offline as binary asset
     );
     assert.deepEqual(actual, await readFile("dist" + decodeURIComponent(font)));
     assert.equal(actual[0], 0);
+    const unescaped = await r.request(decodeURIComponent(font), "cors");
+    assert.deepEqual(Buffer.from(await unescaped.arrayBuffer()), actual);
   }
 });
 test("activation clears obsolete app caches and preserves unrelated storage", async () => {

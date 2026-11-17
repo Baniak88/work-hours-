@@ -159,11 +159,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  let decodedPath;
+  try { decodedPath = decodeURIComponent(url.pathname); } catch { return; }
+  const asset = ASSETS.find((path) => decodeURIComponent(path) === decodedPath);
   const appRoutes = ['/', '/entries', '/reports', '/settings'];
   if (request.mode === 'navigate' && appRoutes.includes(url.pathname.replace(/\\/$/, '') || '/')) {
     event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match('/index.html')) || fetch(request)));
-  } else if (ASSETS.includes(url.pathname)) {
-    event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match(url.pathname)) || fetch(request)));
+  } else if (asset) {
+    event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match(asset)) || fetch(request)));
   }
 });
 `,
