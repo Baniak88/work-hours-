@@ -2,6 +2,7 @@ import { english } from "./translations";
 export type Language = "pl" | "en";
 type Rule = [RegExp, (...parts: string[]) => string];
 const rules: Rule[] = [
+  [/^Do nadgodzin (.+) h$/, (time) => `${time} h until overtime`],
   [
     /^Basic — stawka podstawowa \((.+)\)$/,
     (unit) => `Basic — hourly rate (${unit})`,

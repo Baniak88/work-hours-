@@ -18,6 +18,8 @@ import {
   Entry,
   Job,
   overtimeHourlyRate,
+  extraHourlyRate,
+  parseWeeklyNormHours,
   overtimePercentInput,
   policyOvertimePercent,
   parseNormHours,
@@ -358,7 +360,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       overtimeMode: "multiplier",
       overtimePercent: j ? String(policyOvertimePercent(j) ?? "") : "150",
       shiftAllowancePercent: String(j?.shiftAllowancePercent ?? 0),
-      allowanceOnOvertime: String(j?.allowanceOnOvertime ?? false),
+      overtimeBase: j?.overtimeBase ?? "basic",
+      overtimeThreshold: j?.overtimeThreshold ?? "both",
+      weeklyNorm: formatDuration((j?.weeklyHours ?? 40) * 60),
       color: j?.color ?? C.green,
     });
   }
@@ -373,6 +377,27 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         : f,
     );
   }
+  function payOptions(f: Form) {
+    const threshold = (f.overtimeThreshold ?? "shift") as
+      "shift" | "week" | "both";
+    let weeklyHours = 40;
+    try {
+      weeklyHours = parseWeeklyNormHours(f.weeklyNorm ?? "40:00");
+    } catch (error) {
+      if (threshold !== "shift") throw error;
+    }
+    return {
+      ...(f.overtimeBase === "legacy"
+        ? {}
+        : {
+            overtimeBase: (f.overtimeBase ?? "basic") as
+              "basic" | "withAllowance",
+          }),
+      allowanceOnOvertime: f.overtimeBase === "legacy",
+      overtimeThreshold: threshold,
+      weeklyHours,
+    };
+  }
   function rateFields() {
     if (!form) return null;
     const base = Number(form.rate?.replace(",", ".")),
@@ -384,7 +409,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           return NaN;
         }
       })(),
-      overtime = (base * overtimePercent) / 100,
+      overtime = extraHourlyRate({
+        rate: base,
+        overtime: overtimePercent / 100,
+        shiftAllowancePercent: percent,
+        ...(form.overtimeBase === "legacy"
+          ? {}
+          : {
+              overtimeBase:
+                form.overtimeBase === "withAllowance"
+                  ? ("withAllowance" as const)
+                  : ("basic" as const),
+            }),
+        allowanceOnOvertime: form.overtimeBase === "legacy",
+      }),
       allowance = (base * percent) / 100;
     return (
       <View style={{ gap: 14 }}>
@@ -405,8 +443,30 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         <Text style={s.caption}>
           Procent stawki Basic. Wpisz 0, jeśli nie masz dodatku.
         </Text>
+        <Text style={s.fieldLabel}>Podstawa nadgodzin</Text>
+        <View style={[s.row, { flexWrap: "wrap" }]}>
+          <Chip
+            label="Samo Basic"
+            active={form.overtimeBase === "basic"}
+            onPress={() => updateRate("overtimeBase", "basic")}
+          />
+          <Chip
+            label="Basic + dodatek"
+            active={form.overtimeBase === "withAllowance"}
+            onPress={() => updateRate("overtimeBase", "withAllowance")}
+          />
+          {form.overtimeBase === "legacy" && (
+            <Chip label="Dotychczasowy sposób" active onPress={() => {}} />
+          )}
+        </View>
+        {form.overtimeBase === "legacy" && (
+          <Text style={s.caption}>
+            Stary zapis: Basic × procent + niepomnożony dodatek. Wybierz Samo
+            Basic lub Basic + dodatek, aby zmienić zasadę.
+          </Text>
+        )}
         <Field
-          label="Overtime — procent stawki Basic (%)"
+          label="Overtime — procent wybranej podstawy (%)"
           numeric
           value={form.overtimePercent}
           onChange={(v) => updateRate("overtimePercent", v)}
@@ -424,7 +484,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           placeholder="150 lub 1,5"
         />
         <Text style={s.caption}>
-          150% = ×1,5 stawki Basic. Skrót 1,5 oznacza to samo co 150%.
+          150% = ×1,5 wybranej podstawy. Skrót 1,5 oznacza to samo co 150%.
         </Text>
         <View style={[s.row, { flexWrap: "wrap" }]}>
           {[125, 150, 200].map((percent) => (
@@ -436,30 +496,43 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             />
           ))}
         </View>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityLabel="Dodatek także do nadgodzin"
-          accessibilityState={{ checked: form.allowanceOnOvertime === "true" }}
-          onPress={() =>
-            updateRate(
-              "allowanceOnOvertime",
-              String(form.allowanceOnOvertime !== "true"),
-            )
-          }
-          style={[s.row, { paddingVertical: 8, minHeight: 44 }]}
-        >
-          <I
-            name={
-              form.allowanceOnOvertime === "true"
-                ? "checkbox"
-                : "square-outline"
-            }
-            color={C.green}
-          />
-          <Text style={[s.caption, { flex: 1 }]}>
-            Dodatek także do nadgodzin
-          </Text>
-        </Pressable>
+        <Text style={s.fieldLabel}>Kiedy zaczynają się nadgodziny?</Text>
+        <View style={[s.row, { flexWrap: "wrap" }]}>
+          {(
+            [
+              ["shift", "Po normie zmiany"],
+              ["week", "Po normie tygodnia"],
+              ["both", "Zmiana lub tydzień"],
+            ] as const
+          ).map(([value, label]) => (
+            <Chip
+              key={value}
+              label={label}
+              active={(form.overtimeThreshold ?? "shift") === value}
+              onPress={() => updateRate("overtimeThreshold", value)}
+            />
+          ))}
+        </View>
+        {form.overtimeThreshold !== "shift" && (
+          <>
+            <Field
+              label="Tygodniowa norma (godziny:minuty)"
+              value={form.weeklyNorm}
+              placeholder="40:00"
+              onChange={(value) => updateRate("weeklyNorm", value)}
+            />
+            <Text style={s.caption}>
+              Poniedziałek–niedziela, osobno dla tego miejsca pracy. Liczą się
+              wszystkie płatne godziny; przerwy są odliczane.
+            </Text>
+            {form.overtimeThreshold === "both" && (
+              <Text style={s.caption}>
+                Nadgodzina jest liczona tylko raz. Do tygodnia liczą się także
+                godziny wcześniej oznaczone jako nadgodziny zmiany.
+              </Text>
+            )}
+          </>
+        )}
         <View
           style={{
             padding: 14,
@@ -480,19 +553,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={s.between}>
             <Text style={s.caption}>Po normie · Overtime</Text>
             <Text style={s.rowTitle}>
-              {form.rate?.trim() && Number.isFinite(overtime + allowance)
-                ? fmt(
-                    overtime +
-                      (form.allowanceOnOvertime === "true" ? allowance : 0),
-                  )
+              {form.rate?.trim() && Number.isFinite(overtime)
+                ? fmt(overtime)
                 : "—"}
               /h
             </Text>
           </View>
         </View>
         <Text style={s.caption}>
-          Nadgodziny zaczynają się po normie ustawionej dla zmiany. Przerwy są
-          niepłatne.
+          {form.overtimeThreshold === "week"
+            ? "Nadgodziny dopiero po tygodniowej normie. Norma pojedynczej zmiany nie uruchamia nadgodzin."
+            : form.overtimeThreshold === "both"
+              ? "Obowiązuje wcześniejszy próg: norma zmiany lub norma tygodnia."
+              : "Nadgodziny zaczynają się po normie ustawionej dla zmiany. Przerwy są niepłatne."}
         </Text>
       </View>
     );
@@ -508,7 +581,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             overtime: String(j.overtime),
             overtimeMode: "multiplier",
             shiftAllowancePercent: String(j.shiftAllowancePercent ?? 0),
-            allowanceOnOvertime: String(j.allowanceOnOvertime ?? false),
+            overtimeBase:
+              j.overtimeBase ?? (j.allowanceOnOvertime ? "legacy" : "basic"),
+            overtimeThreshold: j.overtimeThreshold ?? "shift",
+            weeklyNorm: formatDuration((j.weeklyHours ?? 40) * 60),
             overtimePercent: String(policyOvertimePercent(j) ?? ""),
             ratesExpanded: "false",
             ratesDirty: "false",
@@ -589,7 +665,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       overtime: String(entryPolicy?.overtime ?? 1.25),
       overtimeMode: "multiplier",
       shiftAllowancePercent: String(entryPolicy?.shiftAllowancePercent ?? 0),
-      allowanceOnOvertime: String(entryPolicy?.allowanceOnOvertime ?? false),
+      overtimeBase:
+        entryPolicy?.overtimeBase ??
+        (entryPolicy?.allowanceOnOvertime ? "legacy" : "basic"),
+      overtimeThreshold: entryPolicy?.overtimeThreshold ?? "shift",
+      weeklyNorm: formatDuration((entryPolicy?.weeklyHours ?? 40) * 60),
       overtimePercent: entryPolicy
         ? String(policyOvertimePercent(entryPolicy) ?? "")
         : "150",
@@ -712,7 +792,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           shiftAllowancePercent: Number(
             form.shiftAllowancePercent?.replace(",", "."),
           ),
-          allowanceOnOvertime: form.allowanceOnOvertime === "true",
+          ...payOptions(form),
         };
         validateOvertime(overtimePolicy);
         if (!name || name.length > 80)
@@ -811,7 +891,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               shiftAllowancePercent: Number(
                 form.shiftAllowancePercent?.replace(",", "."),
               ),
-              allowanceOnOvertime: form.allowanceOnOvertime === "true",
+              ...payOptions(form),
               overtime: overtimePercentInput(form.overtimePercent ?? "") / 100,
               overtimeMode: "multiplier" as const,
             }
@@ -1112,6 +1192,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               project={timerJob?.name}
               busy={busy}
               priorMinutes={prior}
+              priorWeeklyMinutes={
+                totals(weekSlices.filter((x) => x.entry.jobId === timerJob?.id))
+                  .minutes
+              }
+              policy={timerJob}
               onEdit={() => setTab("settings")}
               onStart={() => (job ? void start() : openJob())}
               onPause={() => void togglePause()}
@@ -1809,7 +1894,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             <View style={s.card}>
               <View style={[s.between, { padding: 20 }]}>
                 <Text style={s.sectionTitle}>Ten tydzień</Text>
-                <Text style={s.caption}>{duration(ws.minutes)} / 40 h</Text>
+                <Text style={s.caption}>{duration(ws.minutes)} h</Text>
               </View>
               <View style={s.chart}>
                 {days.map((d) => (
@@ -1906,7 +1991,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </View>
             <Text style={s.footnote}>
               Kwoty obliczamy ze stawek zapisanych przy zmianie. Bez podatków i
-              potrąceń. Cel wykresu: orientacyjnie 40 godzin tygodniowo.
+              potrąceń. Normę tygodniową ustawisz osobno dla miejsca pracy.
             </Text>
           </>
         ) : (
@@ -2134,11 +2219,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 ))}
               </View>
               <Text style={s.caption}>
+                {j.overtimeThreshold === "week"
+                  ? "Po normie tygodnia"
+                  : j.overtimeThreshold === "both"
+                    ? "Zmiana lub tydzień"
+                    : "Po normie zmiany"}
+                {j.overtimeThreshold && j.overtimeThreshold !== "shift"
+                  ? ` · ${duration((j.weeklyHours ?? 40) * 60)} h`
+                  : ""}
+              </Text>
+              <Text style={s.caption}>
                 Do normy {fmt(j.rate + allowanceHourlyRate(j))}/h · po normie{" "}
-                {fmt(
-                  overtimeHourlyRate(j) +
-                    (j.allowanceOnOvertime ? allowanceHourlyRate(j) : 0),
-                )}
+                {fmt(extraHourlyRate(j))}
                 /h
               </Text>
             </Pressable>
@@ -2449,7 +2541,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.5.0 · dane na Twoim urządzeniu
+          Work Hours · 1.6.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );

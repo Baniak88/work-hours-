@@ -17,7 +17,7 @@ test("personal workflow: projects, entry calculations, persisted timer, export, 
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("125");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await expect(
@@ -195,7 +195,7 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("125");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
@@ -222,7 +222,9 @@ test("night shift settings, actual arrival, capped auto-stop after closing, and 
   await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page.getByRole("button", { name: "Zmiana nocna", exact: true }).click();
   await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
-  await expect(page.getByText("Norma 7:30 h", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Norma zmiany 7:30 h", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/Auto-stop 2026-11-11 o 03:00/)).toBeVisible();
   await page.getByRole("button", { name: "Start zmiany", exact: true }).click();
   await expect(
@@ -295,10 +297,10 @@ test("percentage overtime rates, monthly calendar, overnight day details, histor
     .getByRole("textbox", { name: "Basic — stawka podstawowa (GBP/h)" })
     .fill("20");
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("125");
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("175");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
@@ -347,7 +349,7 @@ test("percentage overtime rates, monthly calendar, overnight day details, histor
     .getByRole("button", { name: "Edytuj projekt Bowmill", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("225");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
   await page.getByRole("tab", { name: "Kalendarz", exact: true }).click();
@@ -365,10 +367,12 @@ test("percentage overtime rates, monthly calendar, overnight day details, histor
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })
     .click();
   await expect(
-    page.getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" }),
+    page.getByRole("textbox", {
+      name: "Overtime — procent wybranej podstawy (%)",
+    }),
   ).toHaveValue("175");
   await page
-    .getByRole("textbox", { name: "Overtime — procent stawki Basic (%)" })
+    .getByRole("textbox", { name: "Overtime — procent wybranej podstawy (%)" })
     .fill("200");
   await page
     .getByRole("button", { name: "Edytuj stawki tego wpisu", exact: true })

@@ -4,6 +4,9 @@ import {
   calculate,
   duration,
   overtimePercentInput,
+  extraHourlyRate,
+  parseWeeklyNormHours,
+  timerWeekMinutes,
   policyOvertimePercent,
   parseNormHours,
   allowanceHourlyRate,
@@ -48,6 +51,279 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+const weeklyPolicy = {
+  rate: 10,
+  overtimeMode: "multiplier" as const,
+  overtime: 1.5,
+  overtimeBase: "basic" as const,
+  overtimeThreshold: "week" as const,
+  weeklyHours: 40,
+};
+function weeklyEntry(
+  date: string,
+  start = "06:00",
+  end = "18:00",
+  overrides: Partial<Entry> = {},
+) {
+  return entry(date, start, end, {
+    ...weeklyPolicy,
+    id: `${date}-${start}`,
+    shift: { ...defaultShifts()[0], workDate: date },
+    ...overrides,
+  });
+}
+test("overtime basis distinguishes Basic, multiplied allowance and the legacy unmultiplied allowance", () => {
+  const policy = {
+    rate: 10,
+    overtime: 1.5,
+    overtimeMode: "multiplier" as const,
+    shiftAllowancePercent: 30,
+  };
+  assert.equal(
+    extraHourlyRate({
+      ...policy,
+      overtimeBase: "basic",
+      allowanceOnOvertime: true,
+    }),
+    15,
+  );
+  assert.equal(
+    extraHourlyRate({
+      ...policy,
+      overtimeBase: "withAllowance",
+      allowanceOnOvertime: true,
+    }),
+    19.5,
+  );
+  assert.equal(extraHourlyRate({ ...policy, allowanceOnOvertime: true }), 18);
+  const example = { ...policy, rate: 17.8 };
+  assert.ok(
+    Math.abs(extraHourlyRate({ ...example, overtimeBase: "basic" }) - 26.7) <
+      1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      extraHourlyRate({ ...example, overtimeBase: "withAllowance" }) - 34.71,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      extraHourlyRate({ ...example, allowanceOnOvertime: true }) - 32.04,
+    ) < 1e-9,
+  );
+});
+test("weekly, shift and combined thresholds classify every minute once", () => {
+  const dates = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"];
+  const entries = dates.map((d) => weeklyEntry(d)); // four 12-hour shifts
+  const weekly = totals(calculate(entries));
+  assert.deepEqual(weekly, {
+    minutes: 2880,
+    regular: 2400,
+    extra: 480,
+    amount: 520,
+  });
+  const shift = totals(
+    calculate(
+      entries.map((e) => ({ ...e, overtimeThreshold: "shift" as const })),
+    ),
+  );
+  assert.equal(shift.regular, 32 * 60);
+  assert.equal(shift.extra, 16 * 60);
+  const both = totals(
+    calculate(
+      entries.map((e) => ({ ...e, overtimeThreshold: "both" as const })),
+    ),
+  );
+  assert.equal(both.regular, 28 * 60);
+  assert.equal(both.extra, 20 * 60);
+  assert.equal(both.regular + both.extra, both.minutes);
+  assert.equal(both.amount, 580);
+  assert.deepEqual(totals(calculate([...entries].reverse())), weekly);
+});
+test("fractional weekly targets are crossed mid-shift after excluding unpaid breaks", () => {
+  const entries = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(
+    (d) => weeklyEntry(d, "06:00", "14:00", { weeklyHours: 37.5 }),
+  );
+  const friday = weeklyEntry("2026-10-23", "06:00", "15:00", {
+    weeklyHours: 37.5,
+    breaks: [
+      {
+        start: stamp("2026-10-23", "10:00"),
+        end: stamp("2026-10-23", "10:30"),
+      },
+    ],
+  });
+  const parts = calculate([...entries, friday]).filter(
+    (s) => s.entry.id === friday.id,
+  );
+  assert.equal(totals(parts).minutes, 510);
+  assert.equal(totals(parts).regular, 330);
+  assert.equal(totals(parts).extra, 180);
+  assert.equal(totals(parts).amount, 100);
+});
+test("a Sunday night splits weekly counters at Monday midnight without resetting its shift target", () => {
+  const prior = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(
+    (d) => weeklyEntry(d, "06:00", "15:00"),
+  ); // 36 h
+  const night = weeklyEntry("2026-10-25", "18:00", "23:00", {
+    end: stamp("2026-10-26", "06:00"),
+    shift: { ...defaultShifts()[1], workDate: "2026-10-25" },
+    breaks: [
+      {
+        start: stamp("2026-10-25", "23:30"),
+        end: stamp("2026-10-26", "00:30"),
+      },
+    ],
+  });
+  const parts = calculate([...prior, night]).filter(
+    (s) => s.entry.id === night.id,
+  );
+  assert.equal(parts[0].regular, 240);
+  assert.equal(parts[0].extra, 90);
+  assert.equal(parts[1].regular, 330);
+  assert.equal(parts[1].extra, 0);
+  const both = calculate([
+    ...prior,
+    { ...night, overtimeThreshold: "both" },
+  ]).filter((s) => s.entry.id === night.id);
+  assert.equal(both[0].extra, 90);
+  assert.equal(both[1].regular, 150);
+  assert.equal(both[1].extra, 180);
+});
+test("weekly targets are independent by workplace and split sessions share both counters", () => {
+  const prior = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(
+    (d) => weeklyEntry(d, "06:00", "15:30", { overtimeThreshold: "both" }),
+  ); // 38 paid hours
+  const first = weeklyEntry("2026-10-23", "06:00", "10:00", {
+    overtimeThreshold: "both",
+  });
+  const second = weeklyEntry("2026-10-23", "11:00", "17:00", {
+    overtimeThreshold: "both",
+  });
+  const other = weeklyEntry("2026-10-23", "18:00", "22:00", { jobId: "other" });
+  const slices = calculate([...prior, first, second, other]);
+  const friday = totals(
+    slices.filter((s) => [first.id, second.id].includes(s.entry.id)),
+  );
+  assert.equal(friday.regular, 120);
+  assert.equal(friday.extra, 480);
+  const separate = totals(slices.filter((s) => s.entry.jobId === "other"));
+  assert.equal(separate.regular, 240);
+  assert.equal(separate.extra, 0);
+});
+test("weekly basis and target snapshots survive later changes to the workplace policy", () => {
+  const policy: Job = {
+    ...job,
+    ...weeklyPolicy,
+    shiftAllowancePercent: 30,
+    overtimeBase: "withAllowance",
+    overtimeThreshold: "both",
+    weeklyHours: 37.5,
+  };
+  const timer = makeTimer(
+    policy,
+    defaultShifts()[1],
+    stamp("2026-10-20", "17:30"),
+  );
+  policy.rate = 100;
+  policy.weeklyHours = 20;
+  policy.overtimeBase = "basic";
+  const e = finishTimer(timer, stamp("2026-10-21", "03:00"));
+  assert.equal(e.weeklyHours, 37.5);
+  assert.equal(e.overtimeBase, "withAllowance");
+  assert.equal(e.overtimeThreshold, "both");
+  assert.equal(extraHourlyRate(e), 19.5);
+  const legacy = entry("2026-10-20", "06:00", "16:00", {
+    rate: 17.8,
+    shiftAllowancePercent: 30,
+    allowanceOnOvertime: true,
+    overtime: 1.5,
+  });
+  const old = { ...freshState(), version: 4, jobs: [job], entries: [legacy] };
+  const next = validateBackup(old);
+  assert.equal(next.version, 5);
+  assert.deepEqual(next.entries, old.entries);
+  assert.deepEqual(
+    totals(calculate(next.entries)),
+    totals(calculate(old.entries)),
+  );
+});
+test("weekly exports retain earlier-week context when only the final entry is exported", () => {
+  const state = freshState();
+  state.jobs = [{ ...job, ...weeklyPolicy }];
+  state.entries = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(
+    (d) => weeklyEntry(d, "06:00", "16:00"),
+  );
+  const last = weeklyEntry("2026-10-23", "06:00", "11:00");
+  state.entries.push(last);
+  const output = csv(state, [last]);
+  const lines = output
+    .replace(/^\uFEFF/, "")
+    .split("\r\n")
+    .map((line) => line.split(";").map((value) => value.replace(/^"|"$/g, "")));
+  assert.equal(lines.length, 2);
+  assert.equal(lines[1][lines[0].indexOf("Nadgodziny")], "5.0000");
+  assert.equal(lines[1][lines[0].indexOf("Kwota")], "75.00");
+  assert.match(output, /Podstawa nadgodzin/);
+  assert.match(output, /Norma tygodniowa/);
+  assert.equal(totals(calculate(state.entries.slice(1))).extra, 0);
+});
+test("live weekly progress clips an overnight session and break to the current Monday week", () => {
+  const timer = makeTimer(
+    { ...job, ...weeklyPolicy },
+    defaultShifts()[1],
+    stamp("2026-10-25", "23:00"),
+  );
+  timer.breaks = [
+    { start: stamp("2026-10-25", "23:30"), end: stamp("2026-10-26", "00:30") },
+  ];
+  assert.equal(timerWeekMinutes(timer, stamp("2026-10-26", "03:00")), 150);
+  timer.pausedAt = stamp("2026-10-26", "02:00");
+  assert.equal(timerWeekMinutes(timer, stamp("2026-10-26", "03:00")), 90);
+});
+test("weekly policy validation rejects missing targets and accepts hour-minute weekly inputs", () => {
+  assert.equal(parseWeeklyNormHours("40:00"), 40);
+  assert.equal(parseWeeklyNormHours("37:30"), 37.5);
+  assert.equal(parseWeeklyNormHours("168:00"), 168);
+  for (const value of ["00:00", "168:01", "40.5", "37:60"])
+    assert.throws(() => parseWeeklyNormHours(value));
+  const state = freshState();
+  state.jobs = [
+    {
+      ...job,
+      ...weeklyPolicy,
+      overtimeBase: "withAllowance",
+      shiftAllowancePercent: 30,
+    },
+  ];
+  state.entries = [
+    weeklyEntry("2026-10-19", "06:00", "18:00", {
+      overtimeBase: "withAllowance",
+      shiftAllowancePercent: 30,
+    }),
+  ];
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(state))), state);
+  const lines = csv(state)
+    .replace(/^\uFEFF/, "")
+    .split("\r\n")
+    .map((line) => line.split(";").map((value) => value.replace(/^"|"$/g, "")));
+  assert.equal(
+    lines[1][lines[0].indexOf("Dodatek także za nadgodziny")],
+    "Tak",
+  );
+  for (const policy of [
+    { overtimeBase: "unknown" },
+    { overtimeThreshold: "unknown" },
+    { overtimeThreshold: "week" },
+    { overtimeThreshold: "both", weeklyHours: 0 },
+    { weeklyHours: Infinity },
+    { weeklyHours: 169 },
+  ]) {
+    assert.throws(() =>
+      validateBackup({ ...state, jobs: [{ ...job, ...policy }] }),
+    );
+  }
+});
 test("overtime accepts 150 percent and the 1.5 shortcut, and pays £15 on a £10 Basic", () => {
   for (const input of ["150", "150%", "1.5", "1,5"]) {
     const percent = overtimePercentInput(input);
@@ -247,7 +523,7 @@ test("allowance policies survive backup and CSV, reject malformed values, and mi
     jobs: [job],
     entries: [entry()],
   };
-  assert.equal(validateBackup(previous).version, 4);
+  assert.equal(validateBackup(previous).version, 5);
   assert.deepEqual(
     totals(calculate(validateBackup(previous).entries)),
     totals(calculate(previous.entries)),
@@ -455,7 +731,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 5 }));
+  assert.throws(() => validateBackup({ ...s, version: 6 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -624,7 +900,7 @@ test("version 1 migrates without changing existing entries, pay, or running time
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 4);
+  assert.equal(next.version, 5);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -761,7 +1037,7 @@ test("calendar grids start on Monday, include leap day and contain no adjacent-m
   assert.equal(moveMonth("2026-12", 1), "2027-01");
   assert.equal(moveMonth("2026-01", -1), "2025-12");
 });
-test("version 2 backups migrate unchanged to version 4 so old readers reject new pay policies", () => {
+test("version 2 backups migrate unchanged to version 5 so old readers reject new pay policies", () => {
   const legacy = {
     ...freshState(),
     version: 2,
@@ -769,7 +1045,7 @@ test("version 2 backups migrate unchanged to version 4 so old readers reject new
     entries: [entry()],
   };
   const migrated = validateBackup(legacy);
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.deepEqual(migrated.entries, legacy.entries);
   assert.deepEqual(migrated.shifts, legacy.shifts);
   assert.equal(totals(calculate(migrated.entries)).amount, 210);

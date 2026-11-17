@@ -320,8 +320,8 @@ export const english: Record<string, string> = {
     "Enter the Basic rate and overtime percentage.",
   "Wpisz procent nadgodzin, np. 150, lub mnożnik, np. 1,5.":
     "Enter an overtime percentage such as 150, or a multiplier such as 1.5.",
-  "Nadgodziny ustaw od 100% do 1000% Basic (od ×1 do ×10).":
-    "Set overtime from 100% to 1000% of Basic (1× to 10×).",
+  "Nadgodziny ustaw od 100% do 1000% wybranej podstawy (od ×1 do ×10).":
+    "Set overtime from 100% to 1000% of the selected basis (1× to 10×).",
   "Wpisz normę jako godziny:minuty, np. 08:00 lub 09:45 (do 24:00).":
     "Enter the target as hours:minutes, e.g. 08:00 or 09:45 (up to 24:00).",
   "Shift allowance musi wynosić od 0 do 1000% stawki Basic.":
@@ -425,4 +425,54 @@ export const english: Record<string, string> = {
   "np. Bowmill": "e.g. Bowmill",
   "np. Nocna w Bowmill": "e.g. Bowmill night shift",
   "150 lub 1,5": "150 or 1.5",
+  "Podstawa nadgodzin": "Overtime basis",
+  "Samo Basic": "Basic only",
+  "Basic + dodatek": "Basic + allowance",
+  "Dotychczasowy sposób": "Previous method",
+  "Dotychczas: Basic × procent + dodatek":
+    "Legacy: Basic × percentage + allowance",
+  "Stary zapis: Basic × procent + niepomnożony dodatek. Wybierz Samo Basic lub Basic + dodatek, aby zmienić zasadę.":
+    "Previous rule: Basic × percentage + the unmultiplied allowance. Choose Basic only or Basic + allowance to change it.",
+  "Overtime — procent wybranej podstawy (%)":
+    "Overtime — percentage of the selected basis (%)",
+  "150% = ×1,5 wybranej podstawy. Skrót 1,5 oznacza to samo co 150%.":
+    "150% = 1.5 × the selected basis. Entering 1.5 is a shortcut for 150%.",
+  "Kiedy zaczynają się nadgodziny?": "When does overtime start?",
+  "Po normie zmiany": "After the shift target",
+  "Po normie tygodnia": "After the weekly target",
+  "Zmiana lub tydzień": "Shift or week",
+  "Tygodniowa norma (godziny:minuty)": "Weekly target (hours:minutes)",
+  "Poniedziałek–niedziela, osobno dla tego miejsca pracy. Liczą się wszystkie płatne godziny; przerwy są odliczane.":
+    "Monday to Sunday, separately for this workplace. All paid hours count; unpaid breaks are excluded.",
+  "Nadgodzina jest liczona tylko raz. Do tygodnia liczą się także godziny wcześniej oznaczone jako nadgodziny zmiany.":
+    "Each overtime hour is paid once. Weekly hours also include hours already classified as shift overtime.",
+  "Nadgodziny dopiero po tygodniowej normie. Norma pojedynczej zmiany nie uruchamia nadgodzin.":
+    "Overtime starts only after the weekly target. The shift target does not trigger overtime.",
+  "Obowiązuje wcześniejszy próg: norma zmiany lub norma tygodnia.":
+    "Overtime starts at the earlier threshold: shift or week.",
+  Tydzień: "Week",
+  "Norma tygodnia": "Weekly target",
+  "Norma zmiany": "Shift target",
+  "Oba progi": "Both thresholds",
+  "Próg tygodniowy": "Weekly threshold",
+  "Nadgodziny aktywne": "Overtime active",
+  "Wybierz podstawę nadgodzin: Basic albo Basic + dodatek.":
+    "Choose the overtime basis: Basic or Basic + allowance.",
+  "Wybierz próg nadgodzin: zmiana, tydzień albo oba.":
+    "Choose the overtime threshold: shift, week or both.",
+  "Norma tygodniowa musi być większa od 0 i nie przekraczać 168 godzin.":
+    "The weekly target must be greater than 0 and no more than 168 hours.",
+  "Ustaw tygodniową normę godzin.": "Set the weekly hours target.",
+  "Wpisz normę tygodniową jako godziny:minuty, np. 40:00 lub 37:30 (do 168:00).":
+    "Enter weekly hours as hours:minutes, e.g. 40:00 or 37:30 (up to 168:00).",
+  "Próg nadgodzin": "Overtime threshold",
+  "Norma tygodniowa (h)": "Weekly target (hours)",
+  "Tydzień od": "Week starting",
+  "Łączna stawka nadgodzin za godzinę": "Total hourly overtime rate",
+  "Work Hours · 1.6.0 · dane na Twoim urządzeniu":
+    "Work Hours · 1.6.0 · data on your device",
+  "Kwoty obliczamy ze stawek zapisanych przy zmianie. Bez podatków i potrąceń. Normę tygodniową ustawisz osobno dla miejsca pracy.":
+    "Amounts use each shift's saved rates, before tax and deductions. Set a weekly target separately for each workplace.",
+  "Poprawka godzin może zmienić podział nadgodzin w dalszych wpisach tego samego tygodnia.":
+    "Correcting hours may change overtime allocation in later entries of the same week.",
 };

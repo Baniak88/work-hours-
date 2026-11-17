@@ -2,6 +2,28 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.6 — podstawa nadgodzin i norma tygodnia
+
+W **Ustawienia → Stawki → wybierz miejsce pracy**:
+
+1. Wybierz **Samo Basic** albo **Basic + dodatek**. Przy Basic £10, dodatku 30% i Overtime 150% otrzymasz odpowiednio **£15/h** albo **£19,50/h** po normie. Przed normą obowiązuje £13/h.
+2. Wybierz **Zmiana lub tydzień**, aby działały obie normy. Każda minuta jest płatna tylko raz: nadgodziny zaczynają się po przekroczeniu którejkolwiek normy. Możesz też wybrać wyłącznie normę zmiany albo tygodnia.
+3. Ustaw **Tygodniową normę** jako godziny:minuty, np. **40:00** albo **37:30**, i zapisz. Norma zmiany pozostaje w profilu dziennym/nocnym.
+
+Tydzień biegnie **od poniedziałku 00:00 do następnego poniedziałku 00:00**, według lokalnego czasu telefonu, osobno dla każdego miejsca pracy. Liczą się wszystkie płatne godziny, również te, które wcześniej przekroczyły normę zmiany. Przerwy są niepłatne. Na nocnej zmianie niedziela–poniedziałek zeruje się licznik tygodnia, ale norma całej zmiany nadal obowiązuje. Nie dodajemy dwóch premii za ten sam czas.
+
+Przykład obu progów: norma 8 h na zmianę i 40 h tygodniowo, cztery zmiany po 12 h. Wynik to **28 h zwykłych i 20 h nadgodzin**: dzienne i tygodniowe przekroczenia tworzą jeden zbiór minut, bez płacenia podwójnie za ich część wspólną. Dla trybu wyłącznie tygodniowego byłoby to 40 h zwykłych i 8 h nadgodzin.
+
+Nowy formularz domyślnie wybiera **Samo Basic** oraz **Zmiana lub tydzień**; ustawienie projektu zaczyna obowiązywać po zapisaniu i dotyczy kolejnych uruchomień oraz nowych wpisów. Wcześniejsze wpisy i uruchomione liczniki zachowują swoje stawki i reguły. Edycja samych godzin lub notatki nie podmienia zapisanej polityki płac. Zmiana godzin wcześniejszego wpisu może jednak przeliczyć progi w dalszych wpisach tego samego tygodnia.
+
+Dawna opcja „Dodatek także do nadgodzin” oznaczała **Basic × procent + niepomnożony dodatek**. Taki historyczny zapis pozostaje obsługiwany i jest opisany jako „Dotychczasowy sposób” w edycji jego stawek. Nie jest tym samym co **(Basic + dodatek) × procent**. W ustawieniach projektu wybierz świadomie nową podstawę. Po zapisaniu **Samo Basic** dodatek nie jest doliczany do nadgodzin.
+
+Zegar pokazuje postęp tygodnia i czas do nadgodzin. Raporty i kalendarz korzystają z tej samej klasyfikacji. CSV zawiera podstawę, rodzaj progu, tygodniową normę, początek tygodnia i efektywną stawkę nadgodzin; eksport pojedynczego wpisu uwzględnia wcześniejsze godziny z tego tygodnia.
+
+**Nowe kopie JSON mają format 5**, aby starsza aplikacja nie pominęła reguł tygodniowych. Kopie 1–4 są migrowane bez przeliczania dotychczasowych kwot. Przed przeniesieniem nowej kopii na drugi telefon zaktualizuj obie aplikacje.
+
+Weryfikacja: **51 testów obliczeń, danych i preferencji**, **4 testy offline**, lint, TypeScript i eksport JS Android/iOS/web. W tym rozdzielenie podstawy Basic / z dodatkiem / dawnej formuły, oba progi bez podwójnego naliczania, niepełna norma 37:30, przerwa przez granicę tygodnia, różne miejsca pracy, podzielone sesje, migrowane stawki i eksport wybranego wpisu z pełnym kontekstem. Nie wykonano testu na fizycznym telefonie ani testów UI w przeglądarce: środowisko Sites nie udostępnia wymaganego cua_repl.js. Scenariusze Playwright dostosowano do nowych nazw pól.
+
 ## Wersja 1.5 — nadgodziny procentowo, jedna zmiana, języki i motywy
 
 - **Overtime — procent Basic:** 150% oznacza ×1,5. Basic £10/h daje wtedy £15/h po normie. Możesz wpisać 150 lub skrót 1,5 / 1.5 — po opuszczeniu pola skrót zostanie pokazany jako 150. Dostępne są szybkie wybory 125%, 150% i 200%. Dosłowne „1,5%” jest mniejszą wartością od Basic i nie jest akceptowane jako 150%.

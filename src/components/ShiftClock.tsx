@@ -12,6 +12,8 @@ import {
   duration as formatDuration,
   shiftEnd,
   timerMinutes,
+  timerWeekMinutes,
+  type Job,
   timeLabel,
   type Shift,
   type Timer,
@@ -34,6 +36,8 @@ type Props = {
   project?: string;
   busy: boolean;
   priorMinutes?: number;
+  priorWeeklyMinutes?: number;
+  policy?: Job;
   onEdit: () => void;
   onStart: () => void;
   onPause: () => void;
@@ -105,9 +109,21 @@ export default function ShiftClock(p: Props) {
   const active = p.timer,
     shift = active?.shift ?? p.shift,
     worked = active ? timerMinutes(active, p.now) : 0,
-    norm =
+    shiftNorm =
       (active?.shift?.normHours ?? active?.dailyHours ?? shift.normHours) * 60;
-  const progressMinutes = worked + (p.priorMinutes ?? 0);
+  const mode = active
+    ? (active.overtimeThreshold ?? "shift")
+    : (p.policy?.overtimeThreshold ?? "shift");
+  const weekNorm = (active?.weeklyHours ?? p.policy?.weeklyHours ?? 40) * 60;
+  const shiftMinutes = worked + (p.priorMinutes ?? 0);
+  const weekMinutes =
+    (p.priorWeeklyMinutes ?? 0) +
+    (active ? timerWeekMinutes(active, p.now) : 0);
+  const useWeek =
+    mode === "week" ||
+    (mode === "both" && weekNorm - weekMinutes < shiftNorm - shiftMinutes);
+  const norm = useWeek ? weekNorm : shiftNorm;
+  const progressMinutes = useWeek ? weekMinutes : shiftMinutes;
   const seconds = Math.max(0, Math.floor(worked * 60));
   const elapsed = `${Math.floor(seconds / 3600)
     .toString()
@@ -167,7 +183,10 @@ export default function ShiftClock(p: Props) {
                 {shift.name}
               </Text>
             </View>
-            <Text style={styles.norm}>Norma {duration(norm)} h</Text>
+            <Text style={styles.norm}>
+              {mode === "week" ? "Norma tygodnia" : "Norma zmiany"}{" "}
+              {duration(mode === "week" ? weekNorm : shiftNorm)} h
+            </Text>
           </View>
           <View
             style={[styles.between, { marginTop: 12, alignItems: "flex-end" }]}
@@ -181,6 +200,12 @@ export default function ShiftClock(p: Props) {
             )}
           </View>
         </View>
+      )}
+      {mode !== "shift" && (
+        <Text style={[styles.small, { marginTop: 10 }]}>
+          {"Tydzień"}: {duration(weekMinutes)} / {duration(weekNorm)} h ·{" "}
+          {mode === "both" ? "Oba progi" : "Próg tygodniowy"}
+        </Text>
       )}
       <View style={{ paddingVertical: active ? 16 : 10, gap: 7 }}>
         <View style={styles.row}>
@@ -234,8 +259,8 @@ export default function ShiftClock(p: Props) {
         <View style={[styles.between, { flexWrap: "wrap" }]}>
           <Text style={styles.small}>
             {progressMinutes < norm
-              ? `Do normy ${duration(norm - progressMinutes)} h`
-              : `Ponad normę ${duration(progressMinutes - norm)} h`}
+              ? `Do nadgodzin ${duration(norm - progressMinutes)} h`
+              : "Nadgodziny aktywne"}
           </Text>
           <Text style={styles.small}>
             {(p.priorMinutes ?? 0) >= 1

@@ -4,6 +4,9 @@ export type OvertimePolicy = {
   overtimeRate?: number;
   shiftAllowancePercent?: number;
   allowanceOnOvertime?: boolean;
+  overtimeBase?: "basic" | "withAllowance";
+  overtimeThreshold?: "shift" | "week" | "both";
+  weeklyHours?: number;
 };
 export type Job = OvertimePolicy & {
   id: string;
@@ -52,7 +55,7 @@ export type Timer = OvertimePolicy & {
   plannedEnd?: number;
 };
 export type State = {
-  version: 4;
+  version: 5;
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
@@ -94,7 +97,7 @@ export const defaultShifts = (): Shift[] => [
   },
 ];
 export const freshState = (): State => ({
-  version: 4,
+  version: 5,
   jobs: [],
   entries: [],
   timer: null,
@@ -149,17 +152,31 @@ export function overtimePercentInput(input: string) {
   const percent =
     !explicitPercent && value >= 1 && value <= 10 ? value * 100 : value;
   if (!Number.isFinite(percent) || percent < 100 || percent > 1000)
-    throw new Error("Nadgodziny ustaw od 100% do 1000% Basic (od ×1 do ×10).");
+    throw new Error(
+      "Nadgodziny ustaw od 100% do 1000% wybranej podstawy (od ×1 do ×10).",
+    );
   return percent;
 }
 export function policyOvertimePercent(
   policy: OvertimePolicy & { rate: number; overtime: number },
 ) {
+  const base = overtimeBaseRate(policy);
   return policy.overtimeMode === "fixed"
-    ? policy.rate > 0
-      ? (overtimeHourlyRate(policy) / policy.rate) * 100
+    ? base > 0
+      ? (overtimeHourlyRate(policy) / base) * 100
       : null
     : policy.overtime * 100;
+}
+export function parseWeeklyNormHours(input: string) {
+  const value = input.trim();
+  if (/^\d{1,3}:[0-5]\d$/.test(value)) {
+    const [hours, minutes] = value.split(":").map(Number);
+    const norm = hours + minutes / 60;
+    if (norm > 0 && norm <= 168) return norm;
+  }
+  throw new Error(
+    "Wpisz normę tygodniową jako godziny:minuty, np. 40:00 lub 37:30 (do 168:00).",
+  );
 }
 export function parseNormHours(input: string) {
   const value = input.trim();
@@ -182,7 +199,35 @@ export function overtimeHourlyRate(
 ) {
   return policy.overtimeMode === "fixed"
     ? policy.overtimeRate!
-    : policy.rate * policy.overtime;
+    : overtimeBaseRate(policy) * policy.overtime;
+}
+export function overtimeBaseRate(policy: OvertimePolicy & { rate: number }) {
+  return (
+    policy.rate +
+    (policy.overtimeBase === "withAllowance" ? allowanceHourlyRate(policy) : 0)
+  );
+}
+export function overtimeAllowanceHourlyRate(
+  policy: OvertimePolicy & { rate: number; overtime: number },
+) {
+  if (
+    policy.overtimeBase === "withAllowance" &&
+    policy.overtimeMode !== "fixed"
+  )
+    return allowanceHourlyRate(policy) * policy.overtime;
+  return !policy.overtimeBase && policy.allowanceOnOvertime
+    ? allowanceHourlyRate(policy)
+    : 0;
+}
+export function extraHourlyRate(
+  policy: OvertimePolicy & { rate: number; overtime: number },
+) {
+  return (
+    overtimeHourlyRate(policy) +
+    (!policy.overtimeBase && policy.allowanceOnOvertime
+      ? allowanceHourlyRate(policy)
+      : 0)
+  );
 }
 export function overtimeSnapshot(policy: OvertimePolicy): OvertimePolicy {
   const overtime: OvertimePolicy =
@@ -193,6 +238,15 @@ export function overtimeSnapshot(policy: OvertimePolicy): OvertimePolicy {
         : {};
   return {
     ...overtime,
+    ...(policy.overtimeBase !== undefined
+      ? { overtimeBase: policy.overtimeBase }
+      : {}),
+    ...(policy.overtimeThreshold !== undefined
+      ? { overtimeThreshold: policy.overtimeThreshold }
+      : {}),
+    ...(policy.weeklyHours !== undefined
+      ? { weeklyHours: policy.weeklyHours }
+      : {}),
     ...(policy.shiftAllowancePercent !== undefined
       ? {
           shiftAllowancePercent: policy.shiftAllowancePercent,
@@ -205,6 +259,31 @@ export function allowanceHourlyRate(policy: OvertimePolicy & { rate: number }) {
   return (policy.rate * (policy.shiftAllowancePercent ?? 0)) / 100;
 }
 export function validateOvertime(policy: OvertimePolicy) {
+  if (
+    policy.overtimeBase !== undefined &&
+    !["basic", "withAllowance"].includes(policy.overtimeBase)
+  )
+    throw new Error("Wybierz podstawę nadgodzin: Basic albo Basic + dodatek.");
+  if (
+    policy.overtimeThreshold !== undefined &&
+    !["shift", "week", "both"].includes(policy.overtimeThreshold)
+  )
+    throw new Error("Wybierz próg nadgodzin: zmiana, tydzień albo oba.");
+  if (
+    policy.weeklyHours !== undefined &&
+    (!Number.isFinite(policy.weeklyHours) ||
+      policy.weeklyHours <= 0 ||
+      policy.weeklyHours > 168)
+  )
+    throw new Error(
+      "Norma tygodniowa musi być większa od 0 i nie przekraczać 168 godzin.",
+    );
+  if (
+    policy.overtimeThreshold &&
+    policy.overtimeThreshold !== "shift" &&
+    policy.weeklyHours === undefined
+  )
+    throw new Error("Ustaw tygodniową normę godzin.");
   if (
     policy.shiftAllowancePercent !== undefined &&
     (!Number.isFinite(policy.shiftAllowancePercent) ||
@@ -256,6 +335,16 @@ export function timerDayMinutes(t: Timer, now: number, date: string) {
   const start = parseLocal(date, "00:00"),
     next = new Date(start);
   next.setDate(next.getDate() + 1);
+  return minutesWorked(
+    Math.max(t.start, start),
+    Math.min(next.getTime(), t.pausedAt ?? now, now, t.plannedEnd ?? Infinity),
+    t.breaks,
+  );
+}
+export function timerWeekMinutes(t: Timer, now: number) {
+  const start = parseLocal(weekKey(now), "00:00");
+  const next = new Date(start);
+  next.setDate(next.getDate() + 7);
   return minutesWorked(
     Math.max(t.start, start),
     Math.min(next.getTime(), t.pausedAt ?? now, now, t.plannedEnd ?? Infinity),
@@ -343,9 +432,12 @@ export function settleTimer(state: State, now: number): State {
     entries: [...state.entries, finishTimer(state.timer, now)],
   };
 }
-// Allocate chronological entries together so several shifts share one daily overtime allowance.
+// Evaluate entries chronologically. Shift/day and Monday-week counters include paid
+// minutes. Taking the smaller remaining allowance implements the union of both
+// thresholds without ever paying the same minute as overtime twice.
 export function calculate(entries: Entry[]): Slice[] {
   const used = new Map<string, number>();
+  const weekUsed = new Map<string, number>();
   const out: Slice[] = [];
   for (const e of [...entries].sort(
     (a, b) => a.start - b.start || a.id.localeCompare(b.id),
@@ -361,9 +453,24 @@ export function calculate(entries: Entry[]): Slice[] {
           : `${e.jobId}/${date}`;
       const minutes = minutesWorked(start, end, e.breaks),
         previous = used.get(key) ?? 0;
+      const weeklyKey = `${e.jobId}/${weekKey(start)}`;
+      const previousWeekly = weekUsed.get(weeklyKey) ?? 0;
+      const threshold = e.overtimeThreshold ?? "shift";
+      const shiftRemaining = Math.max(
+        0,
+        (e.shift?.normHours ?? e.dailyHours) * 60 - previous,
+      );
+      const weekRemaining = Math.max(
+        0,
+        (e.weeklyHours ?? 40) * 60 - previousWeekly,
+      );
       const regular = Math.min(
           minutes,
-          Math.max(0, (e.shift?.normHours ?? e.dailyHours) * 60 - previous),
+          threshold === "week"
+            ? weekRemaining
+            : threshold === "both"
+              ? Math.min(shiftRemaining, weekRemaining)
+              : shiftRemaining,
         ),
         extra = minutes - regular;
       out.push({
@@ -374,12 +481,11 @@ export function calculate(entries: Entry[]): Slice[] {
         extra,
         amount:
           (regular * (e.rate + allowanceHourlyRate(e)) +
-            extra *
-              (overtimeHourlyRate(e) +
-                (e.allowanceOnOvertime ? allowanceHourlyRate(e) : 0))) /
+            extra * extraHourlyRate(e)) /
           60,
       });
       used.set(key, previous + minutes);
+      weekUsed.set(weeklyKey, previousWeekly + minutes);
       start = end;
     }
   }
@@ -439,6 +545,10 @@ export function checkEntry(
     throw new Error("Ten wpis nakłada się na inną zmianę lub aktywny licznik.");
 }
 export function csv(state: State, entries = state.entries) {
+  const selected = new Set(entries.map((e) => e.id));
+  const context = [
+    ...new Map([...state.entries, ...entries].map((e) => [e.id, e])).values(),
+  ];
   const quote = (value: unknown) => {
     let s = String(value);
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
@@ -468,39 +578,70 @@ export function csv(state: State, entries = state.entries) {
       "Dodatek za godzinę",
       "Dodatek także za nadgodziny",
       "Kwota dodatku",
+      "Podstawa nadgodzin",
+      "Próg nadgodzin",
+      "Norma tygodniowa (h)",
+      "Tydzień od",
+      "Łączna stawka nadgodzin za godzinę",
     ],
-    ...calculate(entries).map((s) => [
-      s.date,
-      state.jobs.find((j) => j.id === s.entry.jobId)?.name ?? "Projekt",
-      s.entry.shift?.name ?? "Bez przypisanej zmiany",
-      s.entry.shift?.kind === "night"
-        ? "Nocna"
-        : s.entry.shift?.kind === "day"
-          ? "Dzienna"
-          : "",
-      s.entry.shift?.workDate ?? "",
-      s.entry.shift?.normHours ?? s.entry.dailyHours,
-      new Date(s.entry.start).toISOString(),
-      new Date(s.entry.end).toISOString(),
-      (s.minutes / 60).toFixed(4),
-      (s.regular / 60).toFixed(4),
-      (s.extra / 60).toFixed(4),
-      s.entry.rate,
-      s.entry.overtimeMode === "fixed" ? "" : s.entry.overtime,
-      s.entry.overtimeMode === "fixed" ? "Stawka godzinowa" : "Mnożnik",
-      overtimeHourlyRate(s.entry).toFixed(2),
-      s.amount.toFixed(2),
-      state.currency,
-      s.entry.note,
-      s.entry.shiftAllowancePercent ?? 0,
-      allowanceHourlyRate(s.entry).toFixed(2),
-      s.entry.allowanceOnOvertime ? "Tak" : "Nie",
-      (
-        ((s.regular + (s.entry.allowanceOnOvertime ? s.extra : 0)) *
-          allowanceHourlyRate(s.entry)) /
-        60
-      ).toFixed(2),
-    ]),
+    ...calculate(context)
+      .filter((s) => selected.has(s.entry.id))
+      .map((s) => [
+        s.date,
+        state.jobs.find((j) => j.id === s.entry.jobId)?.name ?? "Projekt",
+        s.entry.shift?.name ?? "Bez przypisanej zmiany",
+        s.entry.shift?.kind === "night"
+          ? "Nocna"
+          : s.entry.shift?.kind === "day"
+            ? "Dzienna"
+            : "",
+        s.entry.shift?.workDate ?? "",
+        s.entry.shift?.normHours ?? s.entry.dailyHours,
+        new Date(s.entry.start).toISOString(),
+        new Date(s.entry.end).toISOString(),
+        (s.minutes / 60).toFixed(4),
+        (s.regular / 60).toFixed(4),
+        (s.extra / 60).toFixed(4),
+        s.entry.rate,
+        s.entry.overtimeMode === "fixed" ? "" : s.entry.overtime,
+        s.entry.overtimeMode === "fixed" ? "Stawka godzinowa" : "Mnożnik",
+        overtimeHourlyRate(s.entry).toFixed(2),
+        s.amount.toFixed(2),
+        state.currency,
+        s.entry.note,
+        s.entry.shiftAllowancePercent ?? 0,
+        allowanceHourlyRate(s.entry).toFixed(2),
+        s.entry.overtimeBase === "withAllowance" ||
+        (!s.entry.overtimeBase && s.entry.allowanceOnOvertime)
+          ? "Tak"
+          : "Nie",
+        (
+          (s.regular * allowanceHourlyRate(s.entry) +
+            s.extra * overtimeAllowanceHourlyRate(s.entry)) /
+          60
+        ).toFixed(2),
+        translateText(
+          s.entry.overtimeBase === "withAllowance"
+            ? "Basic + dodatek"
+            : s.entry.overtimeBase === "basic"
+              ? "Samo Basic"
+              : s.entry.allowanceOnOvertime
+                ? "Dotychczas: Basic × procent + dodatek"
+                : "Samo Basic",
+          state.language,
+        ),
+        translateText(
+          s.entry.overtimeThreshold === "week"
+            ? "Tydzień"
+            : s.entry.overtimeThreshold === "both"
+              ? "Zmiana lub tydzień"
+              : "Zmiana",
+          state.language,
+        ),
+        s.entry.weeklyHours ?? 40,
+        weekKey(localDate(s.date)),
+        extraHourlyRate(s.entry).toFixed(2),
+      ]),
   ];
   rows[0] = rows[0].map((header) =>
     translateText(String(header), state.language),
@@ -548,7 +689,11 @@ export function validateBackup(input: unknown): State {
         (i === 0 || p.start >= b[i - 1].end),
     );
   if (
-    (version !== 1 && version !== 2 && version !== 3 && version !== 4) ||
+    (version !== 1 &&
+      version !== 2 &&
+      version !== 3 &&
+      version !== 4 &&
+      version !== 5) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
@@ -678,9 +823,9 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   return version === 1
-    ? { ...s, version: 4, shifts: defaultShifts(), preferredShiftId: "day" }
-    : version !== 4
-      ? { ...s, version: 4 }
+    ? { ...s, version: 5, shifts: defaultShifts(), preferredShiftId: "day" }
+    : version !== 5
+      ? { ...s, version: 5 }
       : s;
 }
 export function demoState(): State {
