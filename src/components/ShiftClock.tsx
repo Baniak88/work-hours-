@@ -311,6 +311,7 @@ export default function ShiftClock(p: Props) {
               style={styles.startAt}
             >
               <Icon name="time-outline" color={color.white} />
+              <Text style={styles.startAtLabel}>Godzina</Text>
             </Pressable>
           )}
         </View>
@@ -333,9 +334,9 @@ export default function ShiftClock(p: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: color.card,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
-    padding: 16,
+    padding: 18,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 9 },
   between: {
@@ -346,9 +347,9 @@ const styles = StyleSheet.create({
   },
   overline: {
     color: color.muted,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 1.2,
+    letterSpacing: 0.8,
   },
   wallClock: {
     fontSize: 25,
@@ -358,8 +359,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   settings: {
-    width: 43,
-    height: 43,
+    width: 48,
+    height: 48,
     borderRadius: 13,
     backgroundColor: "#2C2E33",
     justifyContent: "center",
@@ -377,13 +378,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   schedule: {
-    borderRadius: 15,
-    padding: 12,
+    borderRadius: 16,
+    padding: 14,
     backgroundColor: "#17181B",
     borderWidth: 1,
     borderColor: "#34363C",
   },
-  norm: { color: color.muted, fontSize: 11 },
+  norm: { color: color.muted, fontSize: 12 },
   hours: {
     fontSize: 24,
     fontWeight: "600",
@@ -391,9 +392,9 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     letterSpacing: -0.6,
   },
-  nextDay: { color: color.muted, fontSize: 10, paddingBottom: 3 },
+  nextDay: { color: color.muted, fontSize: 11, paddingBottom: 3 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  small: { fontSize: 11, lineHeight: 16, color: color.muted },
+  small: { fontSize: 12, lineHeight: 18, color: color.muted },
   elapsed: {
     fontSize: 46,
     color: color.white,
@@ -421,12 +422,15 @@ const styles = StyleSheet.create({
   actionLabel: { fontSize: 14, fontWeight: "700" },
   startAt: {
     height: 50,
-    width: 48,
+    minWidth: 76,
+    paddingHorizontal: 10,
     borderRadius: 14,
     backgroundColor: "#2C2E33",
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
   },
+  startAtLabel: { color: color.white, fontSize: 10, fontWeight: "600" },
   footer: {
     flexDirection: "row",
     gap: 9,

@@ -1118,6 +1118,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           style={[
             rail ? s.railItem : s.navItem,
             rail && tab === t.key && { backgroundColor: C.raised },
+            !rail && tab === t.key && s.navItemSelected,
           ]}
         >
           <I
@@ -3066,15 +3067,22 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  bottomNav: { flexDirection: "row", paddingTop: 14, paddingHorizontal: 8 },
+  bottomNav: {
+    flexDirection: "row",
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
   navItem: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 54,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
     paddingBottom: 4,
   },
+  navItemSelected: { backgroundColor: C.raised },
   navText: { fontSize: 12, fontWeight: "500" },
   pageHeader: {
     flexDirection: "row",
@@ -3180,7 +3188,14 @@ const s = StyleSheet.create({
   },
   caption: { fontSize: 12, lineHeight: 18, color: C.muted },
   statsColumn: { gap: 14 },
-  statCard: { padding: 21, borderRadius: 20, backgroundColor: C.card, gap: 15 },
+  statCard: {
+    padding: 21,
+    borderRadius: 20,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.line,
+    gap: 15,
+  },
   label: { fontSize: 12, color: C.muted },
   bigMoney: {
     fontSize: 37,

@@ -31,6 +31,7 @@ export const english: Record<string, string> = {
   "CZAS NA PRZERWĘ": "ON A BREAK",
   "Czas pracy": "Working time",
   "Start zmiany": "Start shift",
+  Godzina: "Time",
   "Zakończ zmianę": "End shift",
   Przerwa: "Break",
   Wznów: "Resume",
