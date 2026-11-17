@@ -44,7 +44,7 @@ Weryfikacja: **51 testów obliczeń, danych i preferencji**, **4 testy offline**
 - Interfejs używa grafitu, szarości i jasnych akcentów zamiast jaskrawej zieleni. Nowy formularz korzysta z kwotowej stawki Overtime; dotychczasowe mnożniki w historii pozostają obsługiwane bez przeliczania zapisów.
 - **Kopie JSON mają format 4**, aby starsze aplikacje nie zignorowały dodatku procentowego. Kopie 1–3 są odczytywane z zachowaniem wcześniejszych zarobków. Przed przywróceniem kopii 4 na drugim telefonie zaktualizuj aplikację.
 
-## iPhone — bezpłatna instalacja z Safari (1.5)
+## iPhone — bezpłatna instalacja z Safari (1.6)
 
 **[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Link jest dostępny bez logowania do ChatGPT i można go wysłać koledze. Udostępniona jest sama aplikacja; każdy użytkownik ma własne dane na swoim urządzeniu. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
 
