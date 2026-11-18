@@ -1,0 +1,21 @@
+name: Upload verified Android APK
+on:
+  push:
+    branches: [codex/upload-apk-1.9.2]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download and verify signed APK
+        run: |
+          curl --fail --location --retry 2 'https://expo.dev/artifacts/eas/BbAMH-8FPiyZXLRNCb8pFgfaEnbIjBWgTQukZys-2Ts.apk' --output work-hours-1.9.2.apk
+          printf '%s  %s\n' 'bd913130f9c07f676a22913b8fba00a71d056bf6d2f0e3c8a6c48097ae1034f4' 'work-hours-1.9.2.apk' | sha256sum --check --strict
+      - name: Attach APK to existing draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload v1.9.2 work-hours-1.9.2.apk
