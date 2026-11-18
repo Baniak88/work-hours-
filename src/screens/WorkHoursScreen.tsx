@@ -10,7 +10,13 @@ import {
   Icon as Ionicons,
 } from "../ui";
 import React, { useMemo, useRef, useState } from "react";
-import { Modal, Platform, StyleSheet, useWindowDimensions } from "react-native";
+import {
+  Keyboard,
+  Modal,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -64,6 +70,7 @@ import {
 import InstallHelp from "../components/InstallHelp";
 import ShiftClock from "../components/ShiftClock";
 import WorkCalendar from "../components/WorkCalendar";
+import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
 
 const C = {
@@ -633,6 +640,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         startTime: selectedShift.startTime,
         endTime: selectedShift.endTime,
         endDate: endDay,
+        endDateEdited: "false",
       };
     });
   }
@@ -668,8 +676,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               (e.end - e.start) / 60000 -
                 minutesWorked(e.start, e.end, e.breaks),
             )
-          : 30,
+          : 0,
       ),
+      endDateEdited: e ? "true" : "false",
       note: e?.note ?? "",
       rate: String(entryPolicy?.rate ?? 0),
       overtime: String(entryPolicy?.overtime ?? 1.25),
@@ -695,6 +704,35 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       shiftId: data.preferredShiftId,
       startDate: dateKey(now),
       startTime: timeLabel(now),
+    });
+  }
+  function selectManualDate(day: string) {
+    setForm((f) => {
+      if (!f || f.type !== "entry") return f;
+      const selectedShift =
+        data.shifts.find((x) => x.id === f.shiftId) ?? shift;
+      try {
+        return {
+          ...f,
+          ...manualDates(day, selectedShift),
+          endDateEdited: "false",
+        };
+      } catch {
+        return { ...f, startDate: day };
+      }
+    });
+  }
+  function editManualStartDate(value: string) {
+    setForm((f) => {
+      if (!f || f.type !== "entry") return f;
+      if (f.endDateEdited === "true") return { ...f, startDate: value };
+      const selectedShift =
+        data.shifts.find((x) => x.id === f.shiftId) ?? shift;
+      try {
+        return { ...f, ...manualDates(value, selectedShift) };
+      } catch {
+        return { ...f, startDate: value };
+      }
     });
   }
   function openAdjust() {
@@ -1242,7 +1280,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       <View style={s.pageHeader}>
         <View style={{ flex: 1, gap: 7 }}>
           <Text style={s.eyebrow}>{eyebrow}</Text>
-          <Text style={[s.title, !wide && { fontSize: 26 }]}>{title}</Text>
+          <Text style={[s.title, !wide && { fontSize: 30 }]}>{title}</Text>
           <Text style={s.subtitle}>{subtitle}</Text>
         </View>
         {action}
@@ -1368,6 +1406,16 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               onStartAt={openStart}
               onAdjust={openAdjust}
             />
+            <View style={{ marginTop: 12 }}>
+              <Button
+                label="Dodaj wcześniejszą zmianę"
+                icon="create-outline"
+                kind="secondary"
+                onPress={() =>
+                  job ? openEntry(undefined, previousLocalDay(now)) : openJob()
+                }
+              />
+            </View>
           </View>
           <View
             style={[
@@ -2775,7 +2823,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.7.0 · dane na Twoim urządzeniu
+          Work Hours · 1.7.1 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -2894,10 +2942,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         }}
       >
         {form && !confirm && (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={s.overlay}
-          >
+          <KeyboardAvoidingView behavior="padding" style={s.overlay}>
             <View
               style={[
                 s.sheet,
@@ -2932,9 +2977,17 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                                 ? "Rozpocznij od…"
                                 : form?.id
                                   ? "Edytuj wpis"
-                                  : "Dodaj wpis"}
+                                  : "Dodaj przepracowaną zmianę"}
                   </Text>
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ukryj klawiaturę"
+                  onPress={() => Keyboard.dismiss()}
+                  style={s.iconTile}
+                >
+                  <I name="keypad-outline" color={C.text} />
+                </Pressable>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Zamknij formularz"
@@ -2947,6 +3000,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </View>
               <ScrollView
                 keyboardShouldPersistTaps="handled"
+                style={{ flexShrink: 1 }}
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
                 {form?.type === "holidaySettings" ? (
@@ -3119,6 +3173,89 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   </>
                 ) : (
                   <>
+                    {form.type === "start" && (
+                      <View style={s.tip}>
+                        <I name="information-circle-outline" color={C.green} />
+                        <Text style={[s.caption, { flex: 1 }]}>
+                          To uruchamia zegar, który będzie dalej liczył czas.
+                          Aby wpisać zakończoną zmianę, wybierz przycisk
+                          poniżej.
+                        </Text>
+                      </View>
+                    )}
+                    {form.type === "start" && (
+                      <Button
+                        label="Dodaj zakończoną zmianę"
+                        icon="create-outline"
+                        kind="secondary"
+                        onPress={() =>
+                          openEntry(undefined, previousLocalDay(now))
+                        }
+                      />
+                    )}
+                    {form.type === "entry" && !form.id && (
+                      <>
+                        <Text style={s.caption}>
+                          Wpisz zakończoną zmianę z dowolnego wcześniejszego
+                          dnia. Ten formularz nie uruchamia zegara.
+                        </Text>
+                        <Text style={s.fieldLabel}>
+                          Wybierz dzień rozpoczęcia
+                        </Text>
+                        <View style={[s.row, { flexWrap: "wrap" }]}>
+                          <Button
+                            label="Poprzedni dzień"
+                            icon="chevron-back"
+                            kind="secondary"
+                            small
+                            onPress={() => {
+                              try {
+                                selectManualDate(
+                                  moveManualDay(form.startDate ?? "", -1),
+                                );
+                              } catch {
+                                selectManualDate(previousLocalDay(now));
+                              }
+                            }}
+                          />
+                          <Button
+                            label="Następny dzień"
+                            icon="chevron-forward"
+                            kind="secondary"
+                            small
+                            onPress={() => {
+                              try {
+                                selectManualDate(
+                                  moveManualDay(form.startDate ?? "", 1),
+                                );
+                              } catch {
+                                selectManualDate(previousLocalDay(now));
+                              }
+                            }}
+                          />
+                        </View>
+                        <View style={[s.row, { flexWrap: "wrap" }]}>
+                          {(
+                            [
+                              [1, "Wczoraj"],
+                              [2, "2 dni temu"],
+                              [7, "Tydzień temu"],
+                            ] as const
+                          ).map(([offset, label]) => (
+                            <Chip
+                              key={offset}
+                              label={label}
+                              active={
+                                form.startDate === previousLocalDay(now, offset)
+                              }
+                              onPress={() =>
+                                selectManualDate(previousLocalDay(now, offset))
+                              }
+                            />
+                          ))}
+                        </View>
+                      </>
+                    )}
                     <Text style={s.fieldLabel}>Zmiana</Text>
                     <ScrollView
                       horizontal
@@ -3170,7 +3307,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         label="Data rozpoczęcia"
                         placeholder="RRRR-MM-DD"
                         value={form?.startDate}
-                        onChange={(v) => setField("startDate", v)}
+                        onChange={(v) =>
+                          form.type === "entry"
+                            ? editManualStartDate(v)
+                            : setField("startDate", v)
+                        }
                       />
                       <Field
                         label="Godzina rozpoczęcia"
@@ -3186,7 +3327,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                             label="Data zakończenia"
                             placeholder="RRRR-MM-DD"
                             value={form.endDate}
-                            onChange={(v) => setField("endDate", v)}
+                            onChange={(v) =>
+                              setForm((f) =>
+                                f
+                                  ? { ...f, endDate: v, endDateEdited: "true" }
+                                  : f,
+                              )
+                            }
                           />
                           <Field
                             label="Godzina zakończenia"
@@ -3202,9 +3349,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           onChange={(v) => setField("breakMinutes", v)}
                         />
                         <Text style={s.caption}>
-                          Ręczna przerwa jest odejmowana z końca zmiany. Dla
-                          nocnej zmiany ustaw datę zakończenia na następny
-                          dzień.
+                          Domyślnie przerwa wynosi 0 minut. Wpisana przerwa jest
+                          odejmowana z końca zmiany. Dla nocnej zmiany ustaw
+                          datę zakończenia na następny dzień.
                         </Text>
                         <Pressable
                           accessibilityRole="button"
@@ -3484,7 +3631,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     alignItems: "center",
-    marginBottom: 27,
+    marginBottom: 24,
     marginTop: 12,
   },
   eyebrow: {
@@ -3494,7 +3641,7 @@ const s = StyleSheet.create({
     color: C.green,
   },
   title: {
-    fontSize: 29,
+    fontSize: 32,
     fontWeight: "700",
     letterSpacing: -1.1,
     color: C.text,
@@ -3550,8 +3697,8 @@ const s = StyleSheet.create({
   },
   timerHint: { color: C.muted, fontSize: 11, marginTop: 5, marginBottom: 25 },
   button: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 52,
+    borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 12,
     flexDirection: "row",
@@ -3645,7 +3792,7 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: "#2A2C31",
-    borderRadius: 18,
+    borderRadius: 22,
     overflow: "hidden",
   },
   empty: {
@@ -3939,15 +4086,15 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     width: "100%",
     maxWidth: 560,
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     borderWidth: 1,
     borderColor: C.line,
   },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 24,
+    padding: 18,
     gap: 16,
     borderBottomWidth: 1,
     borderColor: C.line,
@@ -3958,16 +4105,16 @@ const s = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: -0.7,
   },
-  fieldLabel: { fontSize: 12, color: "#BCC0C8", fontWeight: "500" },
+  fieldLabel: { fontSize: 13, color: "#BCC0C8", fontWeight: "600" },
   input: {
     padding: 14,
     color: C.text,
     backgroundColor: C.bg,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 11,
-    fontSize: 15,
-    minHeight: 49,
+    borderRadius: 16,
+    fontSize: 16,
+    minHeight: 52,
   },
   error: {
     padding: 14,

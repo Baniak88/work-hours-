@@ -2,6 +2,12 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.7.1 — ręczny wpis i czytelniejsze formularze
+
+Na pulpicie wybierz **Dodaj wcześniejszą zmianę**, aby wpisać zakończoną pracę z dowolnej wcześniejszej daty. Możesz też użyć kalendarza. Szybkie wybory dni i strzałki ułatwiają zmianę daty; dla nocnej zmiany data końca przesuwa się na następny dzień. Po ręcznej edycji daty końca aplikacja jej nie nadpisuje. Domyślna przerwa to 0 minut; wprowadź faktyczną przerwę. Formularz **Rozpocznij od...** nadal uruchamia bieżący licznik, a nie tworzy zakończonego wpisu.
+
+Formularz dostosowuje się do klawiatury; przycisk klawiatury w jego nagłówku ją chowa. Uproszczono wygląd kart i przycisków, zachowując trzy motywy i dostępne języki.
+
 ## Wersja 1.7 — zmiany, korekta zegara i urlop
 
 - Zmianę na pulpit wybierzesz bezpośrednio nad zegarem; nieużywany profil możesz usunąć w jego ustawieniach. Pozostaje co najmniej jeden profil; historia i aktywny licznik zachowują własne dane.

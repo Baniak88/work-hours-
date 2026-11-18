@@ -33,6 +33,22 @@ export const english: Record<string, string> = {
   "Start zmiany": "Start shift",
   Godzina: "Time",
   "Popraw początek": "Adjust start",
+  "Dodaj wcześniejszą zmianę": "Add a previous shift",
+  "Dodaj przepracowaną zmianę": "Add a worked shift",
+  "Domyślnie przerwa wynosi 0 minut. Wpisana przerwa jest odejmowana z końca zmiany. Dla nocnej zmiany ustaw datę zakończenia na następny dzień.":
+    "The default break is 0 minutes. An entered break is deducted from the end of the shift. For an overnight shift, set the end date to the next day.",
+  "Dodaj zakończoną zmianę": "Add a completed shift",
+  "Ukryj klawiaturę": "Hide keyboard",
+  Wczoraj: "Yesterday",
+  "2 dni temu": "2 days ago",
+  "Tydzień temu": "A week ago",
+  "Wybierz dzień rozpoczęcia": "Choose the start day",
+  "Poprzedni dzień": "Previous day",
+  "Następny dzień": "Next day",
+  "Wpisz zakończoną zmianę z dowolnego wcześniejszego dnia. Ten formularz nie uruchamia zegara.":
+    "Enter a completed shift from any earlier day. This form does not start the timer.",
+  "To uruchamia zegar, który będzie dalej liczył czas. Aby wpisać zakończoną zmianę, wybierz przycisk poniżej.":
+    "This starts the timer and keeps counting. To enter a completed shift, use the button below.",
   "Popraw początek zmiany": "Adjust shift start",
   "Początek zmiany poprawiony": "Shift start updated",
   "Usuń zmianę": "Delete shift",

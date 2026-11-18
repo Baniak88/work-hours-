@@ -35,6 +35,11 @@ import {
   type Job,
 } from "../src/domain";
 import { calendarDays, moveMonth } from "../src/calendar";
+import {
+  manualDates,
+  moveManualDay,
+  previousLocalDay,
+} from "../src/manualEntry";
 import { translateText } from "../src/i18n";
 import { themes, themeColor } from "../src/themes";
 import {
@@ -53,6 +58,31 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("manual earlier shifts retain the selected day and overnight end across DST", () => {
+  const [day, night] = defaultShifts();
+  assert.deepEqual(manualDates("2026-10-24", day), {
+    startDate: "2026-10-24",
+    endDate: "2026-10-24",
+  });
+  assert.deepEqual(manualDates("2026-10-24", night), {
+    startDate: "2026-10-24",
+    endDate: "2026-10-25",
+  });
+  assert.equal(previousLocalDay(stamp("2026-10-26", "01:30")), "2026-10-25");
+  assert.equal(moveManualDay("2026-03-29", -1), "2026-03-28");
+  assert.equal(moveManualDay("2026-03-29", 1), "2026-03-30");
+  assert.throws(() => manualDates("2026-02-30", night));
+  const dates = manualDates("2026-10-22", night);
+  const result = {
+    ...entry("2026-10-22", "17:30", "23:30"),
+    start: stamp(dates.startDate, "17:30"),
+    end: stamp(dates.endDate, "03:00"),
+    breaks: [],
+    shift: { ...night, workDate: dates.startDate },
+  };
+  checkEntry(result, [], null);
+  assert.equal(totals(calculate([result])).minutes, 570);
+});
 test("adjusting a running overnight shift preserves breaks and rejects overlaps", () => {
   const shift = { ...defaultShifts()[1], autoStop: true };
   const timer = makeTimer(job, shift, stamp("2026-11-17", "18:00"));
