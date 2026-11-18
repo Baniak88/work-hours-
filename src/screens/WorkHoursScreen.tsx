@@ -314,7 +314,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     [formError, setFormError] = useState(""),
     [confirm, setConfirm] = useState<Confirm | null>(null),
     [preferencesOpen, setPreferencesOpen] = useState(false),
-    [managementOpen, setManagementOpen] = useState(false);
+    [managementOpen, setManagementOpen] = useState(false),
+    [payDetailsOpen, setPayDetailsOpen] = useState(false);
   const [search, setSearch] = useState(""),
     [projectFilter, setProjectFilter] = useState("all"),
     [shiftFilter, setShiftFilter] = useState("all"),
@@ -1264,6 +1265,79 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       );
     }
   }
+  function payDetails(e: Entry) {
+    const parts = slices.filter((part) => part.entry.id === e.id);
+    const total = totals(parts);
+    const days = [...new Set(parts.map((part) => part.date))];
+    const normalRate = e.rate + allowanceHourlyRate(e);
+    const overtimeRate = extraHourlyRate(e);
+    return (
+      <View
+        style={{
+          gap: 10,
+          padding: 14,
+          backgroundColor: C.raised,
+          borderRadius: 16,
+        }}
+      >
+        <Text style={s.rowTitle}>Jak obliczono tę zmianę?</Text>
+        <View style={{ gap: 3 }}>
+          <Text style={s.caption}>Zwykły czas</Text>
+          <Text style={s.rowMoney}>
+            {duration(total.regular)} h × {fmt(normalRate)}/h ={" "}
+            {fmt((total.regular * normalRate) / 60)}
+          </Text>
+        </View>
+        <View style={{ gap: 3 }}>
+          <Text style={s.caption}>Nadgodziny</Text>
+          <Text style={s.rowMoney}>
+            {duration(total.extra)} h × {fmt(overtimeRate)}/h ={" "}
+            {fmt((total.extra * overtimeRate) / 60)}
+          </Text>
+        </View>
+        <View style={s.between}>
+          <Text style={s.rowTitle}>Razem za całą zmianę</Text>
+          <Text style={s.rowMoney}>{fmt(total.amount)}</Text>
+        </View>
+        <Text style={s.caption}>
+          Stawki zapisane dla tej zmiany, po odliczeniu przerw. Kwoty są
+          zaokrąglane do grosza.
+        </Text>
+        {(e.overtimeThreshold ?? "shift") !== "week" && (
+          <Text style={s.caption}>
+            Ten wpis korzysta z wcześniejszej zasady nadgodzin. Możesz go
+            przeliczyć według normy tygodniowej na pulpicie.
+          </Text>
+        )}
+        {days.length > 1 && (
+          <>
+            <Text style={s.rowTitle}>Podział między dni</Text>
+            {days.map((day) => {
+              const dayTotal = totals(
+                parts.filter((part) => part.date === day),
+              );
+              return (
+                <View key={day} style={s.between}>
+                  <Text verbatim style={s.caption}>
+                    {localDate(day).toLocaleDateString(locale, {
+                      day: "numeric",
+                      month: "short",
+                    })}{" "}
+                    · {duration(dayTotal.minutes)} h
+                  </Text>
+                  <Text style={s.rowMoney}>{fmt(dayTotal.amount)}</Text>
+                </View>
+              );
+            })}
+            <Text style={s.caption}>
+              „Dzisiaj” pokazuje tylko część zmiany od północy. Kwota za całą
+              zmianę obejmuje oba dni.
+            </Text>
+          </>
+        )}
+      </View>
+    );
+  }
   function row(e: Entry, parts?: Slice[]) {
     const applicable = (parts ?? slices).filter((x) => x.entry.id === e.id);
     const first = applicable[0]?.date,
@@ -1516,15 +1590,16 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               >
                 {fmt(liveWeek.amount)}
               </Text>
+              <Text style={s.caption}>Wynagrodzenie za tydzień</Text>
               <Text style={s.caption}>
                 {timer
                   ? "W tym aktywna zmiana · kwota szacunkowa"
-                  : "Wszystkie miejsca pracy"}
+                  : "Poniedziałek–niedziela · wszystkie miejsca"}
               </Text>
             </View>
             <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
               <View style={s.between}>
-                <Text style={s.label}>Dzisiaj</Text>
+                <Text style={s.label}>Dzisiaj od 00:00</Text>
                 <I name="sunny-outline" color={C.blue} />
               </View>
               <Text
@@ -1541,10 +1616,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               >
                 {fmt(liveToday.amount)}
               </Text>
+              <Text style={s.caption}>Wynagrodzenie za dziś</Text>
               <Text style={s.caption}>
                 {timer
                   ? "W tym aktywna zmiana · kwota szacunkowa"
-                  : "Zarobki z zapisanych wpisów"}
+                  : "Tylko czas od północy"}
               </Text>
             </View>
           </View>
@@ -1577,13 +1653,26 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   <Text
                     style={{ color: C.text, fontSize: 12, fontWeight: "600" }}
                   >
-                    Ostatnia zmiana zakończona
+                    Ostatnia zmiana · całość
                   </Text>
                   <Text style={[s.caption, { marginLeft: "auto" }]}>
                     {timeLabel(last.end)}
                   </Text>
                 </View>
                 {row(last)}
+                <View
+                  style={{ paddingHorizontal: 15, paddingBottom: 15, gap: 10 }}
+                >
+                  <Button
+                    label={
+                      payDetailsOpen ? "Ukryj obliczenia" : "Pokaż obliczenia"
+                    }
+                    icon="calculator-outline"
+                    kind="secondary"
+                    onPress={() => setPayDetailsOpen(!payDetailsOpen)}
+                  />
+                  {payDetailsOpen && payDetails(last)}
+                </View>
               </View>
             );
           })()}
@@ -1654,7 +1743,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           {j.name}
                         </Text>
                         <Text style={s.caption}>
-                          {fmt(j.rate)} / h · OT {fmt(extraHourlyRate(j))} / h
+                          {tr("Zwykła")} {fmt(j.rate + allowanceHourlyRate(j))}{" "}
+                          / h · OT {fmt(extraHourlyRate(j))} / h
                         </Text>
                       </View>
                       {job?.id === j.id && (
@@ -2929,7 +3019,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.0 · dane na Twoim urządzeniu
+          Work Hours · 1.9.1 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3376,6 +3466,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         }
                       />
                     )}
+                    {form.type === "entry" &&
+                      !!form.id &&
+                      (() => {
+                        const saved = data.entries.find(
+                          (entry) => entry.id === form.id,
+                        );
+                        return saved ? payDetails(saved) : null;
+                      })()}
                     {form.type === "entry" && !form.id && (
                       <>
                         <Text style={s.caption}>

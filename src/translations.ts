@@ -1,4 +1,26 @@
 export const english: Record<string, string> = {
+  "Wynagrodzenie za tydzień": "Pay for the week",
+  "Poniedziałek–niedziela · wszystkie miejsca":
+    "Monday–Sunday · all workplaces",
+  "Dzisiaj od 00:00": "Today since 00:00",
+  "Wynagrodzenie za dziś": "Pay for today",
+  "Tylko czas od północy": "Time since midnight only",
+  "Ostatnia zmiana · całość": "Last shift · full total",
+  "Pokaż obliczenia": "Show calculation",
+  "Ukryj obliczenia": "Hide calculation",
+  "Jak obliczono tę zmianę?": "How was this shift calculated?",
+  "Zwykły czas": "Regular time",
+  Nadgodziny: "Overtime",
+  "Razem za całą zmianę": "Full shift total",
+  "Stawki zapisane dla tej zmiany, po odliczeniu przerw. Kwoty są zaokrąglane do grosza.":
+    "Rates saved for this shift, after breaks. Amounts are rounded to the nearest penny.",
+  "Ten wpis korzysta z wcześniejszej zasady nadgodzin. Możesz go przeliczyć według normy tygodniowej na pulpicie.":
+    "This entry uses an older overtime rule. You can recalculate it using the weekly target on the dashboard.",
+  "Podział między dni": "Breakdown by day",
+  "„Dzisiaj” pokazuje tylko część zmiany od północy. Kwota za całą zmianę obejmuje oba dni.":
+    "Today shows only the part of the shift after midnight. The full shift total includes both days.",
+  Zwykła: "Regular",
+
   Pulpit: "Dashboard",
   Kalendarz: "Calendar",
   Raporty: "Reports",
