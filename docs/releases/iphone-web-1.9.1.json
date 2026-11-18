@@ -1,0 +1,17 @@
+{
+  "name": "Work Hours",
+  "version": "1.9.1",
+  "platform": "pwa",
+  "project_id": "appgprj_6af5240dd4948191bcbd46a6dece3d37",
+  "deployment_id": "appgdep_6afda66bc2bc8191906719b5c0a403fa",
+  "version_id": "appgprj_6af5240dd4948191bcbd46a6dece3d37~appgver_280d8d20331881918e145cfedf2861a8",
+  "sourceCommit": "0411c79a1c4416170793d471dfa5d749a9231fa6",
+  "status": "succeeded",
+  "url": "https://work-hours-osobiste.daintypersimmon4.chatgpt.site",
+  "audience": "public",
+  "deviceTested": false,
+  "domainTests": 66,
+  "serviceWorkerUnitTests": 5,
+  "anonymousWorkerVerified": true,
+  "payBreakdownBrowserTest": true
+}
