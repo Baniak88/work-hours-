@@ -1,0 +1,29 @@
+{
+  "name": "Work Hours",
+  "version": "1.8.0",
+  "platform": "android",
+  "applicationId": "com.baniak88.workhours",
+  "versionCode": 8,
+  "buildId": "ce98d00b-678f-45d3-af5a-99c324d0c657",
+  "buildUrl": "https://expo.dev/accounts/neospecto82/projects/work-hours/builds/ce98d00b-678f-45d3-af5a-99c324d0c657",
+  "downloadUrl": "https://expo.dev/artifacts/eas/HYK7EIMH2rKu1F35lvgwflLy7IhofGp_FIG2FCT21XI.apk",
+  "sizeBytes": 91348446,
+  "sha256": "b8531ed2bf066ae5d299fb1f3b3f508b7427590ff1b3bae425efc5932e4f2e0f",
+  "signerCertificateSha256": "9653ffed5f72cabe9c22f0d2246076d9f847f9ca79be9972d5cf0eec826a39ef",
+  "signatureVerified": true,
+  "signatureScheme": "v2",
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "verifiedAt": "2026-11-18T03:42:43.163627+00:00",
+  "githubReleaseUrl": "https://github.com/Baniak88/work-hours-/releases/tag/v1.8.0",
+  "githubDownloadUrl": "https://github.com/Baniak88/work-hours-/releases/download/v1.8.0/work-hours-1.8.0.apk",
+  "sourceCommit": "e0feb9705786a44085e9cb3ba57a987b16e84ce1",
+  "deviceTested": false,
+  "githubDigestVerified": true,
+  "githubReleasePublished": true,
+  "githubUploadRunUrl": "https://github.com/Baniak88/work-hours-/actions/runs/44232328151"
+}
