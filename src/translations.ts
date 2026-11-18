@@ -1,4 +1,19 @@
 export const english: Record<string, string> = {
+  "Do nadgodzin pozostało": "Time until overtime",
+  "Norma tygodniowa wykonana": "Weekly target reached",
+  " h pracy · zapisane zmiany": " h worked · saved shifts",
+
+  "Poprawiono sposób liczenia nadgodzin": "Overtime calculation corrected",
+  "Wcześniejsze wpisy przeliczono według normy tygodniowej zapisanej w miejscu pracy. Kwoty mogły się zmienić. Stawki, przerwy i oznaczenia wypłat pozostały bez zmian.":
+    "Previous entries were recalculated using the workplace weekly target. Pay may have changed. Rates, breaks and payment markers were preserved.",
+  Rozumiem: "Got it",
+  "TWOJE ROZLICZENIE": "YOUR SUMMARY",
+  "Raport pracy": "Work report",
+  "Godziny i zarobki w jednym miejscu.": "Hours and earnings in one place.",
+  "Zarobki w tym miesiącu": "Earnings this month",
+  "Nadgodziny liczymy po przekroczeniu normy tygodniowej dla danego miejsca pracy.":
+    "Overtime starts after the workplace weekly target is reached.",
+
   "Aktywna zmiana należy do tygodnia rozpoczęcia":
     "The active shift belongs to its starting week",
   "Dzień rozpoczęcia:": "Start date:",

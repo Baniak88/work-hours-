@@ -7,7 +7,13 @@ import React, {
   useState,
 } from "react";
 import { AppState } from "react-native";
-import { State, settleTimer, syncTimerBreakContext, timeLabel } from "./domain";
+import {
+  State,
+  normalizeWeeklyOvertime,
+  settleTimer,
+  syncTimerBreakContext,
+  timeLabel,
+} from "./domain";
 import { readState, writeState } from "./storage";
 
 type Store = {
@@ -36,7 +42,9 @@ export function WorkHoursProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = await readState();
       setLoadError("");
-      const withBreakContext = syncTimerBreakContext(stored);
+      const withBreakContext = syncTimerBreakContext(
+        normalizeWeeklyOvertime(stored),
+      );
       const ready = settleTimer(withBreakContext, Date.now());
       if (ready !== stored) {
         await writeState(ready);
@@ -82,7 +90,9 @@ export function WorkHoursProvider({ children }: { children: React.ReactNode }) {
       lock.current = true;
       setBusy(true);
       try {
-        const withBreakContext = syncTimerBreakContext(next);
+        const withBreakContext = syncTimerBreakContext(
+          normalizeWeeklyOvertime(next),
+        );
         const committed = settleTimer(withBreakContext, Date.now());
         await writeState(committed);
         current.current = committed;

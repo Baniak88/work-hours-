@@ -73,6 +73,7 @@ export type State = {
   holidaySettings?: Record<string, { days: number; rate: number }>;
   countingMode?: "shift" | "midnight";
   weekBoundary?: "shift" | "midnight";
+  weeklyCorrectionNotice?: boolean;
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
@@ -567,6 +568,50 @@ export function setWeeklyTarget(
       : state.entries,
   };
 }
+// Correct old per-shift rules once, using the workplace's weekly target.
+// Preserve stored rates, breaks, pay markers and already-weekly entry snapshots.
+export function normalizeWeeklyOvertime(state: State): State {
+  const jobs = state.jobs.map((j) =>
+    j.overtimeThreshold === "week"
+      ? j
+      : {
+          ...j,
+          overtimeThreshold: "week" as const,
+          weeklyHours: j.weeklyHours ?? 40,
+        },
+  );
+  const jobsById = new Map(jobs.map((j) => [j.id, j]));
+  let correctedEntries = false;
+  const entries = state.entries.map((entry) => {
+    if (entry.overtimeThreshold === "week") return entry;
+    correctedEntries = true;
+    return {
+      ...entry,
+      overtimeThreshold: "week" as const,
+      weeklyHours:
+        jobsById.get(entry.jobId)?.weeklyHours ?? entry.weeklyHours ?? 40,
+    };
+  });
+  const t = state.timer;
+  const timer =
+    t && t.overtimeThreshold !== "week"
+      ? {
+          ...t,
+          overtimeThreshold: "week" as const,
+          weeklyHours:
+            jobsById.get(t.jobId)?.weeklyHours ?? t.weeklyHours ?? 40,
+        }
+      : t;
+  const jobChanged = jobs.some((j, i) => j !== state.jobs[i]);
+  if (!jobChanged && !correctedEntries && timer === t) return state;
+  return {
+    ...state,
+    jobs,
+    entries,
+    timer,
+    ...(correctedEntries ? { weeklyCorrectionNotice: true } : {}),
+  };
+}
 export function validTime(value: string) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
@@ -1019,6 +1064,8 @@ export function validateBackup(input: unknown): State {
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
       !["navy", "graphite", "light"].includes(s.theme)) ||
+    (s.weeklyCorrectionNotice !== undefined &&
+      typeof s.weeklyCorrectionNotice !== "boolean") ||
     (s.weekBoundary !== undefined &&
       !["shift", "midnight"].includes(s.weekBoundary)) ||
     (s.countingMode !== undefined &&

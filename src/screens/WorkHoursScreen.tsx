@@ -1480,6 +1480,24 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       ))}
     </View>
   );
+  function weeklyCorrectionBanner() {
+    if (!data.weeklyCorrectionNotice) return null;
+    return (
+      <View style={[s.card, { padding: 16, marginVertical: 12, gap: 10 }]}>
+        <Text style={s.rowTitle}>Poprawiono sposób liczenia nadgodzin</Text>
+        <Text style={s.caption}>
+          Wcześniejsze wpisy przeliczono według normy tygodniowej zapisanej w
+          miejscu pracy. Kwoty mogły się zmienić. Stawki, przerwy i oznaczenia
+          wypłat pozostały bez zmian.
+        </Text>
+        <Button
+          label="Rozumiem"
+          kind="secondary"
+          onPress={() => void save({ ...data, weeklyCorrectionNotice: false })}
+        />
+      </View>
+    );
+  }
   function home() {
     const timerJob = timer ? jobFor(timer.jobId) : job;
     const liveWeekSlices = liveCalculated.filter(
@@ -1675,6 +1693,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </View>
           </View>
         </View>
+        {weeklyCorrectionBanner()}
         {historicalPolicies > 0 && timerJob && (
           <View style={[s.card, { padding: 14, marginTop: 14, gap: 8 }]}>
             <Text style={s.rowTitle}>
@@ -2301,9 +2320,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     return (
       <>
         {header(
-          "MAŁE MINUTY. DUŻY OBRAZ.",
-          "Wiesz, ile pracujesz.",
-          "Przegląd godzin, zarobków i tygodniowych rozliczeń.",
+          "TWOJE ROZLICZENIE",
+          "Raport pracy",
+          "Godziny i zarobki w jednym miejscu.",
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Eksportuj CSV"
@@ -2332,6 +2351,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         </View>
         {reportMode === "summary" ? (
           <>
+            {weeklyCorrectionBanner()}
             <View style={s.reportHero}>
               <Text style={s.overline}>
                 {new Date(now)
@@ -2341,9 +2361,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   })
                   .toUpperCase()}
               </Text>
+              <Text style={s.caption}>Zarobki w tym miesiącu</Text>
               <Text style={s.reportMoney}>{fmt(ms.amount)}</Text>
               <Text style={s.subtitle}>
-                {duration(ms.minutes)} godzin pracy w tym miesiącu
+                {duration(ms.minutes)} h pracy · zapisane zmiany
               </Text>
               <View style={s.reportStats}>
                 <View style={{ gap: 7 }}>
@@ -2369,7 +2390,57 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   </Text>
                 </View>
               </View>
+              <Text style={[s.caption, { marginTop: 14 }]}>
+                Nadgodziny liczymy po przekroczeniu normy tygodniowej dla danego
+                miejsca pracy.
+              </Text>
             </View>
+            {job &&
+              (() => {
+                const worked = totals(
+                  weekSlices.filter((part) => part.entry.jobId === job.id),
+                ).minutes;
+                const target = (job.weeklyHours ?? 40) * 60;
+                const remaining = Math.max(0, target - worked);
+                return (
+                  <View
+                    style={[s.card, { marginBottom: 16, padding: 16, gap: 10 }]}
+                  >
+                    <View style={s.between}>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={s.rowTitle}>Norma tygodnia</Text>
+                        <Text verbatim style={s.caption}>
+                          {job.name}
+                        </Text>
+                      </View>
+                      <Button
+                        label="Zmień normę"
+                        kind="ghost"
+                        small
+                        onPress={() => openWeeklyNorm(job)}
+                      />
+                    </View>
+                    <Text style={s.summaryValue}>
+                      {duration(worked)} h / {duration(target)} h
+                    </Text>
+                    <View style={s.progressTrack}>
+                      <View
+                        style={{
+                          width: `${Math.min(100, (worked / target) * 100)}%`,
+                          height: 5,
+                          backgroundColor: C.green,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </View>
+                    <Text style={s.caption}>
+                      {remaining > 0
+                        ? `${tr("Do nadgodzin pozostało")} ${duration(remaining)} h`
+                        : tr("Norma tygodniowa wykonana")}
+                    </Text>
+                  </View>
+                );
+              })()}
             <View style={[s.card, { marginBottom: 20, padding: 18, gap: 16 }]}>
               <Text style={s.sectionTitle}>Dzienne i nocne · ten miesiąc</Text>
               {(
@@ -3186,7 +3257,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.2 · dane na Twoim urządzeniu
+          Work Hours · 1.9.3 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -4439,12 +4510,12 @@ const s = StyleSheet.create({
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.line,
-    padding: 25,
-    marginVertical: 20,
-    gap: 12,
+    padding: 18,
+    marginVertical: 16,
+    gap: 8,
   },
   reportMoney: {
-    fontSize: 45,
+    fontSize: 38,
     color: C.green,
     fontWeight: "600",
     letterSpacing: -1.8,
@@ -4456,8 +4527,8 @@ const s = StyleSheet.create({
     gap: 14,
     borderTopWidth: 1,
     borderColor: C.line,
-    paddingTop: 22,
-    marginTop: 8,
+    paddingTop: 14,
+    marginTop: 6,
   },
   chart: {
     height: 190,

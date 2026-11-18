@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calculate,
   groupSlices,
+  normalizeWeeklyOvertime,
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
@@ -105,6 +106,61 @@ test("overnight reporting can use the shift start date without losing pay or bre
   assert.throws(() => validateBackup({ ...state, countingMode: "invalid" }));
   assert.match(csv(state), /"2026-11-17"/);
   assert.doesNotMatch(csv(state), /"2026-11-18"/);
+});
+test("legacy entries use the workplace weekly target and preserve historical rates and breaks", () => {
+  const currentJob = {
+    ...job,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+    shiftAllowancePercent: 30,
+  };
+  const night = {
+    ...entry("2026-11-16", "17:30", "23:30"),
+    end: stamp("2026-11-17", "03:53"),
+    rate: 18,
+    shiftAllowancePercent: 30,
+    overtime: 1.5,
+    overtimeThreshold: "shift" as const,
+    shift: { ...defaultShifts()[1], workDate: "2026-11-16", normHours: 9.75 },
+    breaks: [],
+  };
+  const next = {
+    ...night,
+    id: "next",
+    start: stamp("2026-11-17", "17:30"),
+    end: stamp("2026-11-18", "03:15"),
+    shift: { ...night.shift, workDate: "2026-11-17" },
+  };
+  const base = {
+    ...freshState(),
+    jobs: [currentJob],
+    entries: [night, next],
+    paidWeeks: ["2026-11-16"],
+  };
+  assert.equal(totals(calculate(base.entries)).extra, 38);
+  const fixed = normalizeWeeklyOvertime(base);
+  assert.equal(fixed.weeklyCorrectionNotice, true);
+  assert.equal(totals(calculate(fixed.entries)).minutes, 20 * 60 + 8);
+  assert.equal(totals(calculate(fixed.entries)).extra, 0);
+  assert.equal(fixed.entries[0].weeklyHours, 39);
+  assert.equal(fixed.entries[0].rate, night.rate);
+  assert.equal(
+    fixed.entries[0].shiftAllowancePercent,
+    night.shiftAllowancePercent,
+  );
+  assert.deepEqual(fixed.entries[0].breaks, night.breaks);
+  assert.deepEqual(fixed.paidWeeks, base.paidWeeks);
+  assert.equal(normalizeWeeklyOvertime(fixed), fixed);
+  assert.equal(
+    validateBackup(JSON.parse(JSON.stringify(fixed))).weeklyCorrectionNotice,
+    true,
+  );
+  const extra = weeklyEntry("2026-11-18", "05:00", "23:00", {
+    weeklyHours: 39,
+  });
+  const end = weeklyEntry("2026-11-19", "06:00", "10:00", { weeklyHours: 39 });
+  const result = totals(calculate([...fixed.entries, extra, end]));
+  assert.equal(result.extra, 3 * 60 + 8);
 });
 test("countdown shows remaining seconds without reaching zero early", () => {
   assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");
