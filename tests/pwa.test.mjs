@@ -5,6 +5,8 @@ import vm from "node:vm";
 
 const worker = await readFile("dist/sw.js", "utf8");
 const ORIGIN = "https://workhours.test";
+const BASE = (process.env.WORKHOURS_BASE_PATH ?? "").replace(/\/$/, "");
+const local = (path) => "dist" + decodeURIComponent(path.slice(BASE.length));
 function runtime(failure = "") {
   const listeners = new Map(),
     stores = new Map();
@@ -58,7 +60,7 @@ function runtime(failure = "") {
       );
       if (
         (["http", "redirect"].includes(failure) &&
-          url.pathname === "/index.html") ||
+          url.pathname === `${BASE}/index.html`) ||
         (failure === "asset-html" && url.pathname.endsWith(".ttf"))
       ) {
         const r = new Response("Sign in", {
@@ -69,9 +71,7 @@ function runtime(failure = "") {
           Object.defineProperty(r, "redirected", { value: true });
         return r;
       }
-      return new Response(
-        await readFile("dist" + decodeURIComponent(url.pathname)),
-      );
+      return new Response(await readFile(local(url.pathname)));
     },
   });
   return {
@@ -109,8 +109,8 @@ test("manifest enables iPhone home-screen installation and declares an existing 
     await readFile("dist/manifest.webmanifest", "utf8"),
   );
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.start_url, "/");
-  assert.ok((await readFile("dist" + manifest.icons[0].src)).length > 0);
+  assert.equal(manifest.start_url, `${BASE}/`);
+  assert.ok((await readFile(local(manifest.icons[0].src))).length > 0);
   const html = await readFile("dist/index.html", "utf8");
   assert.match(html, /apple-mobile-web-app-capable/);
   assert.match(html, /manifest.webmanifest/);
@@ -130,7 +130,7 @@ test("all application routes and lazy scripts remain available after disconnecti
     "/reports",
     "/settings?from=icon",
   ]) {
-    assert.equal(await (await r.request(path)).text(), expected);
+    assert.equal(await (await r.request(BASE + path)).text(), expected);
   }
   const stored = [...r.stores.values()][0];
   const scripts = [...stored.keys()].filter((url) => url.endsWith(".js"));
@@ -138,7 +138,7 @@ test("all application routes and lazy scripts remain available after disconnecti
   for (const script of scripts)
     assert.ok((await (await r.request(script, "cors")).text()).length > 0);
   assert.equal(await r.request("/api/private-data"), undefined);
-  assert.equal(await r.request("/", "navigate", "POST"), undefined);
+  assert.equal(await r.request(BASE + "/", "navigate", "POST"), undefined);
   assert.equal(await r.request("https://other.example/"), undefined);
 });
 test("expired sign-in, HTML in place of assets or failed downloads prevent offline installation", async () => {
@@ -158,11 +158,11 @@ test("exported fonts use a public path and are available offline as binary asset
   const fonts = [...stored.keys()].filter((url) => url.endsWith(".ttf"));
   assert.ok(fonts.length > 0);
   for (const font of fonts) {
-    assert.match(font, /^\/assets\/vendor\//);
+    assert.ok(font.startsWith(`${BASE}/assets/vendor/`));
     const actual = Buffer.from(
       await (await r.request(font, "cors")).arrayBuffer(),
     );
-    assert.deepEqual(actual, await readFile("dist" + decodeURIComponent(font)));
+    assert.deepEqual(actual, await readFile(local(font)));
     assert.equal(actual[0], 0);
     const unescaped = await r.request(decodeURIComponent(font), "cors");
     assert.deepEqual(Buffer.from(await unescaped.arrayBuffer()), actual);

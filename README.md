@@ -105,7 +105,7 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 
 **[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.9.2/work-hours-1.9.2.apk)** · około 91 MB.
 
-[Wydanie v1.9.2 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.9.2) zawiera plik `work-hours-1.9.2.apk` w sekcji **Assets**. Repozytorium jest prywatne — pobieranie wymaga zalogowania do GitHuba z dostępem do repozytorium. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/BbAMH-8FPiyZXLRNCb8pFgfaEnbIjBWgTQukZys-2Ts.apk).
+[Wydanie v1.9.2 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.9.2) zawiera plik `work-hours-1.9.2.apk` w sekcji **Assets**. Repozytorium jest publiczne; pobranie nie wymaga logowania do GitHuba. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/BbAMH-8FPiyZXLRNCb8pFgfaEnbIjBWgTQukZys-2Ts.apk).
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli masz wcześniejszą wersję, zainstaluj aktualizację bez jej odinstalowywania, aby zachować dane. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 

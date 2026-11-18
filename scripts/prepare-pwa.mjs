@@ -10,6 +10,10 @@ import {
 import path from "node:path";
 
 const root = path.resolve("dist");
+const base = (process.env.WORKHOURS_BASE_PATH ?? "").replace(/\/$/, "");
+if (base && !/^\/[A-Za-z0-9_-]+$/.test(base))
+  throw new Error("Invalid application base path");
+const appPath = (value) => `${base}${value}`;
 async function files(directory) {
   const items = await readdir(directory, { withFileTypes: true });
   const nested = await Promise.all(
@@ -60,20 +64,20 @@ if (hasExportedAssets) {
 }
 await copyFile("assets/icon.png", path.join(root, "app-icon.png"));
 const manifest = {
-  id: "/",
+  id: appPath("/"),
   name: "Work Hours",
   short_name: "Work Hours",
   lang: "pl",
   description: "Twój osobisty zegar pracy, zmiany i zarobki. Dostępny offline.",
-  start_url: "/",
-  scope: "/",
+  start_url: appPath("/"),
+  scope: appPath("/"),
   display: "standalone",
   orientation: "portrait",
   background_color: "#111214",
   theme_color: "#111214",
   icons: [
     {
-      src: "/app-icon.png",
+      src: appPath("/app-icon.png"),
       sizes: "1024x1024",
       type: "image/png",
       purpose: "any",
@@ -93,9 +97,9 @@ html = html.replace(
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Work Hours">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/app-icon.png">
-<script src="/register-offline.js" defer></script>
+<link rel="manifest" href="${appPath("/manifest.webmanifest")}">
+<link rel="apple-touch-icon" href="${appPath("/app-icon.png")}">
+<script src="${appPath("/register-offline.js")}" defer></script>
 </head>`,
 );
 html = html.replace(
@@ -112,7 +116,7 @@ await writeFile(
   `
 if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {
+    navigator.serviceWorker.register('${appPath("/sw.js")}', { updateViaCache: 'none' }).catch(() => {
       window.dispatchEvent(new Event('workhours:offline-error'));
     });
   });
@@ -127,7 +131,7 @@ for (const f of assets.sort()) hash.update(await readFile(f));
 const cacheName = `workhours-${hash.digest("hex").slice(0, 16)}`;
 const urls = assets.map(
   (f) =>
-    "/" +
+    appPath("/") +
     path.relative(root, f).split(path.sep).map(encodeURIComponent).join("/"),
 );
 await writeFile(
@@ -162,9 +166,9 @@ self.addEventListener('fetch', (event) => {
   let decodedPath;
   try { decodedPath = decodeURIComponent(url.pathname); } catch { return; }
   const asset = ASSETS.find((path) => decodeURIComponent(path) === decodedPath);
-  const appRoutes = ['/', '/entries', '/reports', '/settings'];
+  const appRoutes = ${JSON.stringify(["/", "/entries", "/reports", "/settings"].map((route) => appPath(route).replace(/\/$/, "") || "/"))};
   if (request.mode === 'navigate' && appRoutes.includes(url.pathname.replace(/\\/$/, '') || '/')) {
-    event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match('/index.html')) || fetch(request)));
+    event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match('${appPath("/index.html")}')) || fetch(request)));
   } else if (asset) {
     event.respondWith(caches.open(CACHE).then(async (cache) => (await cache.match(asset)) || fetch(request)));
   }
