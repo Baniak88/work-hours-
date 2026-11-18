@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  groupSlices,
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
@@ -21,6 +22,7 @@ import {
   checkEntry,
   csv,
   dateKey,
+  localDate,
   finishTimer,
   finishShift,
   freshState,
@@ -65,6 +67,45 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("overnight reporting can use the shift start date without losing pay or breaks", () => {
+  const night = {
+    ...entry("2026-11-17", "17:30", "23:30"),
+    end: stamp("2026-11-18", "03:00"),
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+    breaks: [
+      {
+        start: stamp("2026-11-18", "02:30"),
+        end: stamp("2026-11-18", "03:00"),
+      },
+    ],
+  };
+  const actual = calculate([night]);
+  const byStart = groupSlices(actual, "shift");
+  assert.deepEqual(
+    byStart.map((part) => part.date),
+    ["2026-11-17", "2026-11-17"],
+  );
+  assert.deepEqual(
+    groupSlices(actual, "midnight").map((part) => part.date),
+    ["2026-11-17", "2026-11-18"],
+  );
+  assert.deepEqual(totals(byStart), totals(actual));
+  assert.equal(totals(byStart).minutes, 9 * 60);
+  const state = {
+    ...freshState(),
+    jobs: [job],
+    entries: [night],
+    countingMode: "shift" as const,
+  };
+  assert.equal(
+    validateBackup(JSON.parse(JSON.stringify(state))).countingMode,
+    "shift",
+  );
+  assert.throws(() => validateBackup({ ...state, countingMode: "invalid" }));
+  assert.match(csv(state), /"2026-11-17"/);
+  assert.doesNotMatch(csv(state), /"2026-11-18"/);
+});
 test("countdown shows remaining seconds without reaching zero early", () => {
   assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");
   assert.equal(formatCountdown(0.001), "00:00:01");
@@ -641,6 +682,80 @@ test("a Sunday night splits weekly counters at Monday midnight without resetting
   assert.equal(both[0].extra, 90);
   assert.equal(both[1].regular, 150);
   assert.equal(both[1].extra, 180);
+});
+test("week-boundary setting controls overtime independently of the displayed shift day", () => {
+  const prior = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(
+    (d) => weeklyEntry(d, "06:00", "15:00"),
+  );
+  const night = weeklyEntry("2026-10-25", "18:00", "23:00", {
+    end: stamp("2026-10-26", "06:00"),
+    shift: { ...defaultShifts()[1], workDate: "2026-10-25" },
+    breaks: [
+      {
+        start: stamp("2026-10-25", "23:30"),
+        end: stamp("2026-10-26", "00:30"),
+      },
+    ],
+  });
+  const monday = weeklyEntry("2026-10-26", "09:00", "17:00");
+  const source = [...prior, night, monday];
+  const split = calculate(source, "midnight").filter(
+    (s) => s.entry.id === night.id,
+  );
+  const startWeek = calculate(source, "shift").filter(
+    (s) => s.entry.id === night.id,
+  );
+  assert.equal(totals(split).extra, 90);
+  assert.equal(totals(startWeek).extra, 420);
+  assert.equal(totals(split).minutes, totals(startWeek).minutes);
+  assert.deepEqual(
+    split.map((s) => weekKey(localDate(s.weekDate))),
+    ["2026-10-19", "2026-10-26"],
+  );
+  assert.deepEqual(
+    startWeek.map((s) => weekKey(localDate(s.weekDate))),
+    ["2026-10-19", "2026-10-19"],
+  );
+  const display = groupSlices(split, "shift");
+  assert.deepEqual(
+    display.map((s) => s.date),
+    ["2026-10-25", "2026-10-25"],
+  );
+  assert.deepEqual(
+    display.map((s) => s.weekDate),
+    ["2026-10-25", "2026-10-26"],
+  );
+  assert.equal(
+    totals(calculate(source, "shift").filter((s) => s.entry.id === monday.id))
+      .extra,
+    0,
+  );
+  const timer = makeTimer(
+    { ...job, ...weeklyPolicy },
+    defaultShifts()[1],
+    night.start,
+  );
+  const active = previewSlices(
+    prior,
+    timer,
+    stamp("2026-10-26", "06:00"),
+    "shift",
+  );
+  assert.equal(
+    totals(active.filter((s) => s.entry.id.startsWith("__active"))).extra,
+    480,
+  );
+  const state = {
+    ...freshState(),
+    weekBoundary: "shift" as const,
+    jobs: [{ ...job, ...weeklyPolicy }],
+    entries: source,
+  };
+  assert.equal(
+    validateBackup(JSON.parse(JSON.stringify(state))).weekBoundary,
+    "shift",
+  );
+  assert.throws(() => validateBackup({ ...state, weekBoundary: "invalid" }));
 });
 test("weekly targets are independent by workplace and split sessions share both counters", () => {
   const prior = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map(

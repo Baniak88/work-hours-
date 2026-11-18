@@ -71,6 +71,8 @@ export type State = {
   defaultBreakMinutes: number;
   automaticBreak: boolean;
   holidaySettings?: Record<string, { days: number; rate: number }>;
+  countingMode?: "shift" | "midnight";
+  weekBoundary?: "shift" | "midnight";
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
@@ -79,6 +81,8 @@ export type State = {
 export type Slice = {
   entry: Entry;
   date: string;
+  actualDate: string;
+  weekDate: string;
   minutes: number;
   regular: number;
   extra: number;
@@ -116,6 +120,8 @@ export const freshState = (): State => ({
   holidays: [],
   defaultBreakMinutes: 0,
   automaticBreak: false,
+  countingMode: "shift",
+  weekBoundary: "midnight",
 });
 export const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -516,12 +522,16 @@ export function previewSlices(
   entries: Entry[],
   timer: Timer | null,
   now: number,
+  weekBoundary: "shift" | "midnight" = "midnight",
 ): Slice[] {
   if (!timer || Math.min(now, timer.plannedEnd ?? Infinity) <= timer.start)
-    return calculate(entries);
+    return calculate(entries, weekBoundary);
   let id = "__active_timer_preview__";
   while (entries.some((entry) => entry.id === id)) id += "_";
-  return calculate([...entries, finishTimer(timer, now, id, false)]);
+  return calculate(
+    [...entries, finishTimer(timer, now, id, false)],
+    weekBoundary,
+  );
 }
 export function updateActiveWeeklyPolicy(
   timer: Timer | null,
@@ -726,7 +736,10 @@ export function settleTimer(state: State, now: number): State {
 // Evaluate entries chronologically. Shift/day and Monday-week counters include paid
 // minutes. Taking the smaller remaining allowance implements the union of both
 // thresholds without ever paying the same minute as overtime twice.
-export function calculate(entries: Entry[]): Slice[] {
+export function calculate(
+  entries: Entry[],
+  weekBoundary: "shift" | "midnight" = "midnight",
+): Slice[] {
   const used = new Map<string, number>();
   const weekUsed = new Map<string, number>();
   const out: Slice[] = [];
@@ -744,7 +757,8 @@ export function calculate(entries: Entry[]): Slice[] {
           : `${e.jobId}/${date}`;
       const minutes = minutesWorked(start, end, e.breaks),
         previous = used.get(key) ?? 0;
-      const weeklyKey = `${e.jobId}/${weekKey(start)}`;
+      const weekDate = weekBoundary === "shift" ? dateKey(e.start) : date;
+      const weeklyKey = `${e.jobId}/${weekKey(localDate(weekDate))}`;
       const previousWeekly = weekUsed.get(weeklyKey) ?? 0;
       const threshold = e.overtimeThreshold ?? "shift";
       const shiftRemaining = Math.max(
@@ -767,6 +781,8 @@ export function calculate(entries: Entry[]): Slice[] {
       out.push({
         entry: e,
         date,
+        actualDate: date,
+        weekDate,
         minutes,
         regular,
         extra,
@@ -781,6 +797,15 @@ export function calculate(entries: Entry[]): Slice[] {
     }
   }
   return out;
+}
+// Group reports by the actual start date while retaining each slice's pay.
+export function groupSlices(
+  slices: Slice[],
+  mode: "shift" | "midnight",
+): Slice[] {
+  return mode === "shift"
+    ? slices.map((slice) => ({ ...slice, date: dateKey(slice.entry.start) }))
+    : slices;
 }
 export const totals = (slices: Slice[]) =>
   slices.reduce(
@@ -875,7 +900,10 @@ export function csv(state: State, entries = state.entries) {
       "Tydzień od",
       "Łączna stawka nadgodzin za godzinę",
     ],
-    ...calculate(context)
+    ...groupSlices(
+      calculate(context, state.weekBoundary ?? "midnight"),
+      state.countingMode ?? "shift",
+    )
       .filter((s) => selected.has(s.entry.id))
       .map((s) => [
         s.date,
@@ -930,7 +958,7 @@ export function csv(state: State, entries = state.entries) {
           state.language,
         ),
         s.entry.weeklyHours ?? 40,
-        weekKey(localDate(s.date)),
+        weekKey(localDate(s.weekDate)),
         extraHourlyRate(s.entry).toFixed(2),
       ]),
   ];
@@ -991,6 +1019,10 @@ export function validateBackup(input: unknown): State {
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
       !["navy", "graphite", "light"].includes(s.theme)) ||
+    (s.weekBoundary !== undefined &&
+      !["shift", "midnight"].includes(s.weekBoundary)) ||
+    (s.countingMode !== undefined &&
+      !["shift", "midnight"].includes(s.countingMode)) ||
     (s.timeFormat !== undefined &&
       !["clock", "decimal"].includes(s.timeFormat)) ||
     (s.calendarMetric !== undefined &&

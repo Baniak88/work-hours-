@@ -1,4 +1,36 @@
 export const english: Record<string, string> = {
+  "Aktywna zmiana należy do tygodnia rozpoczęcia":
+    "The active shift belongs to its starting week",
+  "Dzień rozpoczęcia:": "Start date:",
+
+  "Zmiana na przełomie tygodnia": "Shift across a week boundary",
+  "Ustaw, jak liczyć normę tygodniową dla pracy z niedzieli na poniedziałek.":
+    "Choose how a Sunday-to-Monday shift counts towards the weekly target.",
+  "Przypisanie do tygodnia": "Week assignment",
+  "Podziel między tygodnie": "Split between weeks",
+  "Od poniedziałku 00:00 godziny należą do nowego tygodnia.":
+    "Hours from Monday 00:00 count towards the new week.",
+  "Cała zmiana w tygodniu startu": "Whole shift in the starting week",
+  "Godziny po północy należą do tygodnia rozpoczęcia zmiany.":
+    "Hours after midnight belong to the week when the shift started.",
+  "Zmienić sposób liczenia tygodnia?": "Change how weeks are calculated?",
+  "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Oznaczenia wypłat pozostaną bez zmian.":
+    "This also recalculates previous and active shifts across a week boundary. Pay and overtime may change. Payment markers stay unchanged.",
+  "Zmień sposób liczenia": "Change calculation",
+
+  "Przypisywanie zmian do dnia": "Assign shifts to a day",
+  "Wybierz, jak kalendarz i podsumowania przypisują zmianę przechodzącą przez północ.":
+    "Choose how the calendar and summaries assign an overnight shift.",
+  "Sposób przypisywania zmiany": "Shift day assignment",
+  "Od rozpoczęcia zmiany": "From the start of the shift",
+  "Cała zmiana jest przypisana do dnia rozpoczęcia.":
+    "The whole shift is assigned to its start date.",
+  "Podział o północy": "Split at midnight",
+  "Godziny i kwoty są dzielone między dni.":
+    "Hours and pay are split between days.",
+  "Wynagrodzenie za dzień zmiany": "Pay for the shift day",
+  "Zmiany według daty rozpoczęcia": "Shifts grouped by their start date",
+
   "Wynagrodzenie za tydzień": "Pay for the week",
   "Poniedziałek–niedziela · wszystkie miejsca":
     "Monday–Sunday · all workplaces",
@@ -10,7 +42,6 @@ export const english: Record<string, string> = {
   "Ukryj obliczenia": "Hide calculation",
   "Jak obliczono tę zmianę?": "How was this shift calculated?",
   "Zwykły czas": "Regular time",
-  Nadgodziny: "Overtime",
   "Razem za całą zmianę": "Full shift total",
   "Stawki zapisane dla tej zmiany, po odliczeniu przerw. Kwoty są zaokrąglane do grosza.":
     "Rates saved for this shift, after breaks. Amounts are rounded to the nearest penny.",

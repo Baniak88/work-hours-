@@ -31,6 +31,7 @@ const color = {
 };
 type Props = {
   timeFormat?: "clock" | "decimal";
+  weekBoundary?: "shift" | "midnight";
   now: number;
   shift: Shift;
   timer: Timer | null;
@@ -121,7 +122,11 @@ export default function ShiftClock(p: Props) {
   const shiftMinutes = worked + (p.priorMinutes ?? 0);
   const weekMinutes =
     (p.priorWeeklyMinutes ?? 0) +
-    (active ? timerWeekMinutes(active, p.now) : 0);
+    (active
+      ? p.weekBoundary === "shift"
+        ? timerMinutes(active, p.now)
+        : timerWeekMinutes(active, p.now)
+      : 0);
   const seconds = Math.max(0, Math.floor(shiftMinutes * 60));
   const elapsed = `${Math.floor(seconds / 3600)
     .toString()
