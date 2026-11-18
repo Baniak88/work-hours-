@@ -1,6 +1,6 @@
 # Android — instalacja Work Hours
 
-Pobierz plik APK z [wydania 1.6.1](https://github.com/Baniak88/work-hours-/releases/tag/v1.6.1) lub udostępnij odbiorcy bezpośredni link podany w tym wydaniu. Repozytorium GitHub jest prywatne, więc plik z GitHuba wymaga dostępu do repozytorium. Link do pobrania z Expo można wysłać przez e-mail lub WhatsApp; odbiorca nie potrzebuje konta Expo.
+[Pobierz APK bez logowania](https://expo.dev/artifacts/eas/Aq1FhyZ-Cy8XVDo4rOJRfVQwZjIUzLbE8-7ZHtYhHsQ.apk) lub pobierz plik APK z [wydania 1.6.1](https://github.com/Baniak88/work-hours-/releases/tag/v1.6.1) lub udostępnij odbiorcy bezpośredni link podany w tym wydaniu. Repozytorium GitHub jest prywatne, więc plik z GitHuba wymaga dostępu do repozytorium. Link do pobrania z Expo można wysłać przez e-mail lub WhatsApp; odbiorca nie potrzebuje konta Expo.
 
 Na Androidzie otwórz pobrany plik APK i zatwierdź instalację. Jeśli system o to poprosi, zezwól przeglądarce lub menedżerowi plików na instalację aplikacji z tego źródła. Wcześniejszą wersję zaktualizuj bez odinstalowywania, aby zachować dane.
 
