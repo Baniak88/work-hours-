@@ -35,6 +35,7 @@ export type Entry = OvertimePolicy & {
   start: number;
   end: number;
   breaks: Break[];
+  automaticBreaks?: Break[];
   note: string;
   rate: number;
   dailyHours: number;
@@ -417,12 +418,22 @@ export function finishTimer(
   applyAutomatic = true,
 ): Entry {
   const end = Math.min(now, t.plannedEnd ?? Infinity);
+  const manual = timerBreaksAtEnd(t, end, false);
+  const breaks = timerBreaksAtEnd(t, end, applyAutomatic);
+  const automaticBreaks = breaks.filter(
+    (pause) =>
+      !manual.some(
+        (recorded) =>
+          recorded.start === pause.start && recorded.end === pause.end,
+      ),
+  );
   return {
     id,
     jobId: t.jobId,
     start: t.start,
     end,
-    breaks: timerBreaksAtEnd(t, end, applyAutomatic),
+    breaks,
+    ...(automaticBreaks.length ? { automaticBreaks } : {}),
     note: "",
     rate: t.rate,
     dailyHours: t.dailyHours,
@@ -432,6 +443,71 @@ export function finishTimer(
     ...(t.plannedEnd !== undefined && now >= t.plannedEnd
       ? { autoStopped: true }
       : {}),
+  };
+}
+// When a shift has several sessions, later manual breaks replace earlier
+// automatic estimates. Historical manually recorded breaks are never removed.
+export function finishShift(state: State, timer: Timer, now: number): State {
+  const entry = finishTimer(timer, now);
+  const all = [...state.entries, entry];
+  if (!timer.autoBreakMinutes || !timer.shift)
+    return { ...state, timer: null, entries: all };
+  const sameShift = (item: Entry) =>
+    item.jobId === timer.jobId &&
+    item.shift?.id === timer.shift?.id &&
+    item.shift?.workDate === timer.shift?.workDate;
+  const related = all.filter(sameShift);
+  const isAutomatic = (item: Entry, pause: Break) =>
+    (item.automaticBreaks ?? []).some(
+      (auto) => auto.start === pause.start && auto.end === pause.end,
+    );
+  const manualMilliseconds = related.reduce(
+    (total, item) =>
+      total +
+      item.breaks
+        .filter((pause) => !isAutomatic(item, pause))
+        .reduce((sum, pause) => sum + pause.end - pause.start, 0),
+    0,
+  );
+  let remaining = Math.max(
+    0,
+    timer.autoBreakMinutes * 60000 - manualMilliseconds,
+  );
+  const autoParts = related
+    .flatMap((item) =>
+      (item.automaticBreaks ?? []).map((pause) => ({
+        entryId: item.id,
+        pause,
+      })),
+    )
+    .sort((a, b) => b.pause.end - a.pause.end);
+  const kept = new Map<string, Break[]>();
+  for (const { entryId, pause } of autoParts) {
+    const duration = Math.min(remaining, pause.end - pause.start);
+    if (duration > 0)
+      kept.set(entryId, [
+        ...(kept.get(entryId) ?? []),
+        { start: pause.end - duration, end: pause.end },
+      ]);
+    remaining -= duration;
+  }
+  return {
+    ...state,
+    timer: null,
+    entries: all.map((item) => {
+      if (!sameShift(item) || !item.automaticBreaks?.length) return item;
+      const automaticBreaks = (kept.get(item.id) ?? []).sort(
+        (a, b) => a.start - b.start,
+      );
+      return {
+        ...item,
+        breaks: [
+          ...item.breaks.filter((pause) => !isAutomatic(item, pause)),
+          ...automaticBreaks,
+        ].sort((a, b) => a.start - b.start),
+        automaticBreaks: automaticBreaks.length ? automaticBreaks : undefined,
+      };
+    }),
   };
 }
 // A preview follows the exact same pay rules as the eventual saved entry.
@@ -644,11 +720,8 @@ export function adjustTimerStart(
 }
 export function settleTimer(state: State, now: number): State {
   if (!state.timer?.plannedEnd || now < state.timer.plannedEnd) return state;
-  return {
-    ...state,
-    timer: null,
-    entries: [...state.entries, finishTimer(state.timer, now)],
-  };
+  const synchronized = syncTimerBreakContext(state);
+  return finishShift(synchronized, synchronized.timer!, now);
 }
 // Evaluate entries chronologically. Shift/day and Monday-week counters include paid
 // minutes. Taking the smaller remaining allowance implements the union of both
@@ -1040,6 +1113,17 @@ export function validateBackup(input: unknown): State {
         e.end > e.start &&
         e.end <= Date.now() + 60000 &&
         breaks(e.breaks, e.start, e.end) &&
+        (e.automaticBreaks === undefined ||
+          (breaks(e.automaticBreaks, e.start, e.end) &&
+            new Set(
+              e.automaticBreaks.map((pause) => `${pause.start}/${pause.end}`),
+            ).size === e.automaticBreaks.length &&
+            e.automaticBreaks.every((pause) =>
+              e.breaks.some(
+                (recorded) =>
+                  recorded.start === pause.start && recorded.end === pause.end,
+              ),
+            ))) &&
         text(e.note) &&
         isRecord(e.shift) &&
         (e.autoStopped === undefined || typeof e.autoStopped === "boolean") &&

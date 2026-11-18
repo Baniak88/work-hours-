@@ -337,7 +337,7 @@ export default function ShiftClock(p: Props) {
         {!!active?.autoBreakMinutes && (
           <Text
             style={styles.small}
-          >{`Przerwa automatyczna: ${active.autoBreakMinutes} min na zmianę. Jeśli zapisane przerwy są krótsze, brakujący czas odejmiemy po zakończeniu. Wyniki na żywo jeszcze go nie uwzględniają.`}</Text>
+          >{`Przerwa automatyczna: ${active.autoBreakMinutes} min na zmianę. Rozliczymy ją po zakończeniu; wyniki na żywo są orientacyjne i mogą się zmienić.`}</Text>
         )}
         {mode === "both" && (
           <Text style={styles.small}>

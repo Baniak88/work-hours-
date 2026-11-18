@@ -76,6 +76,8 @@ export const english: Record<string, string> = {
     "Manual entries use this suggested break. In automatic mode, any missing minutes are deducted after the shift if recorded breaks are shorter. Manual breaks are not counted twice. Missing minutes are assigned to the end of the shift. This applies to newly started shifts.",
   "Jeśli kilka razy uruchomisz licznik w ramach tej samej zmiany, wcześniejsze przerwy zostaną uwzględnione.":
     "If you start the timer more than once for the same shift, earlier breaks are taken into account.",
+  "Późniejsza ręczna przerwa może zmniejszyć automatycznie odliczoną przerwę we wcześniejszej części tej samej zmiany, a jej kwota zostanie przeliczona.":
+    "A later manual break may reduce the automatic break in an earlier part of the same shift, and its pay will be recalculated.",
   "Podaj liczbę minut od 0 do 1440.": "Enter between 0 and 1440 minutes.",
   "Przelicz również wcześniejsze wpisy": "Also recalculate earlier entries",
   "Przelicz wcześniejsze wpisy": "Recalculate earlier entries",

@@ -51,7 +51,8 @@ import {
   dateKey,
   demoState,
   duration as formatDuration,
-  finishTimer,
+  finishShift,
+  syncTimerBreakContext,
   localDate,
   minutesWorked,
   money,
@@ -846,10 +847,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       setNotice("Poczekaj chwilę przed zakończeniem.");
       return;
     }
-    const entry = finishTimer(timer, end);
+    const synchronized = syncTimerBreakContext(data);
     if (
       await save(
-        { ...data, timer: null, entries: [...data.entries, entry] },
+        finishShift(synchronized, synchronized.timer!, end),
         "Zmiana zapisana",
       )
     )
@@ -1161,6 +1162,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         start: startAt,
         end,
         breaks,
+        ...(keepBreaks && old?.automaticBreaks
+          ? { automaticBreaks: old.automaticBreaks }
+          : {}),
         note: form.note?.trim() ?? "",
         rate: entryPolicy.rate,
         dailyHours: policy.dailyHours,
@@ -3140,6 +3144,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <Text style={s.caption}>
                       Jeśli kilka razy uruchomisz licznik w ramach tej samej
                       zmiany, wcześniejsze przerwy zostaną uwzględnione.
+                    </Text>
+                    <Text style={s.caption}>
+                      Późniejsza ręczna przerwa może zmniejszyć automatycznie
+                      odliczoną przerwę we wcześniejszej części tej samej
+                      zmiany, a jej kwota zostanie przeliczona.
                     </Text>
                   </>
                 ) : form?.type === "weeklyNorm" ? (

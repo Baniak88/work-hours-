@@ -22,6 +22,7 @@ import {
   csv,
   dateKey,
   finishTimer,
+  finishShift,
   freshState,
   parseLocal,
   timerMinutes,
@@ -406,6 +407,109 @@ test("automatic break is applied once across split sessions of the same shift", 
       .breaks.length,
     1,
   );
+});
+test("later manual breaks replace only synthetic breaks in the same split shift", () => {
+  const shift = defaultShifts()[0],
+    j = { ...job, ...weeklyPolicy };
+  const state = freshState();
+  state.jobs = [j];
+  const first = makeTimer(j, shift, stamp("2026-10-20", "06:00"), 30);
+  const afterFirst = finishShift(
+    { ...state, timer: first },
+    first,
+    stamp("2026-10-20", "10:00"),
+  );
+  assert.equal(afterFirst.entries[0].automaticBreaks?.length, 1);
+  const prior = priorShiftBreakMilliseconds(
+    afterFirst.entries,
+    j.id,
+    shift,
+    stamp("2026-10-20", "10:00"),
+    30,
+  );
+  const second = {
+    ...makeTimer(j, shift, stamp("2026-10-20", "10:00"), 30, prior),
+    breaks: [
+      {
+        start: stamp("2026-10-20", "12:00"),
+        end: stamp("2026-10-20", "12:10"),
+      },
+    ],
+  };
+  const finished = finishShift(
+    { ...afterFirst, timer: second },
+    second,
+    stamp("2026-10-20", "14:00"),
+  );
+  assert.equal(totals(calculate(finished.entries)).minutes, 450);
+  assert.equal(
+    finished.entries[0].automaticBreaks![0].end -
+      finished.entries[0].automaticBreaks![0].start,
+    20 * 60000,
+  );
+  assert.deepEqual(finished.entries[1].breaks, second.breaks);
+  assert.equal(
+    afterFirst.entries[0].automaticBreaks![0].end -
+      afterFirst.entries[0].automaticBreaks![0].start,
+    30 * 60000,
+  );
+  assert.doesNotThrow(() =>
+    validateBackup(JSON.parse(JSON.stringify(finished))),
+  );
+  const longManual = {
+    ...second,
+    breaks: [
+      {
+        start: stamp("2026-10-20", "12:00"),
+        end: stamp("2026-10-20", "12:40"),
+      },
+    ],
+  };
+  const longer = finishShift(
+    { ...afterFirst, timer: longManual },
+    longManual,
+    stamp("2026-10-20", "14:00"),
+  );
+  assert.equal(totals(calculate(longer.entries)).minutes, 440);
+  assert.equal(longer.entries[0].automaticBreaks, undefined);
+  assert.deepEqual(longer.entries[1].breaks, longManual.breaks);
+  assert.throws(() =>
+    validateBackup({
+      ...finished,
+      entries: [
+        { ...finished.entries[0], automaticBreaks: [{ start: 1, end: 2 }] },
+        finished.entries[1],
+      ],
+    }),
+  );
+});
+test("automatic stop reconciles a later manual break across split sessions", () => {
+  const shift = { ...defaultShifts()[0], autoStop: true },
+    j = { ...job, ...weeklyPolicy };
+  const state = freshState();
+  state.jobs = [j];
+  const first = makeTimer(j, shift, stamp("2026-10-20", "06:00"), 30);
+  const afterFirst = finishShift(
+    { ...state, timer: first },
+    first,
+    stamp("2026-10-20", "10:00"),
+  );
+  const second = {
+    ...makeTimer(j, shift, stamp("2026-10-20", "10:00"), 30),
+    breaks: [
+      {
+        start: stamp("2026-10-20", "12:00"),
+        end: stamp("2026-10-20", "12:10"),
+      },
+    ],
+  };
+  const stopped = settleTimer(
+    { ...afterFirst, timer: second },
+    stamp("2026-10-20", "14:15"),
+  );
+  assert.equal(stopped.timer, null);
+  assert.equal(stopped.entries[1].end, stamp("2026-10-20", "14:00"));
+  assert.equal(totals(calculate(stopped.entries)).minutes, 450);
 });
 function weeklyEntry(
   date: string,
