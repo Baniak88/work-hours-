@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  groupSlices,
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
@@ -65,6 +66,45 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("overnight reporting can use the shift start date without losing pay or breaks", () => {
+  const night = {
+    ...entry("2026-11-17", "17:30", "23:30"),
+    end: stamp("2026-11-18", "03:00"),
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+    breaks: [
+      {
+        start: stamp("2026-11-18", "02:30"),
+        end: stamp("2026-11-18", "03:00"),
+      },
+    ],
+  };
+  const actual = calculate([night]);
+  const byStart = groupSlices(actual, "shift");
+  assert.deepEqual(
+    byStart.map((part) => part.date),
+    ["2026-11-17", "2026-11-17"],
+  );
+  assert.deepEqual(
+    groupSlices(actual, "midnight").map((part) => part.date),
+    ["2026-11-17", "2026-11-18"],
+  );
+  assert.deepEqual(totals(byStart), totals(actual));
+  assert.equal(totals(byStart).minutes, 9 * 60);
+  const state = {
+    ...freshState(),
+    jobs: [job],
+    entries: [night],
+    countingMode: "shift" as const,
+  };
+  assert.equal(
+    validateBackup(JSON.parse(JSON.stringify(state))).countingMode,
+    "shift",
+  );
+  assert.throws(() => validateBackup({ ...state, countingMode: "invalid" }));
+  assert.match(csv(state), /"2026-11-17"/);
+  assert.doesNotMatch(csv(state), /"2026-11-18"/);
+});
 test("countdown shows remaining seconds without reaching zero early", () => {
   assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");
   assert.equal(formatCountdown(0.001), "00:00:01");

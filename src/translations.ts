@@ -1,4 +1,17 @@
 export const english: Record<string, string> = {
+  "Przypisywanie zmian do dnia": "Assign shifts to a day",
+  "Wybierz, jak kalendarz i podsumowania przypisują zmianę przechodzącą przez północ.":
+    "Choose how the calendar and summaries assign an overnight shift.",
+  "Sposób przypisywania zmiany": "Shift day assignment",
+  "Od rozpoczęcia zmiany": "From the start of the shift",
+  "Cała zmiana jest przypisana do dnia rozpoczęcia.":
+    "The whole shift is assigned to its start date.",
+  "Podział o północy": "Split at midnight",
+  "Godziny i kwoty są dzielone między dni.":
+    "Hours and pay are split between days.",
+  "Wynagrodzenie za dzień zmiany": "Pay for the shift day",
+  "Zmiany według daty rozpoczęcia": "Shifts grouped by their start date",
+
   "Wynagrodzenie za tydzień": "Pay for the week",
   "Poniedziałek–niedziela · wszystkie miejsca":
     "Monday–Sunday · all workplaces",
@@ -10,7 +23,6 @@ export const english: Record<string, string> = {
   "Ukryj obliczenia": "Hide calculation",
   "Jak obliczono tę zmianę?": "How was this shift calculated?",
   "Zwykły czas": "Regular time",
-  Nadgodziny: "Overtime",
   "Razem za całą zmianę": "Full shift total",
   "Stawki zapisane dla tej zmiany, po odliczeniu przerw. Kwoty są zaokrąglane do grosza.":
     "Rates saved for this shift, after breaks. Amounts are rounded to the nearest penny.",

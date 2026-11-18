@@ -71,6 +71,7 @@ export type State = {
   defaultBreakMinutes: number;
   automaticBreak: boolean;
   holidaySettings?: Record<string, { days: number; rate: number }>;
+  countingMode?: "shift" | "midnight";
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
@@ -116,6 +117,7 @@ export const freshState = (): State => ({
   holidays: [],
   defaultBreakMinutes: 0,
   automaticBreak: false,
+  countingMode: "shift",
 });
 export const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -782,6 +784,15 @@ export function calculate(entries: Entry[]): Slice[] {
   }
   return out;
 }
+// Group reports by the actual start date while retaining each slice's pay.
+export function groupSlices(
+  slices: Slice[],
+  mode: "shift" | "midnight",
+): Slice[] {
+  return mode === "shift"
+    ? slices.map((slice) => ({ ...slice, date: dateKey(slice.entry.start) }))
+    : slices;
+}
 export const totals = (slices: Slice[]) =>
   slices.reduce(
     (t, s) => ({
@@ -875,7 +886,7 @@ export function csv(state: State, entries = state.entries) {
       "Tydzień od",
       "Łączna stawka nadgodzin za godzinę",
     ],
-    ...calculate(context)
+    ...groupSlices(calculate(context), state.countingMode ?? "shift")
       .filter((s) => selected.has(s.entry.id))
       .map((s) => [
         s.date,
@@ -991,6 +1002,8 @@ export function validateBackup(input: unknown): State {
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
       !["navy", "graphite", "light"].includes(s.theme)) ||
+    (s.countingMode !== undefined &&
+      !["shift", "midnight"].includes(s.countingMode)) ||
     (s.timeFormat !== undefined &&
       !["clock", "decimal"].includes(s.timeFormat)) ||
     (s.calendarMetric !== undefined &&

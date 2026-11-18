@@ -43,6 +43,7 @@ import {
   shiftWorkDate,
   validateShift,
   calculate,
+  groupSlices,
   previewSlices,
   updateActiveWeeklyPolicy,
   setWeeklyTarget,
@@ -333,13 +334,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     [state],
   );
   const calculated = useMemo(
-    () => calculate(state?.entries ?? []),
-    [state?.entries],
+    () =>
+      groupSlices(
+        calculate(state?.entries ?? []),
+        state?.countingMode ?? "shift",
+      ),
+    [state?.entries, state?.countingMode],
   );
   const liveCalculated = useMemo(
     () =>
       state?.timer && tab === "home"
-        ? previewSlices(state.entries, state.timer, now)
+        ? groupSlices(
+            previewSlices(state.entries, state.timer, now),
+            state.countingMode ?? "shift",
+          )
         : calculated,
     [state, now, tab, calculated],
   );
@@ -1309,7 +1317,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             przeliczyć według normy tygodniowej na pulpicie.
           </Text>
         )}
-        {days.length > 1 && (
+        {(data.countingMode ?? "shift") === "midnight" && days.length > 1 && (
           <>
             <Text style={s.rowTitle}>Podział między dni</Text>
             {days.map((day) => {
@@ -1345,9 +1353,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     const lastDay = last ? localDate(last) : null;
     lastDay?.setDate(lastDay.getDate() + 1);
     const displayStart =
-      parts && first ? Math.max(e.start, parseLocal(first, "00:00")) : e.start;
+      parts && first && data.countingMode === "midnight"
+        ? Math.max(e.start, parseLocal(first, "00:00"))
+        : e.start;
     const displayEnd =
-      parts && lastDay
+      parts && lastDay && data.countingMode === "midnight"
         ? Math.min(e.end, parseLocal(dateKey(lastDay), "00:00"))
         : e.end;
     const fragment = displayStart !== e.start || displayEnd !== e.end;
@@ -1473,7 +1483,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       (x) => weekKey(localDate(x.date)) === week,
     );
     const liveWeek = totals(liveWeekSlices);
-    const liveToday = totals(liveCalculated.filter((x) => x.date === today));
+    const workDay =
+      (data.countingMode ?? "shift") === "shift" && timer
+        ? dateKey(timer.start)
+        : today;
+    const liveToday = totals(liveCalculated.filter((x) => x.date === workDay));
     const target = timer?.shift ?? {
       ...shift,
       workDate: shiftWorkDate(shift, now),
@@ -1599,7 +1613,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </View>
             <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
               <View style={s.between}>
-                <Text style={s.label}>Dzisiaj od 00:00</Text>
+                <Text style={s.label}>
+                  {(data.countingMode ?? "shift") === "shift"
+                    ? "Dzień zmiany"
+                    : "Dzisiaj od 00:00"}
+                </Text>
                 <I name="sunny-outline" color={C.blue} />
               </View>
               <Text
@@ -1616,11 +1634,17 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               >
                 {fmt(liveToday.amount)}
               </Text>
-              <Text style={s.caption}>Wynagrodzenie za dziś</Text>
+              <Text style={s.caption}>
+                {(data.countingMode ?? "shift") === "shift"
+                  ? "Wynagrodzenie za dzień zmiany"
+                  : "Wynagrodzenie za dziś"}
+              </Text>
               <Text style={s.caption}>
                 {timer
                   ? "W tym aktywna zmiana · kwota szacunkowa"
-                  : "Tylko czas od północy"}
+                  : (data.countingMode ?? "shift") === "shift"
+                    ? "Zmiany według daty rozpoczęcia"
+                    : "Tylko czas od północy"}
               </Text>
             </View>
           </View>
@@ -2840,6 +2864,56 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           )}
           {preferencesOpen && (
             <View style={{ padding: 16, gap: 16 }}>
+              <Text style={s.rowTitle}>Przypisywanie zmian do dnia</Text>
+              <Text style={s.caption}>
+                Wybierz, jak kalendarz i podsumowania przypisują zmianę
+                przechodzącą przez północ.
+              </Text>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Sposób przypisywania zmiany"
+                style={{ gap: 8 }}
+              >
+                {(
+                  [
+                    {
+                      key: "shift",
+                      title: "Od rozpoczęcia zmiany",
+                      description:
+                        "Cała zmiana jest przypisana do dnia rozpoczęcia.",
+                    },
+                    {
+                      key: "midnight",
+                      title: "Podział o północy",
+                      description: "Godziny i kwoty są dzielone między dni.",
+                    },
+                  ] as const
+                ).map((v) => {
+                  const active = (data.countingMode ?? "shift") === v.key;
+                  return (
+                    <Pressable
+                      key={v.key}
+                      accessibilityRole="radio"
+                      accessibilityLabel={v.title}
+                      accessibilityState={{ checked: active }}
+                      disabled={busy}
+                      onPress={() =>
+                        void save({ ...data, countingMode: v.key })
+                      }
+                      style={[s.row, { minHeight: 56 }]}
+                    >
+                      <I
+                        name={active ? "radio-button-on" : "radio-button-off"}
+                        color={active ? C.green : C.muted}
+                      />
+                      <View style={{ flex: 1, gap: 5 }}>
+                        <Text style={s.rowTitle}>{v.title}</Text>
+                        <Text style={s.caption}>{v.description}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Text style={s.rowTitle}>Wyświetlanie czasu</Text>
               <View
                 accessibilityRole="radiogroup"
@@ -2997,6 +3071,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         ...demoState(),
                         currency: data.currency,
                         timeFormat: data.timeFormat,
+                        countingMode: data.countingMode,
                         calendarMetric: data.calendarMetric,
                         language: data.language,
                         theme: data.theme,

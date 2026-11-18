@@ -35,6 +35,15 @@ test("overnight entry explains the full shift and its daily breakdown", async ({
   await expect(page.getByText("Jak obliczono tę zmianę?")).toBeVisible();
   await expect(page.getByText("9:00 h × £20.00/h = £180.00")).toBeVisible();
   await expect(page.getByText("0:00 h × £30.00/h = £0.00")).toBeVisible();
+  await expect(page.getByText("Podział między dni")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
+  await page.getByRole("button", { name: /Wyświetlanie i waluta/ }).click();
+  await page.getByRole("radio", { name: "Podział o północy" }).click();
+  await page.reload();
+  await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
+  await page.getByRole("button", { name: /Wyświetlanie i waluta/ }).click();
+  await page.getByRole("tab", { name: "Pulpit", exact: true }).click();
+  await page.getByRole("button", { name: "Pokaż obliczenia" }).click();
   await expect(page.getByText("Podział między dni")).toBeVisible();
   await expect(
     page.getByText("6:30 h", { exact: false }).first(),
