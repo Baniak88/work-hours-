@@ -65,6 +65,7 @@ export type State = {
   shifts: Shift[];
   preferredShiftId: string;
   holidays: Holiday[];
+  holidaySettings?: Record<string, { days: number; rate: number }>;
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
@@ -121,6 +122,17 @@ export function weekKey(value: number | Date) {
   return dateKey(d);
 }
 export const localDate = (key: string) => new Date(`${key}T12:00:00`);
+export function holidayDates(start: string, days: number): string[] {
+  parseLocal(start, "12:00");
+  if (!Number.isInteger(days) || days < 1 || days > 366)
+    throw new Error("Podaj od 1 do 366 dni urlopu.");
+  const date = localDate(start);
+  return Array.from({ length: days }, () => {
+    const result = dateKey(date);
+    date.setDate(date.getDate() + 1);
+    return result;
+  });
+}
 export function timeLabel(value: number) {
   return new Date(value).toLocaleTimeString("pl-PL", {
     hour: "2-digit",
@@ -783,6 +795,25 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   if (
+    version === 6 &&
+    s.holidaySettings !== undefined &&
+    (!s.holidaySettings ||
+      typeof s.holidaySettings !== "object" ||
+      Array.isArray(s.holidaySettings) ||
+      Object.entries(s.holidaySettings).some(
+        ([year, value]) =>
+          !/^\d{4}$/.test(year) ||
+          !value ||
+          !Number.isInteger(value.days) ||
+          value.days < 0 ||
+          value.days > 366 ||
+          !number(value.rate) ||
+          value.rate < 0 ||
+          value.rate > 100000,
+      ))
+  )
+    return fail();
+  if (
     !s.jobs.every(
       (j) =>
         j &&
@@ -900,11 +931,12 @@ export function validateBackup(input: unknown): State {
         ...s,
         version: 6,
         holidays: [],
+        holidaySettings: undefined,
         shifts: defaultShifts(),
         preferredShiftId: "day",
       }
     : version !== 6
-      ? { ...s, version: 6, holidays: [] }
+      ? { ...s, version: 6, holidays: [], holidaySettings: undefined }
       : s;
 }
 export function demoState(): State {

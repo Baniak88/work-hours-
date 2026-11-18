@@ -17,6 +17,7 @@ import {
   Break,
   Entry,
   Holiday,
+  holidayDates,
   Job,
   overtimeHourlyRate,
   extraHourlyRate,
@@ -80,7 +81,14 @@ const C = {
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
 type Tab = "home" | "entries" | "reports" | "settings";
 type Form = {
-  type: "job" | "entry" | "start" | "shift" | "adjust" | "holiday";
+  type:
+    | "job"
+    | "entry"
+    | "start"
+    | "shift"
+    | "adjust"
+    | "holiday"
+    | "holidaySettings";
   id?: string;
   [key: string]: string | undefined;
 };
@@ -704,8 +712,25 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       type: "holiday",
       id: value?.id,
       date: value?.date ?? calendarDate,
+      days: "1",
       hours: formatDuration((value?.hours ?? shift.normHours) * 60),
-      rate: String(value?.rate ?? job?.rate ?? 0),
+      rate: String(
+        value?.rate ??
+          data.holidaySettings?.[calendarDate.slice(0, 4)]?.rate ??
+          job?.rate ??
+          0,
+      ),
+    });
+  }
+  function openHolidaySettings() {
+    const year = calendarMonth.slice(0, 4),
+      settings = data.holidaySettings?.[year];
+    setFormError("");
+    setForm({
+      type: "holidaySettings",
+      year,
+      days: String(settings?.days ?? 28),
+      rate: String(settings?.rate ?? job?.rate ?? 0),
     });
   }
   async function start(
@@ -895,7 +920,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           rate > 100000
         )
           throw new Error("Podaj prawidłową stawkę od 0 do 100 000.");
-        if (data.holidays.some((h) => h.date === date && h.id !== form.id))
+        const days = form.id ? 1 : Number(form.days);
+        const dates = holidayDates(date, days);
+        if (
+          data.holidays.some((h) => dates.includes(h.date) && h.id !== form.id)
+        )
           throw new Error("Urlop w tym dniu jest już zapisany.");
         const holiday = { id: form.id ?? uid(), date, hours, rate };
         if (
@@ -904,7 +933,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               ...data,
               holidays: form.id
                 ? data.holidays.map((h) => (h.id === form.id ? holiday : h))
-                : [...data.holidays, holiday],
+                : [
+                    ...data.holidays,
+                    ...dates.map((date) => ({ id: uid(), date, hours, rate })),
+                  ],
             },
             "Urlop zapisany",
           )
@@ -913,6 +945,40 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           setCalendarMonth(date.slice(0, 7));
           setForm(null);
         }
+        return;
+      }
+      if (form.type === "holidaySettings") {
+        const year = form.year ?? "",
+          days = Number(form.days),
+          rate = Number(form.rate?.replace(",", "."));
+        if (
+          !/^\d{4}$/.test(year) ||
+          !form.days?.trim() ||
+          !Number.isInteger(days) ||
+          days < 0 ||
+          days > 366
+        )
+          throw new Error("Podaj roczny limit od 0 do 366 dni.");
+        if (
+          !form.rate?.trim() ||
+          !Number.isFinite(rate) ||
+          rate < 0 ||
+          rate > 100000
+        )
+          throw new Error("Podaj prawidłową stawkę od 0 do 100 000.");
+        if (
+          await save(
+            {
+              ...data,
+              holidaySettings: {
+                ...data.holidaySettings,
+                [year]: { days, rate },
+              },
+            },
+            "Ustawienia urlopu zapisane",
+          )
+        )
+          setForm(null);
         return;
       }
       const id = form.jobId;
@@ -1637,6 +1703,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       const yearHolidays = data.holidays.filter((h) =>
         h.date.startsWith(calendarMonth.slice(0, 4)),
       );
+      const holidaySettings = data.holidaySettings?.[calendarMonth.slice(0, 4)];
       const unique = [
         ...new Map(selectedSlices.map((x) => [x.entry.id, x.entry])).values(),
       ].sort((a, b) => a.start - b.start);
@@ -1721,10 +1788,28 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </Text>
             )}
             <Text style={s.caption}>
-              {tr("Urlop w wybranym roku")}: {yearHolidays.length} ·{" "}
+              {tr("Zapisane i zaplanowane dni")}: {yearHolidays.length}
+              {holidaySettings ? ` / ${holidaySettings.days}` : ""} ·{" "}
               {duration(yearHolidays.reduce((sum, h) => sum + h.hours * 60, 0))}{" "}
               h
             </Text>
+            {holidaySettings && (
+              <Text style={s.caption}>
+                {tr("Pozostały limit")}:{" "}
+                {Math.max(0, holidaySettings.days - yearHolidays.length)} ·{" "}
+                {tr("Stawka domyślna")}: {fmt(holidaySettings.rate)}/h
+                {yearHolidays.length > holidaySettings.days
+                  ? ` · ${tr("Przekroczono limit")}: ${yearHolidays.length - holidaySettings.days}`
+                  : ""}
+              </Text>
+            )}
+            <Button
+              label="Ustaw limit i stawkę urlopu"
+              icon="settings-outline"
+              kind="secondary"
+              small
+              onPress={openHolidaySettings}
+            />
             <Text style={s.caption}>
               Urlopy są zapisywane w kopii JSON. Raport CSV zawiera wyłącznie
               czas pracy.
@@ -2827,25 +2912,27 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "holiday"
-                      ? form.id
-                        ? "Edytuj urlop"
-                        : "Dodaj urlop"
-                      : form?.type === "shift"
+                    {form?.type === "holidaySettings"
+                      ? "Ustawienia urlopu"
+                      : form?.type === "holiday"
                         ? form.id
-                          ? "Ustawienia zmiany"
-                          : "Własna zmiana"
-                        : form?.type === "job"
+                          ? "Edytuj urlop"
+                          : "Dodaj urlop"
+                        : form?.type === "shift"
                           ? form.id
-                            ? "Edytuj projekt"
-                            : "Nowy projekt"
-                          : form?.type === "adjust"
-                            ? "Popraw początek zmiany"
-                            : form?.type === "start"
-                              ? "Rozpocznij od…"
-                              : form?.id
-                                ? "Edytuj wpis"
-                                : "Dodaj wpis"}
+                            ? "Ustawienia zmiany"
+                            : "Własna zmiana"
+                          : form?.type === "job"
+                            ? form.id
+                              ? "Edytuj projekt"
+                              : "Nowy projekt"
+                            : form?.type === "adjust"
+                              ? "Popraw początek zmiany"
+                              : form?.type === "start"
+                                ? "Rozpocznij od…"
+                                : form?.id
+                                  ? "Edytuj wpis"
+                                  : "Dodaj wpis"}
                   </Text>
                 </View>
                 <Pressable
@@ -2862,7 +2949,29 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "holiday" ? (
+                {form?.type === "holidaySettings" ? (
+                  <>
+                    <Text style={s.caption}>
+                      {tr("Ustawienia dla roku")}: {form.year}
+                    </Text>
+                    <Field
+                      label="Roczny limit dni urlopu"
+                      numeric
+                      value={form.days}
+                      onChange={(v) => setField("days", v)}
+                    />
+                    <Field
+                      label={`Stawka urlopu (${data.currency}/h)`}
+                      numeric
+                      value={form.rate}
+                      onChange={(v) => setField("rate", v)}
+                    />
+                    <Text style={s.caption}>
+                      Limit dotyczy wybranego roku. Zmiana stawki dotyczy nowych
+                      urlopów; zapisane dni zachowują swoją stawkę.
+                    </Text>
+                  </>
+                ) : form?.type === "holiday" ? (
                   <>
                     <Field
                       label="Data urlopu"
@@ -2870,6 +2979,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       value={form.date}
                       onChange={(v) => setField("date", v)}
                     />
+                    {!form.id && (
+                      <>
+                        <Field
+                          label="Liczba kolejnych dni"
+                          numeric
+                          value={form.days}
+                          onChange={(v) => setField("days", v)}
+                        />
+                        <Text style={s.caption}>
+                          Liczymy kolejne dni kalendarzowe, także weekendy.
+                          Jeśli nie chcesz ich uwzględnić, dodaj osobne okresy.
+                        </Text>
+                      </>
+                    )}
                     <Field
                       label="Godziny urlopu (godziny:minuty)"
                       placeholder="08:00"

@@ -39,6 +39,23 @@ export const english: Record<string, string> = {
   "Usunąć tę zmianę?": "Delete this shift?",
   "Zmiana usunięta": "Shift deleted",
   "Urlop w tym miesiącu": "Holiday this month",
+  "Zapisane i zaplanowane dni": "Recorded and planned days",
+  "Pozostały limit": "Remaining allowance",
+  "Stawka domyślna": "Default rate",
+  "Przekroczono limit": "Over allowance",
+  "Ustaw limit i stawkę urlopu": "Set holiday allowance and rate",
+  "Ustawienia urlopu": "Holiday settings",
+  "Ustawienia urlopu zapisane": "Holiday settings saved",
+  "Ustawienia dla roku": "Settings for year",
+  "Roczny limit dni urlopu": "Annual holiday allowance in days",
+  "Liczba kolejnych dni": "Number of consecutive days",
+  "Podaj od 1 do 366 dni urlopu.": "Enter between 1 and 366 holiday days.",
+  "Podaj roczny limit od 0 do 366 dni.":
+    "Enter an annual allowance from 0 to 366 days.",
+  "Limit dotyczy wybranego roku. Zmiana stawki dotyczy nowych urlopów; zapisane dni zachowują swoją stawkę.":
+    "The allowance applies to the selected year. The new rate applies to new holiday; saved days keep their own rate.",
+  "Liczymy kolejne dni kalendarzowe, także weekendy. Jeśli nie chcesz ich uwzględnić, dodaj osobne okresy.":
+    "Consecutive calendar days include weekends. Add separate periods to exclude them.",
   "Urlop w wybranym roku": "Holiday in the selected year",
   "Urlopy są zapisywane w kopii JSON. Raport CSV zawiera wyłącznie czas pracy.":
     "Holiday is included in the JSON backup. CSV reports contain worked time only.",

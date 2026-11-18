@@ -25,6 +25,7 @@ import {
   defaultShifts,
   makeTimer,
   adjustTimerStart,
+  holidayDates,
   settleTimer,
   shiftEnd,
   shiftWorkDate,
@@ -89,6 +90,7 @@ test("adjusting a running overnight shift preserves breaks and rejects overlaps"
 test("holiday records survive backup and invalid or duplicate dates are rejected", () => {
   const state = freshState();
   state.holidays = [{ id: "h1", date: "2026-12-25", hours: 7.5, rate: 12 }];
+  state.holidaySettings = { "2026": { days: 28, rate: 12 } };
   assert.deepEqual(
     validateBackup(JSON.parse(JSON.stringify(state))).holidays,
     state.holidays,
@@ -99,6 +101,17 @@ test("holiday records survive backup and invalid or duplicate dates are rejected
       holidays: [...state.holidays, { ...state.holidays[0], id: "h2" }],
     }),
   );
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      holidaySettings: { "2026": { days: -1, rate: 12 } },
+    }),
+  );
+  assert.deepEqual(holidayDates("2026-10-24", 3), [
+    "2026-10-24",
+    "2026-10-25",
+    "2026-10-26",
+  ]);
   assert.throws(() =>
     validateBackup({
       ...state,

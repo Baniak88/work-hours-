@@ -6,7 +6,7 @@ Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, na
 
 - Zmianę na pulpit wybierzesz bezpośrednio nad zegarem; nieużywany profil możesz usunąć w jego ustawieniach. Pozostaje co najmniej jeden profil; historia i aktywny licznik zachowują własne dane.
 - **Popraw początek** pozwala zmienić datę i godzinę aktywnego zegara. Przerwy pozostają bez zmian; nakładające się wpisy i początek po przerwie są odrzucane. Automatyczne zakończenie jest przeliczane z profilu.
-- W kalendarzu wybierz dzień i **Dodaj urlop**. Możesz wpisać godziny i osobną stawkę (0 dla bezpłatnego), edytować lub usunąć dzień. Miesięczne i roczne podsumowanie liczy także przyszłe dni. Kwota urlopu jest osobna od zarobków za pracę, godzin i nadgodzin; CSV obejmuje tylko pracę.
+- W kalendarzu ustaw osobno dla każdego roku **limit dni i domyślną stawkę urlopu**. Wybierz dzień i **Dodaj urlop**: możesz wpisać liczbę kolejnych dni, godziny oraz osobną stawkę (0 dla bezpłatnego), edytować lub usunąć dzień. Kolejne dni obejmują weekendy. Limit liczy zapisane daty kalendarzowe, także przyszłe, niezależnie od liczby godzin w danym dniu. Kwota urlopu jest osobna od zarobków za pracę, godzin i nadgodzin; CSV obejmuje tylko pracę.
 - Kopia JSON zawiera urlopy i ma format 6. Kopie 1–5 są odczytywane, a starsza aplikacja odrzuci kopię formatu 6. Przed przeniesieniem kopii zaktualizuj obydwa urządzenia.
 
 ## Pobieranie i udostępnianie
