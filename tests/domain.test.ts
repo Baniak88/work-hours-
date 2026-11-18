@@ -26,6 +26,7 @@ import {
   localDate,
   finishTimer,
   finishShift,
+  finishShiftAt,
   freshState,
   parseLocal,
   timerMinutes,
@@ -45,6 +46,7 @@ import {
   type Job,
 } from "../src/domain";
 import { calendarDays, moveMonth } from "../src/calendar";
+import { dashboardWeek } from "../src/dashboardWeek";
 import {
   manualDates,
   moveManualDay,
@@ -161,6 +163,67 @@ test("legacy entries use the workplace weekly target and preserve historical rat
   const end = weeklyEntry("2026-11-19", "06:00", "10:00", { weeklyHours: 39 });
   const result = totals(calculate([...fixed.entries, extra, end]));
   assert.equal(result.extra, 3 * 60 + 8);
+});
+test("dashboard lists each payroll slice once even when a night crosses weeks", () => {
+  const overnight = {
+    ...entry("2026-10-25", "17:30", "23:30"),
+    end: stamp("2026-10-26", "03:00"),
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+    shift: { ...defaultShifts()[1], workDate: "2026-10-25" },
+  };
+  const parts = groupSlices(calculate([overnight], "midnight"), "shift");
+  const previous = dashboardWeek(parts, "2026-10-19", job.id);
+  const next = dashboardWeek(parts, "2026-10-26", job.id);
+  assert.equal(previous.total.minutes, 390);
+  assert.equal(next.total.minutes, 180);
+  assert.equal(previous.days[6].total.minutes, 390);
+  assert.equal(next.days[0].total.minutes, 180);
+  assert.equal(
+    previous.days.reduce((sum, day) => sum + day.total.minutes, 0),
+    previous.total.minutes,
+  );
+  assert.equal(
+    next.days.reduce((sum, day) => sum + day.total.minutes, 0),
+    next.total.minutes,
+  );
+  assert.equal(dashboardWeek(parts, "2026-10-19", "other").total.minutes, 0);
+});
+test("corrected shift end preserves breaks and rejects future or lost break time", () => {
+  const state = freshState();
+  state.jobs = [job];
+  const shift = defaultShifts()[1];
+  const start = stamp("2026-10-20", "17:30");
+  const timer = {
+    ...makeTimer(job, shift, start),
+    breaks: [
+      {
+        start: stamp("2026-10-20", "23:00"),
+        end: stamp("2026-10-20", "23:30"),
+      },
+    ],
+  };
+  state.timer = timer;
+  const end = stamp("2026-10-21", "03:00"),
+    now = stamp("2026-10-21", "04:00");
+  const result = finishShiftAt(state, timer, end, now);
+  assert.equal(result.timer, null);
+  assert.equal(result.entries[0].end, end);
+  assert.deepEqual(result.entries[0].breaks, timer.breaks);
+  assert.equal(totals(calculate(result.entries)).minutes, 540);
+  assert.equal(state.timer, timer);
+  assert.throws(
+    () => finishShiftAt(state, timer, now + 60000, now),
+    /przyszłości/,
+  );
+  assert.throws(
+    () => finishShiftAt(state, timer, start, now),
+    /po rozpoczęciu/,
+  );
+  assert.throws(
+    () => finishShiftAt(state, timer, stamp("2026-10-20", "23:15"), now),
+    /przerwą/,
+  );
 });
 test("countdown shows remaining seconds without reaching zero early", () => {
   assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");

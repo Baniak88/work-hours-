@@ -905,6 +905,32 @@ export function checkEntry(
   )
     throw new Error("Ten wpis nakłada się na inną zmianę lub aktywny licznik.");
 }
+/** Finish a running timer at a corrected past time without silently losing breaks. */
+export function finishShiftAt(
+  state: State,
+  timer: Timer,
+  end: number,
+  now: number,
+): State {
+  if (!Number.isFinite(end) || end > now)
+    throw new Error("Koniec pracy nie może być w przyszłości.");
+  if (end <= timer.start)
+    throw new Error("Koniec pracy musi wypadać po rozpoczęciu.");
+  if (timer.plannedEnd !== undefined && end > timer.plannedEnd)
+    throw new Error(
+      "Koniec przekracza ustawioną godzinę automatycznego zakończenia.",
+    );
+  if (
+    timer.breaks.some((pause) => pause.end > end) ||
+    (timer.pausedAt !== null && timer.pausedAt > end)
+  )
+    throw new Error(
+      "Koniec wypada przed zapisaną przerwą. Popraw najpierw przerwy.",
+    );
+  const result = finishShift(state, timer, end);
+  checkEntry(result.entries[result.entries.length - 1], state.entries, null);
+  return result;
+}
 export function csv(state: State, entries = state.entries) {
   const selected = new Set(entries.map((e) => e.id));
   const context = [

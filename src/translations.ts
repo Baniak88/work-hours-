@@ -1,4 +1,32 @@
 export const english: Record<string, string> = {
+  "Automatyczny koniec:": "Automatic finish:",
+  "Automatyczny stop o": "Automatic stop at",
+  dzień: "day",
+
+  "Bieżąca zmiana": "Current shift",
+
+  "Zegar pracy": "Work clock",
+  "W trakcie zmiany": "Shift in progress",
+  "Gotowy do startu": "Ready to start",
+  "Ustaw miejsce pracy": "Set workplace",
+  Przepracowano: "Worked",
+  "W tym tygodniu": "This week",
+  "Dodaj miejsce pracy, aby rozpocząć.": "Add a workplace to get started.",
+  "Wpis ręczny": "Manual entry",
+  "Start od godziny": "Start at a time",
+  "Popraw koniec": "Adjust end",
+  "Zakończ o wybranej godzinie": "Finish at a chosen time",
+  "Wpisz rzeczywistą datę i godzinę zakończenia zmiany.":
+    "Enter the actual end date and time of your shift.",
+  "Automatyczna przerwa zostanie odjęta po zakończeniu zmiany.":
+    "The automatic break will be deducted when the shift ends.",
+  "Trwająca zmiana": "Shift in progress",
+  teraz: "now",
+  "w trakcie": "in progress",
+  "Razem w tygodniu": "Weekly total",
+  "Urlop jest liczony osobno i nie zwiększa normy nadgodzin.":
+    "Leave is counted separately and does not count towards overtime.",
+
   "Do nadgodzin pozostało": "Time until overtime",
   "Norma tygodniowa wykonana": "Weekly target reached",
   " h pracy · zapisane zmiany": " h worked · saved shifts",

@@ -52,7 +52,10 @@ import {
   dateKey,
   demoState,
   duration as formatDuration,
+  formatCountdown,
+  timerMinutes,
   finishShift,
+  finishShiftAt,
   syncTimerBreakContext,
   localDate,
   minutesWorked,
@@ -73,7 +76,7 @@ import {
   removeJobData,
 } from "../dataManagement";
 import InstallHelp from "../components/InstallHelp";
-import ShiftClock from "../components/ShiftClock";
+import { dashboardWeek } from "../dashboardWeek";
 import WorkCalendar from "../components/WorkCalendar";
 import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
@@ -99,6 +102,7 @@ type Form = {
     | "start"
     | "shift"
     | "adjust"
+    | "stopAt"
     | "holiday"
     | "holidaySettings"
     | "weeklyNorm"
@@ -316,7 +320,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     [confirm, setConfirm] = useState<Confirm | null>(null),
     [preferencesOpen, setPreferencesOpen] = useState(false),
     [managementOpen, setManagementOpen] = useState(false),
-    [payDetailsOpen, setPayDetailsOpen] = useState(false);
+    [payDetailsOpen, setPayDetailsOpen] = useState(false),
+    [dashboardWeekOffset, setDashboardWeekOffset] = useState(0);
   const [search, setSearch] = useState(""),
     [projectFilter, setProjectFilter] = useState("all"),
     [shiftFilter, setShiftFilter] = useState("all"),
@@ -771,17 +776,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       automatic: String(data.automaticBreak),
     });
   }
-  function openHoliday(value?: Holiday) {
+  function openHoliday(value?: Holiday, selectedDate?: string) {
+    const holidayDate = value?.date ?? selectedDate ?? calendarDate;
     setFormError("");
     setForm({
       type: "holiday",
       id: value?.id,
-      date: value?.date ?? calendarDate,
+      date: holidayDate,
       days: "1",
       hours: formatDuration((value?.hours ?? shift.normHours) * 60),
       rate: String(
         value?.rate ??
-          data.holidaySettings?.[calendarDate.slice(0, 4)]?.rate ??
+          data.holidaySettings?.[holidayDate.slice(0, 4)]?.rate ??
           job?.rate ??
           0,
       ),
@@ -986,6 +992,21 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               automaticBreak: form.automatic === "true",
             },
             "Ustawienia przerwy zapisane",
+          )
+        )
+          setForm(null);
+        return;
+      }
+      if (form.type === "stopAt") {
+        if (!timer) throw new Error("Licznik nie jest uruchomiony.");
+        const ending = parseLocal(form.endDate ?? "", form.endTime ?? "");
+        // eslint-disable-next-line react-hooks/purity -- Read when the user saves the end time.
+        const endedAt = Date.now();
+        const synchronized = syncTimerBreakContext(data);
+        if (
+          await save(
+            finishShiftAt(synchronized, synchronized.timer!, ending, endedAt),
+            "Zmiana zapisana",
           )
         )
           setForm(null);
@@ -1503,24 +1524,40 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     const liveWeekSlices = liveCalculated.filter(
       (x) => weekKey(localDate(x.weekDate)) === week,
     );
-    const liveWeek = totals(liveWeekSlices);
-    const workDay =
-      (data.countingMode ?? "shift") === "shift" && timer
-        ? dateKey(timer.start)
-        : today;
-    const liveToday = totals(liveCalculated.filter((x) => x.date === workDay));
-    const target = timer?.shift ?? {
-      ...shift,
-      workDate: shiftWorkDate(shift, now),
-    };
-    const prior = totals(
-      slices.filter(
-        (x) =>
-          x.entry.jobId === timerJob?.id &&
-          x.entry.shift?.id === target.id &&
-          x.entry.shift.workDate === target.workDate,
-      ),
-    ).minutes;
+    const activeWeek =
+      timer && data.weekBoundary === "shift" ? weekKey(timer.start) : week;
+    const weekDate = localDate(activeWeek);
+    weekDate.setDate(weekDate.getDate() + dashboardWeekOffset * 7);
+    const displayedWeek = weekKey(weekDate);
+    const weekData = dashboardWeek(
+      liveCalculated,
+      displayedWeek,
+      timerJob?.id ?? "",
+    );
+    const currentWeekData = dashboardWeek(
+      liveCalculated,
+      activeWeek,
+      timerJob?.id ?? "",
+    );
+    const weeklyTarget =
+      (timer?.weeklyHours ?? timerJob?.weeklyHours ?? 40) * 60;
+    const remaining = Math.max(0, weeklyTarget - currentWeekData.total.minutes);
+    const earlierThisShift = timer?.shift
+      ? totals(
+          slices.filter(
+            (part) =>
+              part.entry.jobId === timer.jobId &&
+              part.entry.shift?.id === timer.shift?.id &&
+              part.entry.shift?.workDate === timer.shift?.workDate,
+          ),
+        ).minutes
+      : 0;
+    const dateLabel = (date: string) =>
+      localDate(date).toLocaleDateString(locale, {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+      });
     const historicalPolicies = data.entries.filter(
       (entry) =>
         entry.jobId === timerJob?.id &&
@@ -1546,154 +1583,366 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             <Text style={{ color: C.green, fontWeight: "700" }}>WH</Text>
           </Pressable>,
         )}
-        <View style={[s.columns, wide && { flexDirection: "row" }]}>
-          <View style={{ flex: wide ? 1.4 : undefined }}>
-            {!timer && data.shifts.length > 1 && (
-              <View style={[s.row, { flexWrap: "wrap", marginBottom: 12 }]}>
-                {data.shifts.map((v) => (
-                  <Chip
-                    key={v.id}
-                    label={v.name}
-                    active={data.preferredShiftId === v.id}
-                    onPress={() =>
-                      void save(
-                        { ...data, preferredShiftId: v.id },
-                        "Wybrano zmianę na pulpit",
-                      )
-                    }
-                  />
-                ))}
-              </View>
-            )}
-            <ShiftClock
-              timeFormat={data.timeFormat}
-              weekBoundary={data.weekBoundary ?? "midnight"}
-              now={now}
-              shift={shift}
-              timer={timer}
-              project={timerJob?.name}
-              busy={busy}
-              priorMinutes={prior}
-              priorWeeklyMinutes={
-                totals(
-                  slices.filter(
-                    (x) =>
-                      x.entry.jobId === timerJob?.id &&
-                      weekKey(localDate(x.weekDate)) ===
-                        weekKey(
-                          timer && data.weekBoundary === "shift"
-                            ? timer.start
-                            : now,
-                        ),
-                  ),
-                ).minutes
-              }
-              policy={timerJob}
-              onEdit={() => setTab("settings")}
-              onEditWeekly={() => openWeeklyNorm(timerJob)}
-              onStart={() => (job ? void start() : openJob())}
-              onPause={() => void togglePause()}
-              onStop={() => void stop()}
-              onStartAt={openStart}
-              onAdjust={openAdjust}
-            />
-            <View style={{ marginTop: 12 }}>
-              <Button
-                label="Dodaj wcześniejszą zmianę"
-                icon="create-outline"
-                kind="secondary"
-                onPress={() =>
-                  job ? openEntry(undefined, previousLocalDay(now)) : openJob()
-                }
-              />
+        {weeklyCorrectionBanner()}
+        <View style={[s.card, { padding: 14, gap: 12 }]}>
+          {!timer && data.shifts.length > 1 && (
+            <View style={[s.row, { flexWrap: "wrap" }]}>
+              {data.shifts.map((v) => (
+                <Chip
+                  key={v.id}
+                  label={v.name}
+                  active={data.preferredShiftId === v.id}
+                  onPress={() =>
+                    void save(
+                      { ...data, preferredShiftId: v.id },
+                      "Wybrano zmianę na pulpit",
+                    )
+                  }
+                />
+              ))}
             </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {[
+              {
+                label: tr("Zegar pracy"),
+                value: new Date(now).toLocaleTimeString(locale, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                }),
+                note: timer ? tr("W trakcie zmiany") : tr("Gotowy do startu"),
+              },
+              {
+                label: tr("Do normy"),
+                value: timerJob ? `${duration(remaining)} h` : "—",
+                note: timerJob
+                  ? `${tr("Norma")} ${duration(weeklyTarget)} h`
+                  : tr("Ustaw miejsce pracy"),
+              },
+              {
+                label: tr("Przepracowano"),
+                value: timerJob
+                  ? `${duration(currentWeekData.total.minutes)} h`
+                  : "—",
+                note: tr("W tym tygodniu"),
+              },
+            ].map((item) => (
+              <View
+                key={item.label}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  backgroundColor: C.raised,
+                  borderRadius: 13,
+                  paddingHorizontal: 9,
+                  paddingVertical: 12,
+                  gap: 7,
+                }}
+              >
+                <Text verbatim style={[s.caption, { minHeight: 34 }]}>
+                  {item.label}
+                </Text>
+                <Text
+                  verbatim
+                  numberOfLines={1}
+                  style={[
+                    s.rowTitle,
+                    {
+                      fontSize: width < 360 ? 13 : 16,
+                      fontVariant: ["tabular-nums"],
+                    },
+                  ]}
+                >
+                  {item.value}
+                </Text>
+                <Text verbatim style={[s.caption, { fontSize: 10 }]}>
+                  {item.note}
+                </Text>
+              </View>
+            ))}
+          </View>
+          <Text style={s.caption}>
+            {timerJob
+              ? `${timerJob.name} · ${timer?.shift?.name ?? shift.name}`
+              : tr("Dodaj miejsce pracy, aby rozpocząć.")}
+          </Text>
+          <Text style={s.caption}>
+            {(timer?.shift ?? shift).startTime} –{" "}
+            {(timer?.shift ?? shift).endTime}
+            {(timer?.shift ?? shift).endTime < (timer?.shift ?? shift).startTime
+              ? " · +1 " + tr("dzień")
+              : ""}
+          </Text>
+          {timer?.plannedEnd !== undefined && (
+            <Text style={s.caption}>
+              {tr("Automatyczny koniec:")}{" "}
+              {new Date(timer.plannedEnd).toLocaleString(locale, {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          )}
+          {!timer && shift.autoStop && (
+            <Text style={s.caption}>
+              {tr("Automatyczny stop o")} {shift.endTime}
+            </Text>
+          )}
+          {timer && (
+            <View style={s.between}>
+              <Text style={s.caption}>Bieżąca zmiana</Text>
+              <Text style={s.rowTitle}>
+                {formatCountdown(earlierThisShift + timerMinutes(timer, now))}
+                {timer.pausedAt !== null ? ` · ${tr("Przerwa")}` : ""}
+              </Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start zmiany"
+              disabled={busy || !!timer}
+              onPress={() => (job ? void start() : openJob())}
+              style={{
+                flex: 1,
+                minHeight: 52,
+                borderRadius: 13,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#285C46",
+                opacity: timer ? 0.45 : 1,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Start</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Zakończ zmianę"
+              disabled={busy || !timer}
+              onPress={() => void stop()}
+              style={{
+                flex: 1,
+                minHeight: 52,
+                borderRadius: 13,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#813D40",
+                opacity: timer ? 1 : 0.45,
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Stop</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dodaj wcześniejszą zmianę"
+              disabled={busy}
+              onPress={() =>
+                job ? openEntry(undefined, previousLocalDay(now)) : openJob()
+              }
+              style={{
+                flex: 1,
+                minHeight: 52,
+                borderRadius: 13,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: C.raised,
+                paddingHorizontal: 4,
+              }}
+            >
+              <Text
+                style={{
+                  color: C.text,
+                  fontWeight: "700",
+                  textAlign: "center",
+                }}
+              >
+                Wpis ręczny
+              </Text>
+            </Pressable>
+          </View>
+          <View style={[s.row, { flexWrap: "wrap" }]}>
+            {!timer ? (
+              <Button
+                label="Start od godziny"
+                kind="ghost"
+                small
+                onPress={() => (job ? openStart() : openJob())}
+              />
+            ) : (
+              <>
+                <Button
+                  label="Popraw początek"
+                  kind="ghost"
+                  small
+                  onPress={openAdjust}
+                />
+                <Button
+                  label="Popraw koniec"
+                  kind="ghost"
+                  small
+                  onPress={() => {
+                    setFormError("");
+                    setForm({
+                      type: "stopAt",
+                      endDate: dateKey(now),
+                      endTime: timeLabel(now),
+                    });
+                  }}
+                />
+                <Button
+                  label={timer.pausedAt === null ? "Przerwa" : "Wznów"}
+                  kind="secondary"
+                  small
+                  onPress={() => void togglePause()}
+                />
+              </>
+            )}
+            <Button
+              label="Dodaj urlop"
+              kind="ghost"
+              small
+              onPress={() => openHoliday(undefined, today)}
+            />
+          </View>
+          {timer && !!timer.autoBreakMinutes && (
+            <Text style={s.caption}>
+              Automatyczna przerwa zostanie odjęta po zakończeniu zmiany.
+            </Text>
+          )}
+        </View>
+        <View style={[s.card, { padding: 14, marginTop: 14, gap: 10 }]}>
+          <View style={s.between}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Poprzedni tydzień"
+              onPress={() => setDashboardWeekOffset((n) => n - 1)}
+              style={s.iconTile}
+            >
+              <I name="chevron-back" size={18} color={C.text} />
+            </Pressable>
+            <View style={{ flex: 1, alignItems: "center", gap: 3 }}>
+              <Text style={s.rowTitle}>Tydzień</Text>
+              <Text verbatim style={s.caption}>
+                {weekTitle(displayedWeek, locale)}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Następny tydzień"
+              onPress={() => setDashboardWeekOffset((n) => n + 1)}
+              style={s.iconTile}
+            >
+              <I name="chevron-forward" size={18} color={C.text} />
+            </Pressable>
           </View>
           <View
             style={[
-              s.statsColumn,
-              {
-                flex: wide ? 1 : undefined,
-                flexDirection: wide ? "column" : "row",
-              },
+              s.between,
+              { borderBottomWidth: 1, borderColor: C.line, paddingBottom: 8 },
             ]}
           >
-            <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
-              <View style={s.between}>
-                <Text style={s.label}>Ten tydzień</Text>
-                <I name="wallet-outline" color={C.green} />
-              </View>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[s.statNumber, !wide && { fontSize: 23 }]}
+            <Text style={s.caption}>Dzień</Text>
+            <Text style={s.caption}>Start – koniec · razem</Text>
+          </View>
+          {weekData.days.map((day) => {
+            const entries = [
+              ...new Map(
+                day.parts.map((part) => [part.entry.id, part.entry]),
+              ).values(),
+            ].sort((a, b) => a.start - b.start);
+            const holiday = data.holidays.find(
+              (item) => item.date === day.date,
+            );
+            return (
+              <View
+                key={day.date}
+                style={{
+                  borderBottomWidth: 1,
+                  borderColor: C.line,
+                  paddingVertical: 8,
+                  gap: 7,
+                }}
               >
-                {duration(liveWeek.minutes)} <Text style={s.unit}>h</Text>
-              </Text>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[s.rowMoney, { fontSize: 18 }]}
-              >
-                {fmt(liveWeek.amount)}
-              </Text>
-              <Text style={s.caption}>Wynagrodzenie za tydzień</Text>
-              <Text style={s.caption}>
-                {timer &&
-                data.weekBoundary === "shift" &&
-                weekKey(timer.start) !== week
-                  ? "Aktywna zmiana należy do tygodnia rozpoczęcia"
-                  : timer
-                    ? "W tym aktywna zmiana · kwota szacunkowa"
-                    : "Poniedziałek–niedziela · wszystkie miejsca"}
-              </Text>
-            </View>
-            <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
-              <View style={s.between}>
-                <Text style={s.label}>
-                  {(data.countingMode ?? "shift") === "shift"
-                    ? "Dzień zmiany"
-                    : "Dzisiaj od 00:00"}
-                </Text>
-                <I name="sunny-outline" color={C.blue} />
-              </View>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[s.statNumber, !wide && { fontSize: 23 }]}
-              >
-                {duration(liveToday.minutes)} <Text style={s.unit}>h</Text>
-              </Text>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[s.rowMoney, { fontSize: 18 }]}
-              >
-                {fmt(liveToday.amount)}
-              </Text>
-              <Text style={s.caption}>
-                {(data.countingMode ?? "shift") === "shift"
-                  ? "Wynagrodzenie za dzień zmiany"
-                  : "Wynagrodzenie za dziś"}
-              </Text>
-              {(data.countingMode ?? "shift") === "shift" &&
-                timer &&
-                workDay !== today && (
+                <View style={s.between}>
+                  <Text
+                    verbatim
+                    style={[
+                      s.rowTitle,
+                      { textTransform: "capitalize", flex: 1 },
+                    ]}
+                  >
+                    {dateLabel(day.date)}
+                  </Text>
                   <Text style={s.caption}>
-                    <Text>Dzień rozpoczęcia:</Text>{" "}
-                    {localDate(workDay).toLocaleDateString(locale)}
+                    {day.total.minutes
+                      ? `${duration(day.total.minutes)} h`
+                      : "—"}
+                  </Text>
+                </View>
+                {entries.map((entry) => {
+                  const parts = day.parts.filter(
+                    (part) => part.entry.id === entry.id,
+                  );
+                  const first = parts[0].actualDate,
+                    last = localDate(parts[parts.length - 1].actualDate);
+                  last.setDate(last.getDate() + 1);
+                  const from = Math.max(
+                    entry.start,
+                    parseLocal(first, "00:00"),
+                  );
+                  const to = Math.min(
+                    entry.end,
+                    parseLocal(dateKey(last), "00:00"),
+                  );
+                  const saved = data.entries.find(
+                    (item) => item.id === entry.id,
+                  );
+                  return (
+                    <Pressable
+                      key={entry.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        saved
+                          ? `Edytuj wpis ${dateKey(entry.start)}`
+                          : tr("Trwająca zmiana")
+                      }
+                      disabled={!saved}
+                      onPress={() => saved && openEntry(saved)}
+                      style={[s.between, { paddingVertical: 4 }]}
+                    >
+                      <Text style={s.caption}>
+                        {timeLabel(from)} –{" "}
+                        {saved ? timeLabel(to) : tr("teraz")}
+                        {!saved ? ` · ${tr("w trakcie")}` : ""}
+                      </Text>
+                      <Text style={s.rowTitle}>
+                        {duration(totals(parts).minutes)} h {saved ? "›" : ""}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {holiday && (
+                  <Text style={s.caption}>
+                    <Text>Urlop</Text> · {duration(holiday.hours * 60)} h
                   </Text>
                 )}
-              <Text style={s.caption}>
-                {timer
-                  ? "W tym aktywna zmiana · kwota szacunkowa"
-                  : (data.countingMode ?? "shift") === "shift"
-                    ? "Zmiany według daty rozpoczęcia"
-                    : "Tylko czas od północy"}
-              </Text>
-            </View>
+              </View>
+            );
+          })}
+          <View style={[s.between, { paddingTop: 4 }]}>
+            <Text style={s.rowTitle}>Razem w tygodniu</Text>
+            <Text style={s.rowTitle}>{duration(weekData.total.minutes)} h</Text>
           </View>
+          <View style={s.between}>
+            <Text style={s.caption}>Nadgodziny</Text>
+            <Text style={s.rowTitle}>{duration(weekData.total.extra)} h</Text>
+          </View>
+          <Text style={s.caption}>
+            Urlop jest liczony osobno i nie zwiększa normy nadgodzin.
+          </Text>
         </View>
-        {weeklyCorrectionBanner()}
         {historicalPolicies > 0 && timerJob && (
           <View style={[s.card, { padding: 14, marginTop: 14, gap: 8 }]}>
             <Text style={s.rowTitle}>
@@ -3257,7 +3506,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.3 · dane na Twoim urządzeniu
+          Work Hours · 1.9.4 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3409,13 +3658,15 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                                 ? form.id
                                   ? "Edytuj projekt"
                                   : "Nowy projekt"
-                                : form?.type === "adjust"
-                                  ? "Popraw początek zmiany"
-                                  : form?.type === "start"
-                                    ? "Rozpocznij od…"
-                                    : form?.id
-                                      ? "Edytuj wpis"
-                                      : "Dodaj przepracowaną zmianę"}
+                                : form?.type === "stopAt"
+                                  ? "Zakończ o wybranej godzinie"
+                                  : form?.type === "adjust"
+                                    ? "Popraw początek zmiany"
+                                    : form?.type === "start"
+                                      ? "Rozpocznij od…"
+                                      : form?.id
+                                        ? "Edytuj wpis"
+                                        : "Dodaj przepracowaną zmianę"}
                   </Text>
                 </View>
                 <Pressable
@@ -3567,6 +3818,26 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       Możesz wpisać 0 dla urlopu bezpłatnego. Urlop i jego kwota
                       są podsumowane osobno; nie zwiększają normy nadgodzin.
                     </Text>
+                  </>
+                ) : form?.type === "stopAt" ? (
+                  <>
+                    <Text style={s.caption}>
+                      Wpisz rzeczywistą datę i godzinę zakończenia zmiany.
+                    </Text>
+                    <View style={s.row}>
+                      <Field
+                        label="Data zakończenia"
+                        placeholder="RRRR-MM-DD"
+                        value={form.endDate}
+                        onChange={(v) => setField("endDate", v)}
+                      />
+                      <Field
+                        label="Godzina zakończenia"
+                        placeholder="03:00"
+                        value={form.endTime}
+                        onChange={(v) => setField("endTime", v)}
+                      />
+                    </View>
                   </>
                 ) : form?.type === "adjust" ? (
                   <>
