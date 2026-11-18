@@ -1,4 +1,23 @@
 export const english: Record<string, string> = {
+  "Aktywna zmiana należy do tygodnia rozpoczęcia":
+    "The active shift belongs to its starting week",
+  "Dzień rozpoczęcia:": "Start date:",
+
+  "Zmiana na przełomie tygodnia": "Shift across a week boundary",
+  "Ustaw, jak liczyć normę tygodniową dla pracy z niedzieli na poniedziałek.":
+    "Choose how a Sunday-to-Monday shift counts towards the weekly target.",
+  "Przypisanie do tygodnia": "Week assignment",
+  "Podziel między tygodnie": "Split between weeks",
+  "Od poniedziałku 00:00 godziny należą do nowego tygodnia.":
+    "Hours from Monday 00:00 count towards the new week.",
+  "Cała zmiana w tygodniu startu": "Whole shift in the starting week",
+  "Godziny po północy należą do tygodnia rozpoczęcia zmiany.":
+    "Hours after midnight belong to the week when the shift started.",
+  "Zmienić sposób liczenia tygodnia?": "Change how weeks are calculated?",
+  "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Oznaczenia wypłat pozostaną bez zmian.":
+    "This also recalculates previous and active shifts across a week boundary. Pay and overtime may change. Payment markers stay unchanged.",
+  "Zmień sposób liczenia": "Change calculation",
+
   "Przypisywanie zmian do dnia": "Assign shifts to a day",
   "Wybierz, jak kalendarz i podsumowania przypisują zmianę przechodzącą przez północ.":
     "Choose how the calendar and summaries assign an overnight shift.",

@@ -89,7 +89,9 @@ export function removeSampleData(state: State): State {
     .filter((j) => !sampleJobs.has(j.id) || referenced.has(j.id))
     .map((j) => ({ ...j, demo: undefined }));
   const occupiedWeeks = new Set(
-    calculate(entries).map((s) => weekKey(localDate(s.date))),
+    calculate(entries, state.weekBoundary ?? "midnight").map((s) =>
+      weekKey(localDate(s.weekDate)),
+    ),
   );
   return {
     ...state,
@@ -114,7 +116,9 @@ export function removeJobData(state: State, jobId: string): State {
     throw new Error("Najpierw zakończ zmianę w tym miejscu pracy.");
   const entries = state.entries.filter((e) => e.jobId !== jobId);
   const weeks = new Set(
-    calculate(entries).map((s) => weekKey(localDate(s.date))),
+    calculate(entries, state.weekBoundary ?? "midnight").map((s) =>
+      weekKey(localDate(s.weekDate)),
+    ),
   );
   return {
     ...state,

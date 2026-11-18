@@ -336,16 +336,21 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   const calculated = useMemo(
     () =>
       groupSlices(
-        calculate(state?.entries ?? []),
+        calculate(state?.entries ?? [], state?.weekBoundary ?? "midnight"),
         state?.countingMode ?? "shift",
       ),
-    [state?.entries, state?.countingMode],
+    [state?.entries, state?.countingMode, state?.weekBoundary],
   );
   const liveCalculated = useMemo(
     () =>
       state?.timer && tab === "home"
         ? groupSlices(
-            previewSlices(state.entries, state.timer, now),
+            previewSlices(
+              state.entries,
+              state.timer,
+              now,
+              state.weekBoundary ?? "midnight",
+            ),
             state.countingMode ?? "shift",
           )
         : calculated,
@@ -377,7 +382,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     week = weekKey(now),
     month = dateKey(now).slice(0, 7),
     today = dateKey(now),
-    weekSlices = slices.filter((x) => weekKey(localDate(x.date)) === week),
+    weekSlices = slices.filter((x) => weekKey(localDate(x.weekDate)) === week),
     monthSlices = slices.filter((x) => x.date.startsWith(month)),
     ws = totals(weekSlices),
     ms = totals(monthSlices);
@@ -1348,16 +1353,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   }
   function row(e: Entry, parts?: Slice[]) {
     const applicable = (parts ?? slices).filter((x) => x.entry.id === e.id);
-    const first = applicable[0]?.date,
-      last = applicable[applicable.length - 1]?.date;
+    const first = applicable[0]?.actualDate,
+      last = applicable[applicable.length - 1]?.actualDate;
     const lastDay = last ? localDate(last) : null;
     lastDay?.setDate(lastDay.getDate() + 1);
     const displayStart =
-      parts && first && data.countingMode === "midnight"
-        ? Math.max(e.start, parseLocal(first, "00:00"))
-        : e.start;
+      parts && first ? Math.max(e.start, parseLocal(first, "00:00")) : e.start;
     const displayEnd =
-      parts && lastDay && data.countingMode === "midnight"
+      parts && lastDay
         ? Math.min(e.end, parseLocal(dateKey(lastDay), "00:00"))
         : e.end;
     const fragment = displayStart !== e.start || displayEnd !== e.end;
@@ -1480,7 +1483,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   function home() {
     const timerJob = timer ? jobFor(timer.jobId) : job;
     const liveWeekSlices = liveCalculated.filter(
-      (x) => weekKey(localDate(x.date)) === week,
+      (x) => weekKey(localDate(x.weekDate)) === week,
     );
     const liveWeek = totals(liveWeekSlices);
     const workDay =
@@ -1546,6 +1549,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             )}
             <ShiftClock
               timeFormat={data.timeFormat}
+              weekBoundary={data.weekBoundary ?? "midnight"}
               now={now}
               shift={shift}
               timer={timer}
@@ -1553,8 +1557,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               busy={busy}
               priorMinutes={prior}
               priorWeeklyMinutes={
-                totals(weekSlices.filter((x) => x.entry.jobId === timerJob?.id))
-                  .minutes
+                totals(
+                  slices.filter(
+                    (x) =>
+                      x.entry.jobId === timerJob?.id &&
+                      weekKey(localDate(x.weekDate)) ===
+                        weekKey(
+                          timer && data.weekBoundary === "shift"
+                            ? timer.start
+                            : now,
+                        ),
+                  ),
+                ).minutes
               }
               policy={timerJob}
               onEdit={() => setTab("settings")}
@@ -1606,9 +1620,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </Text>
               <Text style={s.caption}>Wynagrodzenie za tydzień</Text>
               <Text style={s.caption}>
-                {timer
-                  ? "W tym aktywna zmiana · kwota szacunkowa"
-                  : "Poniedziałek–niedziela · wszystkie miejsca"}
+                {timer &&
+                data.weekBoundary === "shift" &&
+                weekKey(timer.start) !== week
+                  ? "Aktywna zmiana należy do tygodnia rozpoczęcia"
+                  : timer
+                    ? "W tym aktywna zmiana · kwota szacunkowa"
+                    : "Poniedziałek–niedziela · wszystkie miejsca"}
               </Text>
             </View>
             <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
@@ -1639,6 +1657,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   ? "Wynagrodzenie za dzień zmiany"
                   : "Wynagrodzenie za dziś"}
               </Text>
+              {(data.countingMode ?? "shift") === "shift" &&
+                timer &&
+                workDay !== today && (
+                  <Text style={s.caption}>
+                    <Text>Dzień rozpoczęcia:</Text>{" "}
+                    {localDate(workDay).toLocaleDateString(locale)}
+                  </Text>
+                )}
               <Text style={s.caption}>
                 {timer
                   ? "W tym aktywna zmiana · kwota szacunkowa"
@@ -1940,7 +1966,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       group === "days"
         ? x.date
         : group === "weeks"
-          ? weekKey(localDate(x.date))
+          ? weekKey(localDate(x.weekDate))
           : group === "months"
             ? x.date.slice(0, 7)
             : x.entry.jobId;
@@ -2263,11 +2289,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       return {
         key: dateKey(d),
         label: ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"][i],
-        ...totals(weekSlices.filter((x) => x.date === dateKey(d))),
+        ...totals(weekSlices.filter((x) => x.weekDate === dateKey(d))),
       };
     });
     const max = Math.max(8 * 60, ...days.map((d) => d.minutes));
-    const weeks = [...new Set(slices.map((x) => weekKey(localDate(x.date))))]
+    const weeks = [
+      ...new Set(slices.map((x) => weekKey(localDate(x.weekDate)))),
+    ]
       .sort()
       .reverse();
     return (
@@ -2496,7 +2524,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             {weeks.length ? (
               weeks.map((k) => {
                 const t = totals(
-                    slices.filter((x) => weekKey(localDate(x.date)) === k),
+                    slices.filter((x) => weekKey(localDate(x.weekDate)) === k),
                   ),
                   paid = data.paidWeeks.includes(k);
                 return (
@@ -2914,6 +2942,69 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   );
                 })}
               </View>
+              <Text style={s.rowTitle}>Zmiana na przełomie tygodnia</Text>
+              <Text style={s.caption}>
+                Ustaw, jak liczyć normę tygodniową dla pracy z niedzieli na
+                poniedziałek.
+              </Text>
+              <View
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Przypisanie do tygodnia"
+                style={{ gap: 8 }}
+              >
+                {(
+                  [
+                    {
+                      key: "midnight",
+                      title: "Podziel między tygodnie",
+                      description:
+                        "Od poniedziałku 00:00 godziny należą do nowego tygodnia.",
+                    },
+                    {
+                      key: "shift",
+                      title: "Cała zmiana w tygodniu startu",
+                      description:
+                        "Godziny po północy należą do tygodnia rozpoczęcia zmiany.",
+                    },
+                  ] as const
+                ).map((v) => {
+                  const active = (data.weekBoundary ?? "midnight") === v.key;
+                  return (
+                    <Pressable
+                      key={v.key}
+                      accessibilityRole="radio"
+                      accessibilityLabel={v.title}
+                      accessibilityState={{ checked: active }}
+                      disabled={busy}
+                      onPress={() => {
+                        if (active) return;
+                        setConfirm({
+                          title: "Zmienić sposób liczenia tygodnia?",
+                          body: "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Oznaczenia wypłat pozostaną bez zmian.",
+                          label: "Zmień sposób liczenia",
+                          action: () => {
+                            void save({ ...data, weekBoundary: v.key }).then(
+                              (ok) => {
+                                if (ok) setConfirm(null);
+                              },
+                            );
+                          },
+                        });
+                      }}
+                      style={[s.row, { minHeight: 56 }]}
+                    >
+                      <I
+                        name={active ? "radio-button-on" : "radio-button-off"}
+                        color={active ? C.green : C.muted}
+                      />
+                      <View style={{ flex: 1, gap: 5 }}>
+                        <Text style={s.rowTitle}>{v.title}</Text>
+                        <Text style={s.caption}>{v.description}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Text style={s.rowTitle}>Wyświetlanie czasu</Text>
               <View
                 accessibilityRole="radiogroup"
@@ -3072,6 +3163,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         currency: data.currency,
                         timeFormat: data.timeFormat,
                         countingMode: data.countingMode,
+                        weekBoundary: data.weekBoundary,
                         calendarMetric: data.calendarMetric,
                         language: data.language,
                         theme: data.theme,
@@ -3094,7 +3186,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.1 · dane na Twoim urządzeniu
+          Work Hours · 1.9.2 · dane na Twoim urządzeniu
         </Text>
       </>
     );

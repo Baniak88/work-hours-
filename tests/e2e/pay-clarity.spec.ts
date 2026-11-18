@@ -39,6 +39,13 @@ test("overnight entry explains the full shift and its daily breakdown", async ({
   await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page.getByRole("button", { name: /Wyświetlanie i waluta/ }).click();
   await page.getByRole("radio", { name: "Podział o północy" }).click();
+  await page
+    .getByRole("radio", { name: "Cała zmiana w tygodniu startu" })
+    .click();
+  await expect(
+    page.getByText("Zmienić sposób liczenia tygodnia?"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Zmień sposób liczenia" }).click();
   await page.reload();
   await page.getByRole("tab", { name: "Ustawienia", exact: true }).click();
   await page.getByRole("button", { name: /Wyświetlanie i waluta/ }).click();
