@@ -33,6 +33,26 @@ export const english: Record<string, string> = {
   "Start zmiany": "Start shift",
   Godzina: "Time",
   "Popraw początek": "Adjust start",
+  "Przepracowano na tej zmianie": "Worked on this shift",
+  "NORMA ZMIANY": "SHIFT TARGET",
+  "NORMA TYGODNIA": "WEEKLY TARGET",
+  "do normy": "to target",
+  Pozostało: "Remaining",
+  "Norma wykonana": "Target reached",
+  "Norma nieaktywna": "Target inactive",
+  "Norma tygodniowa": "Weekly target",
+  "Norma tygodniowa zapisana": "Weekly target saved",
+  "Tydzień trwa od poniedziałku do niedzieli. Zmiana normy obowiązuje również w aktywnym liczniku; wcześniejsze wpisy zachowują swoje ustawienia.":
+    "The week runs from Monday to Sunday. Target changes also apply to the active timer; earlier entries keep their settings.",
+  "Nadgodziny po przekroczeniu dowolnej normy, bez podwójnego naliczania.":
+    "Overtime starts after either target, without counting time twice.",
+  "Ustaw normę tygodniową": "Set weekly target",
+  "Zmień normę": "Change target",
+  "W tym aktywna zmiana · kwota szacunkowa":
+    "Includes active shift · estimated pay",
+  "Wszystkie miejsca pracy": "All workplaces",
+  "Norma i próg tygodniowy zostaną zastosowane także do trwającej zmiany. Stawki aktywnego zegara pozostaną bez zmian.":
+    "The weekly target and threshold will also apply to the running shift. Its saved pay rates will not change.",
   "Dodaj wcześniejszą zmianę": "Add a previous shift",
   "Dodaj przepracowaną zmianę": "Add a worked shift",
   "Domyślnie przerwa wynosi 0 minut. Wpisana przerwa jest odejmowana z końca zmiany. Dla nocnej zmiany ustaw datę zakończenia na następny dzień.":

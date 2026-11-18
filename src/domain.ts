@@ -346,6 +346,10 @@ export function timerMinutes(t: Timer, now: number) {
     t.breaks,
   );
 }
+export function formatCountdown(minutes: number) {
+  const seconds = Math.max(0, Math.ceil(Math.max(0, minutes) * 60 - 1e-7));
+  return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
 export function timerDayMinutes(t: Timer, now: number, date: string) {
   const start = parseLocal(date, "00:00"),
     next = new Date(start);
@@ -366,10 +370,10 @@ export function timerWeekMinutes(t: Timer, now: number) {
     t.breaks,
   );
 }
-export function finishTimer(t: Timer, now: number): Entry {
+export function finishTimer(t: Timer, now: number, id = uid()): Entry {
   const end = Math.min(now, t.plannedEnd ?? Infinity);
   return {
-    id: uid(),
+    id,
     jobId: t.jobId,
     start: t.start,
     end,
@@ -388,6 +392,30 @@ export function finishTimer(t: Timer, now: number): Entry {
     ...(t.plannedEnd !== undefined && now >= t.plannedEnd
       ? { autoStopped: true }
       : {}),
+  };
+}
+// A preview follows the exact same pay rules as the eventual saved entry.
+// It never mutates or persists the running timer.
+export function previewSlices(
+  entries: Entry[],
+  timer: Timer | null,
+  now: number,
+): Slice[] {
+  if (!timer || Math.min(now, timer.plannedEnd ?? Infinity) <= timer.start)
+    return calculate(entries);
+  let id = "__active_timer_preview__";
+  while (entries.some((entry) => entry.id === id)) id += "_";
+  return calculate([...entries, finishTimer(timer, now, id)]);
+}
+export function updateActiveWeeklyPolicy(
+  timer: Timer | null,
+  job: Job,
+): Timer | null {
+  if (!timer || timer.jobId !== job.id) return timer;
+  return {
+    ...timer,
+    overtimeThreshold: job.overtimeThreshold,
+    weeklyHours: job.weeklyHours,
   };
 }
 export function validTime(value: string) {

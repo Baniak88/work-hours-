@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculate,
+  formatCountdown,
+  previewSlices,
+  updateActiveWeeklyPolicy,
   duration,
   overtimePercentInput,
   extraHourlyRate,
@@ -58,6 +61,12 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("countdown shows remaining seconds without reaching zero early", () => {
+  assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");
+  assert.equal(formatCountdown(0.001), "00:00:01");
+  assert.equal(formatCountdown(-2), "00:00:00");
+  assert.equal(formatCountdown(37.5 * 60), "37:30:00");
+});
 test("manual earlier shifts retain the selected day and overnight end across DST", () => {
   const [day, night] = defaultShifts();
   assert.deepEqual(manualDates("2026-10-24", day), {
@@ -161,6 +170,84 @@ const weeklyPolicy = {
   overtimeThreshold: "week" as const,
   weeklyHours: 40,
 };
+test("live dashboard includes the active shift in weekly totals and estimated overtime", () => {
+  const prior = [
+    weeklyEntry("2026-11-16"),
+    weeklyEntry("2026-11-17"),
+    weeklyEntry("2026-11-18"),
+    weeklyEntry("2026-11-19", "06:00", "09:00"),
+  ];
+  const activeJob = { ...job, ...weeklyPolicy };
+  const timer = makeTimer(
+    activeJob,
+    defaultShifts()[0],
+    stamp("2026-11-20", "06:00"),
+  );
+  const before = JSON.stringify(timer);
+  const live = previewSlices(prior, timer, stamp("2026-11-20", "08:00"));
+  const total = totals(live);
+  assert.equal(total.minutes, 41 * 60);
+  assert.equal(total.extra, 60);
+  assert.equal(total.amount, 415);
+  assert.equal(
+    totals(live.filter((slice) => slice.date === "2026-11-20")).amount,
+    25,
+  );
+  assert.equal(JSON.stringify(timer), before);
+  const paused = { ...timer, pausedAt: stamp("2026-11-20", "07:00") };
+  assert.equal(
+    totals(previewSlices(prior, paused, stamp("2026-11-20", "08:00"))).minutes,
+    40 * 60,
+  );
+});
+test("changing weekly settings updates only the matching running timer's weekly policy", () => {
+  const original = makeTimer(
+    { ...job, ...weeklyPolicy },
+    defaultShifts()[0],
+    stamp("2026-11-20", "06:00"),
+  );
+  const changed = updateActiveWeeklyPolicy(original, {
+    ...job,
+    ...weeklyPolicy,
+    weeklyHours: 37.5,
+    rate: 99,
+    overtime: 2,
+  });
+  assert.equal(changed?.weeklyHours, 37.5);
+  assert.equal(changed?.rate, original.rate);
+  assert.equal(changed?.overtime, original.overtime);
+  assert.equal(original.weeklyHours, 40);
+  assert.equal(
+    updateActiveWeeklyPolicy(original, {
+      ...job,
+      id: "other",
+      ...weeklyPolicy,
+    }),
+    original,
+  );
+});
+test("updating the weekly target changes the active shift's overtime preview immediately", () => {
+  const prior = [
+    weeklyEntry("2026-11-16"),
+    weeklyEntry("2026-11-17"),
+    weeklyEntry("2026-11-18"),
+    weeklyEntry("2026-11-19", "06:00", "09:00"),
+  ];
+  const original = makeTimer(
+    { ...job, ...weeklyPolicy },
+    defaultShifts()[0],
+    stamp("2026-11-20", "06:00"),
+  );
+  const changed = updateActiveWeeklyPolicy(original, {
+    ...job,
+    ...weeklyPolicy,
+    weeklyHours: 41,
+  });
+  const now = stamp("2026-11-20", "08:00");
+  assert.equal(totals(previewSlices(prior, original, now)).extra, 60);
+  assert.equal(totals(previewSlices(prior, changed, now)).extra, 0);
+  assert.equal(prior[0].weeklyHours, 40);
+});
 function weeklyEntry(
   date: string,
   start = "06:00",

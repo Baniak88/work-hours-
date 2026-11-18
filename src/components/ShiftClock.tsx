@@ -10,6 +10,7 @@ import { StyleSheet } from "react-native";
 import {
   dateKey,
   duration as formatDuration,
+  formatCountdown,
   shiftEnd,
   timerMinutes,
   timerWeekMinutes,
@@ -39,6 +40,7 @@ type Props = {
   priorWeeklyMinutes?: number;
   policy?: Job;
   onEdit: () => void;
+  onEditWeekly: () => void;
   onStart: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -120,12 +122,7 @@ export default function ShiftClock(p: Props) {
   const weekMinutes =
     (p.priorWeeklyMinutes ?? 0) +
     (active ? timerWeekMinutes(active, p.now) : 0);
-  const useWeek =
-    mode === "week" ||
-    (mode === "both" && weekNorm - weekMinutes < shiftNorm - shiftMinutes);
-  const norm = useWeek ? weekNorm : shiftNorm;
-  const progressMinutes = useWeek ? weekMinutes : shiftMinutes;
-  const seconds = Math.max(0, Math.floor(worked * 60));
+  const seconds = Math.max(0, Math.floor(shiftMinutes * 60));
   const elapsed = `${Math.floor(seconds / 3600)
     .toString()
     .padStart(2, "0")}:${Math.floor((seconds % 3600) / 60)
@@ -184,10 +181,6 @@ export default function ShiftClock(p: Props) {
                 {shift.name}
               </Text>
             </View>
-            <Text style={styles.norm}>
-              {mode === "week" ? "Norma tygodnia" : "Norma zmiany"}{" "}
-              {duration(mode === "week" ? weekNorm : shiftNorm)} h
-            </Text>
           </View>
           <View
             style={[styles.between, { marginTop: 12, alignItems: "flex-end" }]}
@@ -201,12 +194,6 @@ export default function ShiftClock(p: Props) {
             )}
           </View>
         </View>
-      )}
-      {mode !== "shift" && (
-        <Text style={[styles.small, { marginTop: 10 }]}>
-          {"Tydzień"}: {duration(weekMinutes)} / {duration(weekNorm)} h ·{" "}
-          {mode === "both" ? "Oba progi" : "Próg tygodniowy"}
-        </Text>
       )}
       <View style={{ paddingVertical: active ? 16 : 10, gap: 7 }}>
         <View style={styles.row}>
@@ -230,47 +217,123 @@ export default function ShiftClock(p: Props) {
               : "GOTOWY DO STARTU"}
           </Text>
           <Text
-            verbatim
+            verbatim={!!p.project}
             numberOfLines={1}
             style={[styles.small, { marginLeft: "auto", flexShrink: 1 }]}
           >
             {p.project ?? "Wybierz projekt"}
           </Text>
         </View>
-        {active && (
+        <Text style={styles.label}>Przepracowano na tej zmianie</Text>
+        <Text
+          accessibilityLabel="Czas pracy"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={styles.elapsed}
+        >
+          {elapsed}
+        </Text>
+        {(p.priorMinutes ?? 0) >= 1 && (
           <Text
-            accessibilityLabel="Czas pracy"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            style={styles.elapsed}
-          >
-            {elapsed}
+            style={styles.small}
+          >{`Wcześniej ${duration(p.priorMinutes!)} h tej zmiany`}</Text>
+        )}
+        <View style={styles.targets}>
+          <View style={styles.target}>
+            <Text style={styles.targetLabel}>NORMA ZMIANY</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={styles.targetValue}
+            >
+              {duration(shiftMinutes)} / {duration(shiftNorm)} h
+            </Text>
+            <View style={styles.track}>
+              <View
+                style={{
+                  width: `${Math.min(100, (shiftMinutes / shiftNorm) * 100)}%`,
+                  height: 5,
+                  backgroundColor: color.green,
+                  borderRadius: 5,
+                }}
+              />
+            </View>
+            <Text style={styles.targetHint}>
+              {shiftMinutes < shiftNorm ? "Pozostało" : "Norma wykonana"}
+            </Text>
+            {shiftMinutes < shiftNorm && (
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={styles.countdown}
+              >
+                {formatCountdown(shiftNorm - shiftMinutes)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.target}>
+            <Text style={styles.targetLabel}>NORMA TYGODNIA</Text>
+            {mode === "shift" ? (
+              <>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={styles.targetValue}
+                >
+                  {duration(weekMinutes)} h
+                </Text>
+                <Text style={styles.targetHint}>Norma nieaktywna</Text>
+              </>
+            ) : (
+              <>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={styles.targetValue}
+                >
+                  {duration(weekMinutes)} / {duration(weekNorm)} h
+                </Text>
+                <View style={styles.track}>
+                  <View
+                    style={{
+                      width: `${Math.min(100, (weekMinutes / weekNorm) * 100)}%`,
+                      height: 5,
+                      backgroundColor: color.green,
+                      borderRadius: 5,
+                    }}
+                  />
+                </View>
+                <Text style={styles.targetHint}>
+                  {weekMinutes < weekNorm ? "Pozostało" : "Norma wykonana"}
+                </Text>
+                {weekMinutes < weekNorm && (
+                  <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    style={styles.countdown}
+                  >
+                    {formatCountdown(weekNorm - weekMinutes)}
+                  </Text>
+                )}
+              </>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ustaw normę tygodniową"
+              onPress={p.onEditWeekly}
+              style={{ paddingVertical: 5 }}
+            >
+              <Text style={styles.editTarget}>Zmień normę</Text>
+            </Pressable>
+          </View>
+        </View>
+        <Text style={styles.small}>Przerwy nie wliczają się do normy</Text>
+        {mode === "both" && (
+          <Text style={styles.small}>
+            Nadgodziny po przekroczeniu dowolnej normy, bez podwójnego
+            naliczania.
           </Text>
         )}
-        <View style={styles.track}>
-          <View
-            style={{
-              width: `${Math.min(100, (progressMinutes / norm) * 100)}%`,
-              height: 5,
-              backgroundColor: color.green,
-              borderRadius: 5,
-            }}
-          />
-        </View>
-        <View style={[styles.between, { flexWrap: "wrap" }]}>
-          <Text style={styles.small}>
-            {progressMinutes < norm
-              ? `Do nadgodzin ${duration(norm - progressMinutes)} h`
-              : "Nadgodziny aktywne"}
-          </Text>
-          <Text style={styles.small}>
-            {(p.priorMinutes ?? 0) >= 1
-              ? `Wcześniej ${duration(p.priorMinutes!)} h tej zmiany`
-              : active
-                ? "Przerwy nie wliczają się do normy"
-                : "Start zapisuje czas przyjścia"}
-          </Text>
-        </View>
       </View>
       {active ? (
         <View style={{ gap: 8 }}>
@@ -325,18 +388,20 @@ export default function ShiftClock(p: Props) {
           )}
         </View>
       )}
-      <View style={styles.footer}>
-        <Icon
-          name={planned ? "alarm-outline" : "hand-left-outline"}
-          color={planned ? color.green : color.muted}
-          size={16}
-        />
-        <Text style={[styles.small, { flex: 1, lineHeight: 18 }]}>
-          {planned
-            ? `Auto-stop ${dateKey(planned) === dateKey(p.now) ? "dzisiaj" : dateKey(planned)} o ${timeLabel(planned)}. Kolejną zmianę uruchomisz samodzielnie.`
-            : "Zakończ zmianę przyciskiem Stop. Kolejny start dopiero wtedy, gdy wrócisz do pracy."}
-        </Text>
-      </View>
+      {!!planned && (
+        <View style={styles.footer}>
+          <Icon
+            name={planned ? "alarm-outline" : "hand-left-outline"}
+            color={planned ? color.green : color.muted}
+            size={16}
+          />
+          <Text style={[styles.small, { flex: 1, lineHeight: 18 }]}>
+            {planned
+              ? `Auto-stop ${dateKey(planned) === dateKey(p.now) ? "dzisiaj" : dateKey(planned)} o ${timeLabel(planned)}. Kolejną zmianę uruchomisz samodzielnie.`
+              : "Zakończ zmianę przyciskiem Stop. Kolejny start dopiero wtedy, gdy wrócisz do pracy."}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -404,8 +469,40 @@ const styles = StyleSheet.create({
   nextDay: { color: color.muted, fontSize: 11, paddingBottom: 3 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   small: { fontSize: 12, lineHeight: 18, color: color.muted },
+  label: { fontSize: 13, color: color.muted, marginTop: 6 },
+  targets: { flexDirection: "row", gap: 8, marginTop: 8 },
+  target: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: "#17181B",
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: color.line,
+    padding: 10,
+    gap: 4,
+  },
+  targetLabel: {
+    color: color.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  targetValue: {
+    color: color.white,
+    fontSize: 16,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  targetHint: { color: color.white, fontSize: 13, lineHeight: 18 },
+  countdown: {
+    color: color.green,
+    fontSize: 17,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  editTarget: { color: color.green, fontSize: 12, fontWeight: "700" },
   elapsed: {
-    fontSize: 46,
+    fontSize: 40,
     color: color.white,
     fontWeight: "300",
     fontVariant: ["tabular-nums"],

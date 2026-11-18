@@ -2,6 +2,12 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.8 — czytelne normy i podsumowanie na żywo
+
+Na pulpicie widać łączny czas danej zmiany, a obok siebie normę zmiany i tygodnia oraz czas pozostały do każdej z nich. Przerwy są odliczane. Normę tygodnia ustawisz bezpośrednio przyciskiem **Zmień normę**: wpisz godziny i minuty, np. 37:30, oraz wybierz moment rozpoczęcia nadgodzin. Norma tygodnia dotyczy wybranego miejsca pracy. Nowe ustawienie obejmuje także trwający licznik; wcześniejsze wpisy zachowują własne reguły, a stawka aktywnego licznika pozostaje bez zmian.
+
+Kafelki dnia, tygodnia i miejsc pracy uwzględniają aktywną zmianę. Kwoty w trakcie pracy są szacunkowe; po zatrzymaniu licznik jest zapisywany jak dotychczas. Tygodniowy kafelek sumuje wszystkie miejsca pracy, a norma tygodnia dotyczy miejsca wskazanego przy zegarze. Urlopy pozostają poza godzinami pracy i nadgodzinami.
+
 ## Wersja 1.7.1 — ręczny wpis i czytelniejsze formularze
 
 Na pulpicie wybierz **Dodaj wcześniejszą zmianę**, aby wpisać zakończoną pracę z dowolnej wcześniejszej daty. Możesz też użyć kalendarza. Szybkie wybory dni i strzałki ułatwiają zmianę daty; dla nocnej zmiany data końca przesuwa się na następny dzień. Po ręcznej edycji daty końca aplikacja jej nie nadpisuje. Domyślna przerwa to 0 minut; wprowadź faktyczną przerwę. Formularz **Rozpocznij od...** nadal uruchamia bieżący licznik, a nie tworzy zakończonego wpisu.

@@ -42,6 +42,8 @@ import {
   shiftWorkDate,
   validateShift,
   calculate,
+  previewSlices,
+  updateActiveWeeklyPolicy,
   checkEntry,
   csv,
   dateKey,
@@ -53,7 +55,6 @@ import {
   money,
   parseLocal,
   timeLabel,
-  timerDayMinutes,
   totals,
   uid,
   validateBackup,
@@ -95,7 +96,8 @@ type Form = {
     | "shift"
     | "adjust"
     | "holiday"
-    | "holidaySettings";
+    | "holidaySettings"
+    | "weeklyNorm";
   id?: string;
   [key: string]: string | undefined;
 };
@@ -329,6 +331,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     () => calculate(state?.entries ?? []),
     [state?.entries],
   );
+  const liveCalculated = useMemo(
+    () =>
+      state?.timer && tab === "home"
+        ? previewSlices(state.entries, state.timer, now)
+        : calculated,
+    [state, now, tab, calculated],
+  );
   if (!state)
     return (
       <View style={[s.app, { justifyContent: "center", padding: 30 }]}>
@@ -359,8 +368,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     monthSlices = slices.filter((x) => x.date.startsWith(month)),
     ws = totals(weekSlices),
     ms = totals(monthSlices);
-  const total = totals(slices),
-    todayTotal = totals(slices.filter((x) => x.date === today));
+  const total = totals(slices);
   const fmt = (n: number) => money(n, data.currency);
   const duration = (minutes: number) =>
     formatDuration(minutes, data.timeFormat, language);
@@ -378,9 +386,26 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       overtimePercent: j ? String(policyOvertimePercent(j) ?? "") : "150",
       shiftAllowancePercent: String(j?.shiftAllowancePercent ?? 0),
       overtimeBase: j?.overtimeBase ?? "basic",
-      overtimeThreshold: j?.overtimeThreshold ?? "both",
+      overtimeThreshold: j ? (j.overtimeThreshold ?? "shift") : "both",
       weeklyNorm: formatDuration((j?.weeklyHours ?? 40) * 60),
       color: j?.color ?? C.green,
+    });
+  }
+  function openWeeklyNorm(j?: Job) {
+    if (!j) {
+      openJob();
+      return;
+    }
+    const current = timer?.jobId === j.id ? timer : j;
+    setFormError("");
+    setForm({
+      type: "weeklyNorm",
+      id: j.id,
+      weeklyNorm: formatDuration((current.weeklyHours ?? 40) * 60),
+      overtimeThreshold:
+        !current.overtimeThreshold || current.overtimeThreshold === "shift"
+          ? "both"
+          : current.overtimeThreshold,
     });
   }
   function updateRate(key: string, value: string) {
@@ -910,6 +935,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               jobs: form.id
                 ? data.jobs.map((x) => (x.id === j.id ? j : x))
                 : [...data.jobs, j],
+              timer: updateActiveWeeklyPolicy(data.timer, j),
             },
             "Projekt zapisany",
           )
@@ -917,6 +943,35 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           setSelected(j.id);
           setForm(null);
         }
+        return;
+      }
+      if (form.type === "weeklyNorm") {
+        const currentJob = data.jobs.find((j) => j.id === form.id);
+        if (!currentJob) throw new Error("Wybierz projekt.");
+        const overtimeThreshold = form.overtimeThreshold;
+        if (
+          overtimeThreshold !== "shift" &&
+          overtimeThreshold !== "week" &&
+          overtimeThreshold !== "both"
+        )
+          throw new Error("Wybierz sposób naliczania nadgodzin.");
+        const updated: Job = {
+          ...currentJob,
+          weeklyHours: parseWeeklyNormHours(form.weeklyNorm ?? ""),
+          overtimeThreshold,
+        };
+        validateOvertime(updated);
+        if (
+          await save(
+            {
+              ...data,
+              jobs: data.jobs.map((j) => (j.id === updated.id ? updated : j)),
+              timer: updateActiveWeeklyPolicy(data.timer, updated),
+            },
+            "Norma tygodniowa zapisana",
+          )
+        )
+          setForm(null);
         return;
       }
       if (form.type === "adjust") {
@@ -1334,7 +1389,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   );
   function home() {
     const timerJob = timer ? jobFor(timer.jobId) : job;
-    const activeMinutes = timer ? timerDayMinutes(timer, now, today) : 0;
+    const liveWeekSlices = liveCalculated.filter(
+      (x) => weekKey(localDate(x.date)) === week,
+    );
+    const liveWeek = totals(liveWeekSlices);
+    const liveToday = totals(liveCalculated.filter((x) => x.date === today));
     const target = timer?.shift ?? {
       ...shift,
       workDate: shiftWorkDate(shift, now),
@@ -1400,6 +1459,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               }
               policy={timerJob}
               onEdit={() => setTab("settings")}
+              onEditWeekly={() => openWeeklyNorm(timerJob)}
               onStart={() => (job ? void start() : openJob())}
               onPause={() => void togglePause()}
               onStop={() => void stop()}
@@ -1434,35 +1494,45 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <Text
                 numberOfLines={1}
                 adjustsFontSizeToFit
-                style={[s.bigMoney, !wide && { fontSize: 23 }]}
+                style={[s.statNumber, !wide && { fontSize: 23 }]}
               >
-                {fmt(ws.amount)}
+                {duration(liveWeek.minutes)} <Text style={s.unit}>h</Text>
               </Text>
-              <View style={s.row}>
-                <View style={s.pill}>
-                  <I name="time-outline" color={C.green} size={12} />
-                  <Text style={s.pillText}>{duration(ws.minutes)} h</Text>
-                </View>
-                <Text style={s.caption}>od poniedziałku</Text>
-              </View>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[s.rowMoney, { fontSize: 18 }]}
+              >
+                {fmt(liveWeek.amount)}
+              </Text>
+              <Text style={s.caption}>
+                {timer
+                  ? "W tym aktywna zmiana · kwota szacunkowa"
+                  : "Wszystkie miejsca pracy"}
+              </Text>
             </View>
             <View style={[s.statCard, { flex: 1, padding: wide ? 21 : 13 }]}>
               <View style={s.between}>
                 <Text style={s.label}>Dzisiaj</Text>
                 <I name="sunny-outline" color={C.blue} />
               </View>
-              <View style={s.between}>
-                <Text style={[s.statNumber, !wide && { fontSize: 23 }]}>
-                  {duration(todayTotal.minutes + activeMinutes)}{" "}
-                  <Text style={s.unit}>h</Text>
-                </Text>
-                <Text style={[s.todayMoney, !wide && { fontSize: 12 }]}>
-                  {fmt(todayTotal.amount)}
-                </Text>
-              </View>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[s.statNumber, !wide && { fontSize: 23 }]}
+              >
+                {duration(liveToday.minutes)} <Text style={s.unit}>h</Text>
+              </Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[s.rowMoney, { fontSize: 18 }]}
+              >
+                {fmt(liveToday.amount)}
+              </Text>
               <Text style={s.caption}>
                 {timer
-                  ? "Czas uwzględnia aktywny licznik"
+                  ? "W tym aktywna zmiana · kwota szacunkowa"
                   : "Zarobki z zapisanych wpisów"}
               </Text>
             </View>
@@ -1525,7 +1595,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           >
             {jobs.map((j) => {
               const jt = totals(
-                weekSlices.filter((x) => x.entry.jobId === j.id),
+                liveWeekSlices.filter((x) => x.entry.jobId === j.id),
               );
               return (
                 <View
@@ -1556,8 +1626,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           {j.name}
                         </Text>
                         <Text style={s.caption}>
-                          {fmt(j.rate)} / h · OT {fmt(overtimeHourlyRate(j))} /
-                          h
+                          {fmt(j.rate)} / h · OT {fmt(extraHourlyRate(j))} / h
                         </Text>
                       </View>
                       {job?.id === j.id && (
@@ -2823,7 +2892,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.7.1 · dane na Twoim urządzeniu
+          Work Hours · 1.8.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -2957,27 +3026,29 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "holidaySettings"
-                      ? "Ustawienia urlopu"
-                      : form?.type === "holiday"
-                        ? form.id
-                          ? "Edytuj urlop"
-                          : "Dodaj urlop"
-                        : form?.type === "shift"
+                    {form?.type === "weeklyNorm"
+                      ? "Norma tygodniowa"
+                      : form?.type === "holidaySettings"
+                        ? "Ustawienia urlopu"
+                        : form?.type === "holiday"
                           ? form.id
-                            ? "Ustawienia zmiany"
-                            : "Własna zmiana"
-                          : form?.type === "job"
+                            ? "Edytuj urlop"
+                            : "Dodaj urlop"
+                          : form?.type === "shift"
                             ? form.id
-                              ? "Edytuj projekt"
-                              : "Nowy projekt"
-                            : form?.type === "adjust"
-                              ? "Popraw początek zmiany"
-                              : form?.type === "start"
-                                ? "Rozpocznij od…"
-                                : form?.id
-                                  ? "Edytuj wpis"
-                                  : "Dodaj przepracowaną zmianę"}
+                              ? "Ustawienia zmiany"
+                              : "Własna zmiana"
+                            : form?.type === "job"
+                              ? form.id
+                                ? "Edytuj projekt"
+                                : "Nowy projekt"
+                              : form?.type === "adjust"
+                                ? "Popraw początek zmiany"
+                                : form?.type === "start"
+                                  ? "Rozpocznij od…"
+                                  : form?.id
+                                    ? "Edytuj wpis"
+                                    : "Dodaj przepracowaną zmianę"}
                   </Text>
                 </View>
                 <Pressable
@@ -3003,7 +3074,40 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{ flexShrink: 1 }}
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "holidaySettings" ? (
+                {form?.type === "weeklyNorm" ? (
+                  <>
+                    <Field
+                      label="Tygodniowa norma (godziny:minuty)"
+                      placeholder="np. 37:30"
+                      value={form.weeklyNorm}
+                      onChange={(v) => setField("weeklyNorm", v)}
+                    />
+                    <Text style={s.fieldLabel}>
+                      Kiedy zaczynają się nadgodziny?
+                    </Text>
+                    <View style={[s.row, { flexWrap: "wrap" }]}>
+                      {(
+                        [
+                          ["both", "Zmiana lub tydzień"],
+                          ["week", "Po normie tygodnia"],
+                          ["shift", "Po normie zmiany"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <Chip
+                          key={value}
+                          label={label}
+                          active={form.overtimeThreshold === value}
+                          onPress={() => setField("overtimeThreshold", value)}
+                        />
+                      ))}
+                    </View>
+                    <Text style={s.caption}>
+                      Tydzień trwa od poniedziałku do niedzieli. Zmiana normy
+                      obowiązuje również w aktywnym liczniku; wcześniejsze wpisy
+                      zachowują swoje ustawienia.
+                    </Text>
+                  </>
+                ) : form?.type === "holidaySettings" ? (
                   <>
                     <Text style={s.caption}>
                       {tr("Ustawienia dla roku")}: {form.year}
@@ -3170,6 +3274,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       Nowe stawki dotyczą kolejnych zmian. Zapisane wpisy
                       zachowują swoje stawki; możesz je poprawić w edycji wpisu.
                     </Text>
+                    {timer?.jobId === form.id && (
+                      <Text style={s.caption}>
+                        Norma i próg tygodniowy zostaną zastosowane także do
+                        trwającej zmiany. Stawki aktywnego zegara pozostaną bez
+                        zmian.
+                      </Text>
+                    )}
                   </>
                 ) : (
                   <>
