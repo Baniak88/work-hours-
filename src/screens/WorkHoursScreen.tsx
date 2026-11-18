@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import {
   Break,
   Entry,
+  Holiday,
   Job,
   overtimeHourlyRate,
   extraHourlyRate,
@@ -30,6 +31,7 @@ import {
   Shift,
   Slice,
   makeTimer,
+  adjustTimerStart,
   shiftWorkDate,
   validateShift,
   calculate,
@@ -78,7 +80,7 @@ const C = {
 type Icon = React.ComponentProps<typeof Ionicons>["name"];
 type Tab = "home" | "entries" | "reports" | "settings";
 type Form = {
-  type: "job" | "entry" | "start" | "shift";
+  type: "job" | "entry" | "start" | "shift" | "adjust" | "holiday";
   id?: string;
   [key: string]: string | undefined;
 };
@@ -687,6 +689,25 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       startTime: timeLabel(now),
     });
   }
+  function openAdjust() {
+    if (!timer) return;
+    setFormError("");
+    setForm({
+      type: "adjust",
+      startDate: dateKey(timer.start),
+      startTime: timeLabel(timer.start),
+    });
+  }
+  function openHoliday(value?: Holiday) {
+    setFormError("");
+    setForm({
+      type: "holiday",
+      id: value?.id,
+      date: value?.date ?? calendarDate,
+      hours: formatDuration((value?.hours ?? shift.normHours) * 60),
+      rate: String(value?.rate ?? job?.rate ?? 0),
+    });
+  }
   async function start(
     // eslint-disable-next-line react-hooks/purity -- The custom clock's onStart event invokes this handler.
     at = Date.now(),
@@ -831,6 +852,65 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           )
         ) {
           setSelected(j.id);
+          setForm(null);
+        }
+        return;
+      }
+      if (form.type === "adjust") {
+        if (!timer) throw new Error("Licznik nie jest uruchomiony.");
+        // eslint-disable-next-line react-hooks/purity -- This handler runs when the user saves the adjustment.
+        const adjustedAt = Date.now();
+        const original =
+          dateKey(timer.start) === form.startDate &&
+          timeLabel(timer.start) === form.startTime;
+        const beginning = original
+          ? timer.start
+          : parseLocal(form.startDate ?? "", form.startTime ?? "");
+        if (
+          await save(
+            {
+              ...data,
+              timer: adjustTimerStart(
+                timer,
+                beginning,
+                data.entries,
+                adjustedAt,
+              ),
+            },
+            "Początek zmiany poprawiony",
+          )
+        )
+          setForm(null);
+        return;
+      }
+      if (form.type === "holiday") {
+        const date = form.date ?? "";
+        parseLocal(date, "12:00");
+        const hours = parseNormHours(form.hours ?? "");
+        const rate = Number(form.rate?.replace(",", "."));
+        if (
+          !form.rate?.trim() ||
+          !Number.isFinite(rate) ||
+          rate < 0 ||
+          rate > 100000
+        )
+          throw new Error("Podaj prawidłową stawkę od 0 do 100 000.");
+        if (data.holidays.some((h) => h.date === date && h.id !== form.id))
+          throw new Error("Urlop w tym dniu jest już zapisany.");
+        const holiday = { id: form.id ?? uid(), date, hours, rate };
+        if (
+          await save(
+            {
+              ...data,
+              holidays: form.id
+                ? data.holidays.map((h) => (h.id === form.id ? holiday : h))
+                : [...data.holidays, holiday],
+            },
+            "Urlop zapisany",
+          )
+        ) {
+          setCalendarDate(date);
+          setCalendarMonth(date.slice(0, 7));
           setForm(null);
         }
         return;
@@ -1185,6 +1265,23 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         )}
         <View style={[s.columns, wide && { flexDirection: "row" }]}>
           <View style={{ flex: wide ? 1.4 : undefined }}>
+            {!timer && data.shifts.length > 1 && (
+              <View style={[s.row, { flexWrap: "wrap", marginBottom: 12 }]}>
+                {data.shifts.map((v) => (
+                  <Chip
+                    key={v.id}
+                    label={v.name}
+                    active={data.preferredShiftId === v.id}
+                    onPress={() =>
+                      void save(
+                        { ...data, preferredShiftId: v.id },
+                        "Wybrano zmianę na pulpit",
+                      )
+                    }
+                  />
+                ))}
+              </View>
+            )}
             <ShiftClock
               timeFormat={data.timeFormat}
               now={now}
@@ -1203,6 +1300,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               onPause={() => void togglePause()}
               onStop={() => void stop()}
               onStartAt={openStart}
+              onAdjust={openAdjust}
             />
           </View>
           <View
@@ -1532,6 +1630,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     if (entryView === "calendar") {
       const selectedSlices = filtered.filter((x) => x.date === calendarDate),
         dayTotals = totals(selectedSlices);
+      const holiday = data.holidays.find((h) => h.date === calendarDate);
+      const monthHolidays = data.holidays.filter((h) =>
+        h.date.startsWith(calendarMonth),
+      );
+      const yearHolidays = data.holidays.filter((h) =>
+        h.date.startsWith(calendarMonth.slice(0, 4)),
+      );
       const unique = [
         ...new Map(selectedSlices.map((x) => [x.entry.id, x.entry])).values(),
       ].sort((a, b) => a.start - b.start);
@@ -1573,6 +1678,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             selected={calendarDate}
             today={today}
             slices={filtered}
+            holidays={data.holidays}
             currency={data.currency}
             timeFormat={data.timeFormat}
             metric={data.calendarMetric ?? "hours"}
@@ -1582,6 +1688,48 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             onSelect={chooseDay}
             onMonth={chooseMonth}
           />
+          <View style={[s.card, { padding: 14, marginTop: 12, gap: 10 }]}>
+            <View style={s.between}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={s.rowTitle}>Urlop w tym miesiącu</Text>
+                <Text style={s.caption}>
+                  {monthHolidays.length} dni ·{" "}
+                  {duration(
+                    monthHolidays.reduce((sum, h) => sum + h.hours * 60, 0),
+                  )}{" "}
+                  h ·{" "}
+                  {fmt(
+                    monthHolidays.reduce((sum, h) => sum + h.hours * h.rate, 0),
+                  )}
+                </Text>
+              </View>
+              <Button
+                label={holiday ? "Edytuj urlop" : "Dodaj urlop"}
+                icon={holiday ? "create-outline" : "add"}
+                kind="secondary"
+                small
+                onPress={() => openHoliday(holiday)}
+              />
+            </View>
+            {holiday && (
+              <Text style={s.caption}>
+                {tr("Wybrany dzień")}: {duration(holiday.hours * 60)} h ·{" "}
+                {fmt(holiday.hours * holiday.rate)}.{" "}
+                {tr(
+                  "Urlop jest liczony osobno od przepracowanych godzin i nadgodzin.",
+                )}
+              </Text>
+            )}
+            <Text style={s.caption}>
+              {tr("Urlop w wybranym roku")}: {yearHolidays.length} ·{" "}
+              {duration(yearHolidays.reduce((sum, h) => sum + h.hours * 60, 0))}{" "}
+              h
+            </Text>
+            <Text style={s.caption}>
+              Urlopy są zapisywane w kopii JSON. Raport CSV zawiera wyłącznie
+              czas pracy.
+            </Text>
+          </View>
           <View style={[s.sectionHeader, { marginTop: 17, marginBottom: 10 }]}>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[s.sectionTitle, { fontSize: 15 }]}>
@@ -2332,7 +2480,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               }
               setConfirm({
                 title: "Wyczyścić ewidencję?",
-                body: `Usuniemy wszystkie ${data.entries.length} wpisów, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.`,
+                body: `Usuniemy wszystkie wpisy, urlopy, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.`,
                 label: "Wyczyść ewidencję",
                 danger: true,
                 action: () => {
@@ -2542,7 +2690,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.6.0 · dane na Twoim urządzeniu
+          Work Hours · 1.7.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -2679,19 +2827,25 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "shift"
+                    {form?.type === "holiday"
                       ? form.id
-                        ? "Ustawienia zmiany"
-                        : "Własna zmiana"
-                      : form?.type === "job"
+                        ? "Edytuj urlop"
+                        : "Dodaj urlop"
+                      : form?.type === "shift"
                         ? form.id
-                          ? "Edytuj projekt"
-                          : "Nowy projekt"
-                        : form?.type === "start"
-                          ? "Rozpocznij od…"
-                          : form?.id
-                            ? "Edytuj wpis"
-                            : "Dodaj wpis"}
+                          ? "Ustawienia zmiany"
+                          : "Własna zmiana"
+                        : form?.type === "job"
+                          ? form.id
+                            ? "Edytuj projekt"
+                            : "Nowy projekt"
+                          : form?.type === "adjust"
+                            ? "Popraw początek zmiany"
+                            : form?.type === "start"
+                              ? "Rozpocznij od…"
+                              : form?.id
+                                ? "Edytuj wpis"
+                                : "Dodaj wpis"}
                   </Text>
                 </View>
                 <Pressable
@@ -2708,7 +2862,53 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "shift" ? (
+                {form?.type === "holiday" ? (
+                  <>
+                    <Field
+                      label="Data urlopu"
+                      placeholder="RRRR-MM-DD"
+                      value={form.date}
+                      onChange={(v) => setField("date", v)}
+                    />
+                    <Field
+                      label="Godziny urlopu (godziny:minuty)"
+                      placeholder="08:00"
+                      value={form.hours}
+                      onChange={(v) => setField("hours", v)}
+                    />
+                    <Field
+                      label={`Stawka urlopu (${data.currency}/h)`}
+                      numeric
+                      value={form.rate}
+                      onChange={(v) => setField("rate", v)}
+                    />
+                    <Text style={s.caption}>
+                      Możesz wpisać 0 dla urlopu bezpłatnego. Urlop i jego kwota
+                      są podsumowane osobno; nie zwiększają normy nadgodzin.
+                    </Text>
+                  </>
+                ) : form?.type === "adjust" ? (
+                  <>
+                    <Text style={s.caption}>
+                      Ustaw rzeczywistą datę i godzinę rozpoczęcia. Zapisane
+                      przerwy pozostaną bez zmian.
+                    </Text>
+                    <View style={s.row}>
+                      <Field
+                        label="Data rozpoczęcia"
+                        placeholder="RRRR-MM-DD"
+                        value={form.startDate}
+                        onChange={(v) => setField("startDate", v)}
+                      />
+                      <Field
+                        label="Godzina rozpoczęcia"
+                        placeholder="17:30"
+                        value={form.startTime}
+                        onChange={(v) => setField("startTime", v)}
+                      />
+                    </View>
+                  </>
+                ) : form?.type === "shift" ? (
                   <>
                     <Field
                       label="Nazwa zmiany"
@@ -2943,6 +3143,79 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   onPress={() => void submit()}
                   disabled={busy}
                 />
+                {form?.type === "shift" &&
+                  !!form.id &&
+                  data.shifts.length > 1 && (
+                    <Button
+                      label="Usuń zmianę"
+                      kind="danger"
+                      icon="trash-outline"
+                      disabled={busy}
+                      onPress={() => {
+                        const id = form.id!;
+                        setConfirm({
+                          title: "Usunąć tę zmianę?",
+                          body: "Usuniemy profil zmiany. Zapisane wpisy i uruchomiony licznik zachowają swoje dane.",
+                          label: "Usuń zmianę",
+                          danger: true,
+                          action: () => {
+                            const shifts = data.shifts.filter(
+                              (v) => v.id !== id,
+                            );
+                            void save(
+                              {
+                                ...data,
+                                shifts,
+                                preferredShiftId:
+                                  data.preferredShiftId === id
+                                    ? shifts[0].id
+                                    : data.preferredShiftId,
+                              },
+                              "Zmiana usunięta",
+                            ).then((ok) => {
+                              if (ok) {
+                                setConfirm(null);
+                                setForm(null);
+                              }
+                            });
+                          },
+                        });
+                      }}
+                    />
+                  )}
+                {form?.type === "holiday" && !!form.id && (
+                  <Button
+                    label="Usuń urlop"
+                    kind="danger"
+                    icon="trash-outline"
+                    disabled={busy}
+                    onPress={() => {
+                      const id = form.id!;
+                      setConfirm({
+                        title: "Usunąć ten urlop?",
+                        body: "Ten dzień zostanie usunięty z kalendarza i podsumowania urlopów.",
+                        label: "Usuń urlop",
+                        danger: true,
+                        action: () => {
+                          void save(
+                            {
+                              ...data,
+                              holidays: data.holidays.filter(
+                                (h) => h.id !== id,
+                              ),
+                            },
+                            "Urlop usunięty",
+                          ).then((ok) => {
+                            if (ok) {
+                              setConfirm(null);
+                              setForm(null);
+                            }
+                          });
+                        },
+                      });
+                    }}
+                  />
+                )}
                 {form?.type === "entry" && !!form.id && (
                   <Button
                     label="Usuń wpis"

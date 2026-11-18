@@ -2,6 +2,11 @@ import { english } from "./translations";
 export type Language = "pl" | "en";
 type Rule = [RegExp, (...parts: string[]) => string];
 const rules: Rule[] = [
+  [/^Stawka urlopu \((.+)\)$/, (unit) => `Holiday rate (${unit})`],
+  [
+    /^(\d+) dni · (.+) h · (.+)$/,
+    (days, hours, amount) => `${days} days · ${hours} h · ${amount}`,
+  ],
   [/^Do nadgodzin (.+) h$/, (time) => `${time} h until overtime`],
   [
     /^Basic — stawka podstawowa \((.+)\)$/,

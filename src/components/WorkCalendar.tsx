@@ -9,6 +9,7 @@ import React, { useMemo } from "react";
 import { StyleSheet } from "react-native";
 import {
   Slice,
+  Holiday,
   duration as formatDuration,
   localDate,
   money,
@@ -20,6 +21,7 @@ type Props = {
   selected: string;
   today: string;
   slices: Slice[];
+  holidays: Holiday[];
   currency: string;
   timeFormat?: "clock" | "decimal";
   metric: "hours" | "money";
@@ -156,6 +158,7 @@ export default function WorkCalendar(p: Props) {
             {cells.slice(week * 7, week * 7 + 7).map((day, i) => {
               if (!day) return <View key={"empty" + i} style={s.cellSlot} />;
               const parts = byDay.get(day) ?? [],
+                holiday = p.holidays.find((h) => h.date === day),
                 t = totals(parts),
                 selected = day === p.selected,
                 today = day === p.today;
@@ -182,6 +185,11 @@ export default function WorkCalendar(p: Props) {
                       selected && { backgroundColor: C.green },
                       !selected &&
                         t.minutes > 0 && { backgroundColor: "#2B2E35" },
+                      !selected &&
+                        holiday && {
+                          borderColor: C.green,
+                          backgroundColor: "#2B2E35",
+                        },
                       !selected && today && { borderColor: C.green },
                       i >= 5 &&
                         !selected &&
@@ -209,11 +217,13 @@ export default function WorkCalendar(p: Props) {
                         { color: selected ? "#33363D" : C.muted },
                       ]}
                     >
-                      {parts.length
-                        ? metric === "hours"
-                          ? duration(t.minutes)
-                          : amount
-                        : ""}
+                      {holiday
+                        ? "URLOP"
+                        : parts.length
+                          ? metric === "hours"
+                            ? duration(t.minutes)
+                            : amount
+                          : ""}
                     </Text>
                     <View style={s.dots}>
                       {kinds.has("day") && (

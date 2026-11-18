@@ -2,6 +2,13 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.7 — zmiany, korekta zegara i urlop
+
+- Zmianę na pulpit wybierzesz bezpośrednio nad zegarem; nieużywany profil możesz usunąć w jego ustawieniach. Pozostaje co najmniej jeden profil; historia i aktywny licznik zachowują własne dane.
+- **Popraw początek** pozwala zmienić datę i godzinę aktywnego zegara. Przerwy pozostają bez zmian; nakładające się wpisy i początek po przerwie są odrzucane. Automatyczne zakończenie jest przeliczane z profilu.
+- W kalendarzu wybierz dzień i **Dodaj urlop**. Możesz wpisać godziny i osobną stawkę (0 dla bezpłatnego), edytować lub usunąć dzień. Miesięczne i roczne podsumowanie liczy także przyszłe dni. Kwota urlopu jest osobna od zarobków za pracę, godzin i nadgodzin; CSV obejmuje tylko pracę.
+- Kopia JSON zawiera urlopy i ma format 6. Kopie 1–5 są odczytywane, a starsza aplikacja odrzuci kopię formatu 6. Przed przeniesieniem kopii zaktualizuj obydwa urządzenia.
+
 ## Pobieranie i udostępnianie
 
 - **Android:** [instrukcja i instalator APK 1.6.1](docs/android/README.md).

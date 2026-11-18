@@ -24,6 +24,7 @@ import {
   weekKey,
   defaultShifts,
   makeTimer,
+  adjustTimerStart,
   settleTimer,
   shiftEnd,
   shiftWorkDate,
@@ -51,6 +52,64 @@ const job: Job = {
   color: "#B4F272",
 };
 const stamp = (d: string, t: string) => parseLocal(d, t);
+test("adjusting a running overnight shift preserves breaks and rejects overlaps", () => {
+  const shift = { ...defaultShifts()[1], autoStop: true };
+  const timer = makeTimer(job, shift, stamp("2026-11-17", "18:00"));
+  const now = stamp("2026-11-18", "01:00");
+  const paused = {
+    ...timer,
+    breaks: [
+      {
+        start: stamp("2026-11-17", "20:00"),
+        end: stamp("2026-11-17", "20:30"),
+      },
+    ],
+  };
+  const changed = adjustTimerStart(
+    paused,
+    stamp("2026-11-17", "17:30"),
+    [],
+    now,
+  );
+  assert.deepEqual(changed.breaks, paused.breaks);
+  assert.equal(changed.plannedEnd, stamp("2026-11-18", "03:00"));
+  assert.equal(changed.shift?.workDate, "2026-11-17");
+  assert.throws(() =>
+    adjustTimerStart(paused, stamp("2026-11-17", "20:15"), [], now),
+  );
+  assert.throws(() =>
+    adjustTimerStart(
+      paused,
+      stamp("2026-11-17", "17:30"),
+      [{ ...entry("2026-11-17", "16:00", "18:00") }],
+      now,
+    ),
+  );
+});
+test("holiday records survive backup and invalid or duplicate dates are rejected", () => {
+  const state = freshState();
+  state.holidays = [{ id: "h1", date: "2026-12-25", hours: 7.5, rate: 12 }];
+  assert.deepEqual(
+    validateBackup(JSON.parse(JSON.stringify(state))).holidays,
+    state.holidays,
+  );
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      holidays: [...state.holidays, { ...state.holidays[0], id: "h2" }],
+    }),
+  );
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      holidays: [{ ...state.holidays[0], date: "2026-02-30" }],
+    }),
+  );
+  assert.deepEqual(
+    validateBackup({ ...state, version: 5, holidays: undefined }).holidays,
+    [],
+  );
+});
 const weeklyPolicy = {
   rate: 10,
   overtimeMode: "multiplier" as const,
@@ -241,7 +300,7 @@ test("weekly basis and target snapshots survive later changes to the workplace p
   });
   const old = { ...freshState(), version: 4, jobs: [job], entries: [legacy] };
   const next = validateBackup(old);
-  assert.equal(next.version, 5);
+  assert.equal(next.version, 6);
   assert.deepEqual(next.entries, old.entries);
   assert.deepEqual(
     totals(calculate(next.entries)),
@@ -523,7 +582,7 @@ test("allowance policies survive backup and CSV, reject malformed values, and mi
     jobs: [job],
     entries: [entry()],
   };
-  assert.equal(validateBackup(previous).version, 5);
+  assert.equal(validateBackup(previous).version, 6);
   assert.deepEqual(
     totals(calculate(validateBackup(previous).entries)),
     totals(calculate(previous.entries)),
@@ -731,7 +790,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 6 }));
+  assert.throws(() => validateBackup({ ...s, version: 7 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -900,7 +959,7 @@ test("version 1 migrates without changing existing entries, pay, or running time
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 5);
+  assert.equal(next.version, 6);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -1037,7 +1096,7 @@ test("calendar grids start on Monday, include leap day and contain no adjacent-m
   assert.equal(moveMonth("2026-12", 1), "2027-01");
   assert.equal(moveMonth("2026-01", -1), "2025-12");
 });
-test("version 2 backups migrate unchanged to version 5 so old readers reject new pay policies", () => {
+test("version 2 backups migrate unchanged to version 6 so old readers reject new policies", () => {
   const legacy = {
     ...freshState(),
     version: 2,
@@ -1045,7 +1104,7 @@ test("version 2 backups migrate unchanged to version 5 so old readers reject new
     entries: [entry()],
   };
   const migrated = validateBackup(legacy);
-  assert.equal(migrated.version, 5);
+  assert.equal(migrated.version, 6);
   assert.deepEqual(migrated.entries, legacy.entries);
   assert.deepEqual(migrated.shifts, legacy.shifts);
   assert.equal(totals(calculate(migrated.entries)).amount, 210);

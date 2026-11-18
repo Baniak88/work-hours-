@@ -54,8 +54,9 @@ export type Timer = OvertimePolicy & {
   shift?: ShiftRecord;
   plannedEnd?: number;
 };
+export type Holiday = { id: string; date: string; hours: number; rate: number };
 export type State = {
-  version: 5;
+  version: 6;
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
@@ -63,6 +64,7 @@ export type State = {
   paidWeeks: string[];
   shifts: Shift[];
   preferredShiftId: string;
+  holidays: Holiday[];
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
@@ -97,7 +99,7 @@ export const defaultShifts = (): Shift[] => [
   },
 ];
 export const freshState = (): State => ({
-  version: 5,
+  version: 6,
   jobs: [],
   entries: [],
   timer: null,
@@ -105,6 +107,7 @@ export const freshState = (): State => ({
   paidWeeks: [],
   shifts: defaultShifts(),
   preferredShiftId: "day",
+  holidays: [],
 });
 export const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -424,6 +427,51 @@ export function makeTimer(job: Job, shift: Shift, at: number): Timer {
     ...(shift.autoStop ? { plannedEnd: shiftEnd(shift, at) } : {}),
   };
 }
+export function adjustTimerStart(
+  timer: Timer,
+  start: number,
+  entries: Entry[],
+  now: number,
+): Timer {
+  if (
+    !Number.isFinite(start) ||
+    start <= 0 ||
+    start > now ||
+    now - start > 7 * 86400000
+  )
+    throw new Error(
+      "Początek licznika musi być w ciągu ostatnich 7 dni i nie może być w przyszłości.",
+    );
+  if (entries.some((entry) => entry.end > start))
+    throw new Error("Początek nakłada się na zapisaną zmianę.");
+  if (
+    timer.breaks.some((pause) => pause.start < start) ||
+    (timer.pausedAt !== null && timer.pausedAt < start)
+  )
+    throw new Error(
+      "Początek nie może wypadać po rozpoczęciu zapisanej przerwy.",
+    );
+  const plannedEnd = timer.shift?.autoStop
+    ? shiftEnd(timer.shift, start)
+    : undefined;
+  if (plannedEnd !== undefined && plannedEnd <= now)
+    throw new Error(
+      "Planowany automatyczny koniec już minął. Dodaj tę zmianę jako wpis w kalendarzu.",
+    );
+  return {
+    ...timer,
+    start,
+    ...(timer.shift
+      ? {
+          shift: {
+            ...timer.shift,
+            workDate: shiftWorkDate(timer.shift, start),
+          },
+        }
+      : {}),
+    ...(plannedEnd !== undefined ? { plannedEnd } : {}),
+  };
+}
 export function settleTimer(state: State, now: number): State {
   if (!state.timer?.plannedEnd || now < state.timer.plannedEnd) return state;
   return {
@@ -693,7 +741,8 @@ export function validateBackup(input: unknown): State {
       version !== 2 &&
       version !== 3 &&
       version !== 4 &&
-      version !== 5) ||
+      version !== 5 &&
+      version !== 6) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
@@ -707,6 +756,30 @@ export function validateBackup(input: unknown): State {
     !Array.isArray(s.paidWeeks) ||
     s.jobs.length > 1000 ||
     s.entries.length > 100000
+  )
+    return fail();
+  if (
+    version === 6 &&
+    (!Array.isArray(s.holidays) ||
+      s.holidays.length > 100000 ||
+      !s.holidays.every(
+        (h) =>
+          h &&
+          text(h.id) &&
+          !!h.id &&
+          typeof h.date === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(h.date) &&
+          Number.isFinite(localDate(h.date).getTime()) &&
+          dateKey(localDate(h.date)) === h.date &&
+          number(h.hours) &&
+          h.hours > 0 &&
+          h.hours <= 24 &&
+          number(h.rate) &&
+          h.rate >= 0 &&
+          h.rate <= 100000,
+      ) ||
+      new Set(s.holidays.map((h) => h.id)).size !== s.holidays.length ||
+      new Set(s.holidays.map((h) => h.date)).size !== s.holidays.length)
   )
     return fail();
   if (
@@ -823,9 +896,15 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   return version === 1
-    ? { ...s, version: 5, shifts: defaultShifts(), preferredShiftId: "day" }
-    : version !== 5
-      ? { ...s, version: 5 }
+    ? {
+        ...s,
+        version: 6,
+        holidays: [],
+        shifts: defaultShifts(),
+        preferredShiftId: "day",
+      }
+    : version !== 6
+      ? { ...s, version: 6, holidays: [] }
       : s;
 }
 export function demoState(): State {

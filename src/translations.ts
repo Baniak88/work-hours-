@@ -32,6 +32,46 @@ export const english: Record<string, string> = {
   "Czas pracy": "Working time",
   "Start zmiany": "Start shift",
   Godzina: "Time",
+  "Popraw początek": "Adjust start",
+  "Popraw początek zmiany": "Adjust shift start",
+  "Początek zmiany poprawiony": "Shift start updated",
+  "Usuń zmianę": "Delete shift",
+  "Usunąć tę zmianę?": "Delete this shift?",
+  "Zmiana usunięta": "Shift deleted",
+  "Urlop w tym miesiącu": "Holiday this month",
+  "Urlop w wybranym roku": "Holiday in the selected year",
+  "Urlopy są zapisywane w kopii JSON. Raport CSV zawiera wyłącznie czas pracy.":
+    "Holiday is included in the JSON backup. CSV reports contain worked time only.",
+  "Dodaj urlop": "Add holiday",
+  "Edytuj urlop": "Edit holiday",
+  "Usuń urlop": "Delete holiday",
+  "Usunąć ten urlop?": "Delete this holiday?",
+  "Urlop zapisany": "Holiday saved",
+  "Urlop usunięty": "Holiday deleted",
+  URLOP: "LEAVE",
+  "Urlop w tym dniu jest już zapisany.":
+    "Holiday is already recorded on this day.",
+  "Wybrany dzień": "Selected day",
+  "Urlop jest liczony osobno od przepracowanych godzin i nadgodzin.":
+    "Holiday is calculated separately from worked hours and overtime.",
+  "Usuniemy wszystkie wpisy, urlopy, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.":
+    "All entries, holiday, workplaces and payment marks will be removed from this device. Shift profiles, currency and settings will be kept. A JSON backup is needed to undo this.",
+  "Początek licznika musi być w ciągu ostatnich 7 dni i nie może być w przyszłości.":
+    "The timer start must be within the last 7 days and cannot be in the future.",
+  "Początek nie może wypadać po rozpoczęciu zapisanej przerwy.":
+    "The start cannot be after a recorded break begins.",
+  "Planowany automatyczny koniec już minął. Dodaj tę zmianę jako wpis w kalendarzu.":
+    "The scheduled automatic end has passed. Add this shift as a calendar entry.",
+  "Data urlopu": "Holiday date",
+  "Godziny urlopu (godziny:minuty)": "Holiday hours (hours:minutes)",
+  "Ten dzień zostanie usunięty z kalendarza i podsumowania urlopów.":
+    "This day will be removed from the calendar and holiday summary.",
+  "Możesz wpisać 0 dla urlopu bezpłatnego. Urlop i jego kwota są podsumowane osobno; nie zwiększają normy nadgodzin.":
+    "Enter 0 for unpaid leave. Holiday and its pay are shown separately and do not count towards overtime thresholds.",
+  "Ustaw rzeczywistą datę i godzinę rozpoczęcia. Zapisane przerwy pozostaną bez zmian.":
+    "Enter the actual start date and time. Recorded breaks will stay unchanged.",
+  "Usuniemy profil zmiany. Zapisane wpisy i uruchomiony licznik zachowają swoje dane.":
+    "The shift profile will be removed. Existing entries and the running timer retain their details.",
   "Zakończ zmianę": "End shift",
   Przerwa: "Break",
   Wznów: "Resume",

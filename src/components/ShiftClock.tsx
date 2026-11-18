@@ -43,6 +43,7 @@ type Props = {
   onPause: () => void;
   onStop: () => void;
   onStartAt: () => void;
+  onAdjust: () => void;
 };
 function Icon({
   name,
@@ -272,24 +273,32 @@ export default function ShiftClock(p: Props) {
         </View>
       </View>
       {active ? (
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Action
-              label={active.pausedAt === null ? "Przerwa" : "Wznów"}
-              icon={active.pausedAt === null ? "pause" : "play"}
-              onPress={p.onPause}
-              disabled={p.busy}
-            />
+        <View style={{ gap: 8 }}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Action
+                label={active.pausedAt === null ? "Przerwa" : "Wznów"}
+                icon={active.pausedAt === null ? "pause" : "play"}
+                onPress={p.onPause}
+                disabled={p.busy}
+              />
+            </View>
+            <View style={{ flex: 1.3 }}>
+              <Action
+                label="Zakończ zmianę"
+                icon="stop"
+                onPress={p.onStop}
+                primary
+                disabled={p.busy}
+              />
+            </View>
           </View>
-          <View style={{ flex: 1.3 }}>
-            <Action
-              label="Zakończ zmianę"
-              icon="stop"
-              onPress={p.onStop}
-              primary
-              disabled={p.busy}
-            />
-          </View>
+          <Action
+            label="Popraw początek"
+            icon="create-outline"
+            onPress={p.onAdjust}
+            disabled={p.busy}
+          />
         </View>
       ) : (
         <View style={styles.row}>

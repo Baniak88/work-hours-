@@ -100,7 +100,14 @@ export function removeSampleData(state: State): State {
 }
 export function clearWorkData(state: State): State {
   if (state.timer) throw new Error("Najpierw zakończ aktywną zmianę.");
-  return { ...state, jobs: [], entries: [], timer: null, paidWeeks: [] };
+  return {
+    ...state,
+    jobs: [],
+    entries: [],
+    holidays: [],
+    timer: null,
+    paidWeeks: [],
+  };
 }
 export function removeJobData(state: State, jobId: string): State {
   if (state.timer?.jobId === jobId)
