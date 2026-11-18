@@ -82,13 +82,13 @@ Weryfikacja: **51 testów obliczeń, danych i preferencji**, **5 testów offline
 
 ## iPhone — bezpłatna instalacja z Safari (1.9)
 
-**[Otwórz Work Hours na iPhonie](https://work-hours-osobiste.daintypersimmon4.chatgpt.site)**. Link jest dostępny bez logowania do ChatGPT i można go wysłać koledze. Udostępniona jest sama aplikacja; każdy użytkownik ma własne dane na swoim urządzeniu. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
+**[Otwórz Work Hours na iPhonie](https://baniak88.github.io/work-hours-/)**. Link jest dostępny bez logowania do ChatGPT i można go wysłać koledze. Udostępniona jest sama aplikacja; każdy użytkownik ma własne dane na swoim urządzeniu. Godziny i stawki zapisują się lokalnie na urządzeniu, a nie na serwerze.
 
 1. Otwórz powyższy adres w **Safari**. Jeśli masz nadal wcześniejszy ekran logowania, odśwież stronę okrągłą strzałką przy pasku adresu. Konto ChatGPT nie jest potrzebne.
 2. Na dole Safari naciśnij **Udostępnij** (kwadrat ze strzałką w górę), następnie **Do ekranu początkowego → Dodaj**. Jeżeli jest opcja „Otwórz jako aplikację”, włącz ją.
 3. Uruchom ikonę **Work Hours**. Przy pierwszym uruchomieniu pozostaw internet do potwierdzenia gotowości offline w ustawieniach. Kolejne uruchomienia działają bez sieci.
 
-Historię z Androida przeniesiesz kopią JSON: zapisz ją na Androidzie i przywróć na iPhonie. Przed rozpoczęciem ewidencji sprawdź dane po uruchomieniu z ikony, ponieważ zapis Safari i aplikacji na ekranie może być oddzielny.
+Dane z poprzedniego adresu internetowego nie przenoszą się automatycznie. Zapisz w starej aplikacji kopię JSON i przywróć ją w nowej. Historię z Androida przeniesiesz kopią JSON: zapisz ją na Androidzie i przywróć na iPhonie. Przed rozpoczęciem ewidencji sprawdź dane po uruchomieniu z ikony, ponieważ zapis Safari i aplikacji na ekranie może być oddzielny.
 
 To wersja PWA dodawana do ekranu głównego: nie wymaga App Store, komputera, Expo Go ani płatnego Apple Developer. Natywny plik IPA pozostaje osobną opcją wymagającą podpisu Apple. Bezpłatny Personal Team z Xcode wymaga Maca i ponownego podpisania po 7 dniach ([zasady Apple](https://developer.apple.com/support/compare-memberships/)).
 
