@@ -328,6 +328,17 @@ export default function ShiftClock(p: Props) {
           </View>
         </View>
         <Text style={styles.small}>Przerwy nie wliczają się do normy</Text>
+        {mode === "week" && (
+          <Text style={styles.small}>
+            Nadgodziny dopiero po tygodniowej normie. Norma pojedynczej zmiany
+            nie uruchamia nadgodzin.
+          </Text>
+        )}
+        {!!active?.autoBreakMinutes && (
+          <Text
+            style={styles.small}
+          >{`Przerwa automatyczna: ${active.autoBreakMinutes} min na zmianę. Jeśli zapisane przerwy są krótsze, brakujący czas odejmiemy po zakończeniu. Wyniki na żywo jeszcze go nie uwzględniają.`}</Text>
+        )}
         {mode === "both" && (
           <Text style={styles.small}>
             Nadgodziny po przekroczeniu dowolnej normy, bez podwójnego

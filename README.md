@@ -2,6 +2,16 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Wersja 1.9 — nadgodziny tygodniowe i przerwy
+
+Nadgodziny nowych i aktywnych zmian zaczynają się **wyłącznie po normie tygodniowej** miejsca pracy, np. 39:00. Cel pojedynczej zmiany nie uruchamia nadgodzin. Każde miejsce zachowuje swoją wcześniej ustawioną normę; jeśli jej nie miało, początkowo wynosi 40:00 — wpisz właściwą przez **Zmień normę** na pulpicie.
+
+Dotychczasowe wpisy zachowują swoje zasady i kwoty. Aby poprawić je na normę tygodniową, wybierz **Przelicz wcześniejsze wpisy**, wpisz normę i potwierdź. Przeliczenie obejmuje wszystkie wpisy tego miejsca pracy; stawki i przerwy zostają, ale zarobki i nadgodziny mogą się zmienić. Ręczne oznaczenia wypłat nie są zmieniane. Przed przeliczeniem możesz zapisać kopię JSON.
+
+W **Ustawienia → Przerwa** wpisz liczbę minut i wybierz ręczne lub automatyczne rozliczenie. Domyślnie jest 0 minut i tryb ręczny. W trybie automatycznym po zakończeniu nowej zmiany brakująca część przerwy jest odejmowana z końca pracy; ręcznie zapisane przerwy i wcześniejsze części tej samej zmiany są uwzględniane, bez podwójnego odejmowania. Podsumowania na żywo uwzględniają tylko zarejestrowane przerwy — brakująca automatyczna część zostanie odjęta po zatrzymaniu, co może zmienić wskazaną kwotę i nadgodziny. Ustawienie dotyczy kolejnych uruchomień. Wpisy ręczne proponują ustawioną długość przerwy.
+
+Nowa kopia JSON ma format 7. Kopie 1–6 są odczytywane, a zapisane wcześniej wpisy zachowują swoje reguły do czasu świadomego przeliczenia. Przed przenoszeniem kopii zaktualizuj aplikację na obu urządzeniach.
+
 ## Wersja 1.8 — czytelne normy i podsumowanie na żywo
 
 Na pulpicie widać łączny czas danej zmiany, a obok siebie normę zmiany i tygodnia oraz czas pozostały do każdej z nich. Przerwy są odliczane. Normę tygodnia ustawisz bezpośrednio przyciskiem **Zmień normę**: wpisz godziny i minuty, np. 37:30, oraz wybierz moment rozpoczęcia nadgodzin. Norma tygodnia dotyczy wybranego miejsca pracy. Nowe ustawienie obejmuje także trwający licznik; wcześniejsze wpisy zachowują własne reguły, a stawka aktywnego licznika pozostaje bez zmian.

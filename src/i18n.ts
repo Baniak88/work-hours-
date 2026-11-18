@@ -2,6 +2,11 @@ import { english } from "./translations";
 export type Language = "pl" | "en";
 type Rule = [RegExp, (...parts: string[]) => string];
 const rules: Rule[] = [
+  [
+    /^Przerwa automatyczna: (\d+) min na zmianę\. Jeśli zapisane przerwy są krótsze, brakujący czas odejmiemy po zakończeniu\. Wyniki na żywo jeszcze go nie uwzględniają\.$/,
+    (minutes) =>
+      `Automatic break: ${minutes} minutes per shift. If recorded breaks are shorter, the missing time is deducted when the shift ends. Live totals do not include it yet.`,
+  ],
   [/^Stawka urlopu \((.+)\)$/, (unit) => `Holiday rate (${unit})`],
   [
     /^(\d+) dni · (.+) h · (.+)$/,

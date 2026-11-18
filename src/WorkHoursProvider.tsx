@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { AppState } from "react-native";
-import { State, settleTimer, timeLabel } from "./domain";
+import { State, settleTimer, syncTimerBreakContext, timeLabel } from "./domain";
 import { readState, writeState } from "./storage";
 
 type Store = {
@@ -36,9 +36,12 @@ export function WorkHoursProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = await readState();
       setLoadError("");
-      const ready = settleTimer(stored, Date.now());
+      const withBreakContext = syncTimerBreakContext(stored);
+      const ready = settleTimer(withBreakContext, Date.now());
       if (ready !== stored) {
         await writeState(ready);
+      }
+      if (ready !== withBreakContext) {
         setNotice(
           `Zmiana zakończona automatycznie o ${timeLabel(stored.timer!.plannedEnd!)}.`,
         );
@@ -79,11 +82,12 @@ export function WorkHoursProvider({ children }: { children: React.ReactNode }) {
       lock.current = true;
       setBusy(true);
       try {
-        const committed = settleTimer(next, Date.now());
+        const withBreakContext = syncTimerBreakContext(next);
+        const committed = settleTimer(withBreakContext, Date.now());
         await writeState(committed);
         current.current = committed;
         setState(committed);
-        if (committed !== next)
+        if (committed !== withBreakContext)
           setNotice(
             `Zmiana zakończona automatycznie o ${timeLabel(next.timer!.plannedEnd!)}.`,
           );

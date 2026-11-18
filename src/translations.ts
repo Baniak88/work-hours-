@@ -63,6 +63,36 @@ export const english: Record<string, string> = {
   "2 dni temu": "2 days ago",
   "Tydzień temu": "A week ago",
   "Wybierz dzień rozpoczęcia": "Choose the start day",
+  "Ustaw przerwę": "Set break",
+  "Ustawienia przerwy": "Break settings",
+  "Ustawienia przerwy zapisane": "Break settings saved",
+  Automatycznie: "Automatically",
+  Ręcznie: "Manually",
+  "Domyślna przerwa (minuty)": "Default break (minutes)",
+  "Sposób rozliczania przerwy": "How to account for breaks",
+  "Ręcznie — używam przycisku Przerwa": "Manually — use the Break button",
+  "Automatycznie po zakończeniu zmiany": "Automatically after ending the shift",
+  "Ręczny wpis otrzyma proponowaną długość przerwy. W trybie automatycznym po zakończeniu zmiany odliczymy brakujące minuty, jeśli zapisane przerwy są krótsze. Ręczne przerwy nie są liczone podwójnie. Brakujące minuty przypisujemy do końca zmiany. Ustawienie dotyczy nowych uruchomień.":
+    "Manual entries use this suggested break. In automatic mode, any missing minutes are deducted after the shift if recorded breaks are shorter. Manual breaks are not counted twice. Missing minutes are assigned to the end of the shift. This applies to newly started shifts.",
+  "Jeśli kilka razy uruchomisz licznik w ramach tej samej zmiany, wcześniejsze przerwy zostaną uwzględnione.":
+    "If you start the timer more than once for the same shift, earlier breaks are taken into account.",
+  "Podaj liczbę minut od 0 do 1440.": "Enter between 0 and 1440 minutes.",
+  "Przelicz również wcześniejsze wpisy": "Also recalculate earlier entries",
+  "Przelicz wcześniejsze wpisy": "Recalculate earlier entries",
+  "Wcześniejsze wpisy mają inną zasadę nadgodzin":
+    "Earlier entries use a different overtime rule",
+  "Możesz przeliczyć je według normy tygodniowej. Stawki i przerwy pozostaną bez zmian.":
+    "You can recalculate them using the weekly target. Rates and breaks will not change.",
+  "Po zaznaczeniu wcześniejsze wpisy tego miejsca pracy zostaną przeliczone według nowej normy tygodniowej. Ich stawki i przerwy pozostaną bez zmian.":
+    "When selected, earlier entries for this workplace will be recalculated using the new weekly target. Rates and breaks will stay unchanged.",
+  "Przeliczyć wcześniejsze wpisy?": "Recalculate earlier entries?",
+  "Przelicz i zapisz": "Recalculate and save",
+  "Wcześniejsze wpisy tego miejsca pracy zostaną przeliczone według wpisanej normy tygodniowej. Ich stawki i przerwy pozostaną bez zmian, ale kwoty i oznaczenie nadgodzin mogą się zmienić. Oznaczenia wypłaty pozostaną bez zmian.":
+    "Earlier entries for this workplace will be recalculated using the entered weekly target. Rates and breaks remain unchanged, but amounts and overtime may change. Payment markers remain unchanged.",
+  "Ten wcześniejszy wpis zachowuje swoją zapisaną zasadę nadgodzin.":
+    "This earlier entry keeps its saved overtime rule.",
+  "Nadgodziny zaczynają się dopiero po normie tygodniowej. Tydzień trwa od poniedziałku do niedzieli.":
+    "Overtime starts only after the weekly target. The week runs from Monday to Sunday.",
   "Poprzedni dzień": "Previous day",
   "Następny dzień": "Next day",
   "Wpisz zakończoną zmianę z dowolnego wcześniejszego dnia. Ten formularz nie uruchamia zegara.":

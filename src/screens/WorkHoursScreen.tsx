@@ -38,12 +38,14 @@ import {
   Shift,
   Slice,
   makeTimer,
+  priorShiftBreakMilliseconds,
   adjustTimerStart,
   shiftWorkDate,
   validateShift,
   calculate,
   previewSlices,
   updateActiveWeeklyPolicy,
+  setWeeklyTarget,
   checkEntry,
   csv,
   dateKey,
@@ -97,7 +99,8 @@ type Form = {
     | "adjust"
     | "holiday"
     | "holidaySettings"
-    | "weeklyNorm";
+    | "weeklyNorm"
+    | "breakSettings";
   id?: string;
   [key: string]: string | undefined;
 };
@@ -386,12 +389,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       overtimePercent: j ? String(policyOvertimePercent(j) ?? "") : "150",
       shiftAllowancePercent: String(j?.shiftAllowancePercent ?? 0),
       overtimeBase: j?.overtimeBase ?? "basic",
-      overtimeThreshold: j ? (j.overtimeThreshold ?? "shift") : "both",
+      overtimeThreshold: "week",
       weeklyNorm: formatDuration((j?.weeklyHours ?? 40) * 60),
       color: j?.color ?? C.green,
     });
   }
-  function openWeeklyNorm(j?: Job) {
+  function openWeeklyNorm(j?: Job, recalculateHistory = false) {
     if (!j) {
       openJob();
       return;
@@ -402,10 +405,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       type: "weeklyNorm",
       id: j.id,
       weeklyNorm: formatDuration((current.weeklyHours ?? 40) * 60),
-      overtimeThreshold:
-        !current.overtimeThreshold || current.overtimeThreshold === "shift"
-          ? "both"
-          : current.overtimeThreshold,
+      overtimeThreshold: "week",
+      recalculateHistory: String(recalculateHistory),
     });
   }
   function updateRate(key: string, value: string) {
@@ -420,8 +421,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     );
   }
   function payOptions(f: Form) {
-    const threshold = (f.overtimeThreshold ?? "shift") as
-      "shift" | "week" | "both";
+    const threshold = (
+      f.type === "entry" && f.id ? (f.overtimeThreshold ?? "shift") : "week"
+    ) as "shift" | "week" | "both";
     let weeklyHours = 40;
     try {
       weeklyHours = parseWeeklyNormHours(f.weeklyNorm ?? "40:00");
@@ -538,24 +540,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             />
           ))}
         </View>
-        <Text style={s.fieldLabel}>Kiedy zaczynają się nadgodziny?</Text>
-        <View style={[s.row, { flexWrap: "wrap" }]}>
-          {(
-            [
-              ["shift", "Po normie zmiany"],
-              ["week", "Po normie tygodnia"],
-              ["both", "Zmiana lub tydzień"],
-            ] as const
-          ).map(([value, label]) => (
-            <Chip
-              key={value}
-              label={label}
-              active={(form.overtimeThreshold ?? "shift") === value}
-              onPress={() => updateRate("overtimeThreshold", value)}
-            />
-          ))}
-        </View>
-        {form.overtimeThreshold !== "shift" && (
+        {(form.type !== "entry" ||
+          !form.id ||
+          form.overtimeThreshold !== "shift") && (
           <>
             <Field
               label="Tygodniowa norma (godziny:minuty)"
@@ -567,12 +554,6 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               Poniedziałek–niedziela, osobno dla tego miejsca pracy. Liczą się
               wszystkie płatne godziny; przerwy są odliczane.
             </Text>
-            {form.overtimeThreshold === "both" && (
-              <Text style={s.caption}>
-                Nadgodzina jest liczona tylko raz. Do tygodnia liczą się także
-                godziny wcześniej oznaczone jako nadgodziny zmiany.
-              </Text>
-            )}
           </>
         )}
         <View
@@ -603,11 +584,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </View>
         </View>
         <Text style={s.caption}>
-          {form.overtimeThreshold === "week"
-            ? "Nadgodziny dopiero po tygodniowej normie. Norma pojedynczej zmiany nie uruchamia nadgodzin."
-            : form.overtimeThreshold === "both"
-              ? "Obowiązuje wcześniejszy próg: norma zmiany lub norma tygodnia."
-              : "Nadgodziny zaczynają się po normie ustawionej dla zmiany. Przerwy są niepłatne."}
+          {form.type === "entry" && form.id && form.overtimeThreshold !== "week"
+            ? "Ten wcześniejszy wpis zachowuje swoją zapisaną zasadę nadgodzin."
+            : "Nadgodziny dopiero po tygodniowej normie. Norma pojedynczej zmiany nie uruchamia nadgodzin."}
         </Text>
       </View>
     );
@@ -701,7 +680,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               (e.end - e.start) / 60000 -
                 minutesWorked(e.start, e.end, e.breaks),
             )
-          : 0,
+          : data.defaultBreakMinutes,
       ),
       endDateEdited: e ? "true" : "false",
       note: e?.note ?? "",
@@ -769,6 +748,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       startTime: timeLabel(timer.start),
     });
   }
+  function openBreakSettings() {
+    setFormError("");
+    setForm({
+      type: "breakSettings",
+      minutes: String(data.defaultBreakMinutes),
+      automatic: String(data.automaticBreak),
+    });
+  }
   function openHoliday(value?: Holiday) {
     setFormError("");
     setForm({
@@ -804,6 +791,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   ) {
     if (!id || timer) return;
     const j = jobFor(id);
+    const selectedShift = data.shifts.find((x) => x.id === shiftId) ?? shift;
+    const autoBreakMinutes = data.automaticBreak ? data.defaultBreakMinutes : 0;
     if (data.entries.some((e) => e.end > at)) {
       setFormError("Początek nakłada się na zapisaną zmianę.");
       setNotice("Początek nakłada się na zapisaną zmianę.");
@@ -815,8 +804,16 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           ...data,
           timer: makeTimer(
             j,
-            data.shifts.find((x) => x.id === shiftId) ?? shift,
+            selectedShift,
             at,
+            autoBreakMinutes,
+            priorShiftBreakMilliseconds(
+              data.entries,
+              id,
+              selectedShift,
+              at,
+              autoBreakMinutes,
+            ),
           ),
         },
         "Licznik uruchomiony",
@@ -948,27 +945,32 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       if (form.type === "weeklyNorm") {
         const currentJob = data.jobs.find((j) => j.id === form.id);
         if (!currentJob) throw new Error("Wybierz projekt.");
-        const overtimeThreshold = form.overtimeThreshold;
+        const next = setWeeklyTarget(
+          data,
+          currentJob.id,
+          parseWeeklyNormHours(form.weeklyNorm ?? ""),
+          form.recalculateHistory === "true",
+        );
+        if (await save(next, "Norma tygodniowa zapisana")) setForm(null);
+        return;
+      }
+      if (form.type === "breakSettings") {
+        const minutes = Number(form.minutes);
         if (
-          overtimeThreshold !== "shift" &&
-          overtimeThreshold !== "week" &&
-          overtimeThreshold !== "both"
+          !form.minutes?.trim() ||
+          !Number.isInteger(minutes) ||
+          minutes < 0 ||
+          minutes > 1440
         )
-          throw new Error("Wybierz sposób naliczania nadgodzin.");
-        const updated: Job = {
-          ...currentJob,
-          weeklyHours: parseWeeklyNormHours(form.weeklyNorm ?? ""),
-          overtimeThreshold,
-        };
-        validateOvertime(updated);
+          throw new Error("Podaj liczbę minut od 0 do 1440.");
         if (
           await save(
             {
               ...data,
-              jobs: data.jobs.map((j) => (j.id === updated.id ? updated : j)),
-              timer: updateActiveWeeklyPolicy(data.timer, updated),
+              defaultBreakMinutes: minutes,
+              automaticBreak: form.automatic === "true",
             },
-            "Norma tygodniowa zapisana",
+            "Ustawienia przerwy zapisane",
           )
         )
           setForm(null);
@@ -1406,6 +1408,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           x.entry.shift.workDate === target.workDate,
       ),
     ).minutes;
+    const historicalPolicies = data.entries.filter(
+      (entry) =>
+        entry.jobId === timerJob?.id &&
+        (entry.overtimeThreshold ?? "shift") !== "week",
+    ).length;
     return (
       <>
         {header(
@@ -1538,6 +1545,23 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </View>
           </View>
         </View>
+        {historicalPolicies > 0 && timerJob && (
+          <View style={[s.card, { padding: 14, marginTop: 14, gap: 8 }]}>
+            <Text style={s.rowTitle}>
+              Wcześniejsze wpisy mają inną zasadę nadgodzin
+            </Text>
+            <Text style={s.caption}>
+              Możesz przeliczyć je według normy tygodniowej. Stawki i przerwy
+              pozostaną bez zmian.
+            </Text>
+            <Button
+              label="Przelicz wcześniejsze wpisy"
+              icon="calculator-outline"
+              kind="secondary"
+              onPress={() => openWeeklyNorm(timerJob, true)}
+            />
+          </View>
+        )}
         {!timer &&
           data.entries.length > 0 &&
           (() => {
@@ -2597,6 +2621,15 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             onPress={() => openJob()}
           />
         </View>
+        <Text style={s.settingsHeading}>PRZERWA</Text>
+        <View style={s.card}>
+          {settingRow(
+            "cafe-outline",
+            "Ustaw przerwę",
+            `${data.defaultBreakMinutes} min · ${tr(data.automaticBreak ? "Automatycznie" : "Ręcznie")}`,
+            openBreakSettings,
+          )}
+        </View>
         <Text style={s.settingsHeading}>ZMIANY I NORMA</Text>
         <Text style={[s.caption, { marginBottom: 12 }]}>
           Wybierz jedną zmianę na pulpit. Uruchomiony licznik zachowuje swoją
@@ -2892,7 +2925,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.8.0 · dane na Twoim urządzeniu
+          Work Hours · 1.9.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3026,29 +3059,31 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "weeklyNorm"
-                      ? "Norma tygodniowa"
-                      : form?.type === "holidaySettings"
-                        ? "Ustawienia urlopu"
-                        : form?.type === "holiday"
-                          ? form.id
-                            ? "Edytuj urlop"
-                            : "Dodaj urlop"
-                          : form?.type === "shift"
+                    {form?.type === "breakSettings"
+                      ? "Ustawienia przerwy"
+                      : form?.type === "weeklyNorm"
+                        ? "Norma tygodniowa"
+                        : form?.type === "holidaySettings"
+                          ? "Ustawienia urlopu"
+                          : form?.type === "holiday"
                             ? form.id
-                              ? "Ustawienia zmiany"
-                              : "Własna zmiana"
-                            : form?.type === "job"
+                              ? "Edytuj urlop"
+                              : "Dodaj urlop"
+                            : form?.type === "shift"
                               ? form.id
-                                ? "Edytuj projekt"
-                                : "Nowy projekt"
-                              : form?.type === "adjust"
-                                ? "Popraw początek zmiany"
-                                : form?.type === "start"
-                                  ? "Rozpocznij od…"
-                                  : form?.id
-                                    ? "Edytuj wpis"
-                                    : "Dodaj przepracowaną zmianę"}
+                                ? "Ustawienia zmiany"
+                                : "Własna zmiana"
+                              : form?.type === "job"
+                                ? form.id
+                                  ? "Edytuj projekt"
+                                  : "Nowy projekt"
+                                : form?.type === "adjust"
+                                  ? "Popraw początek zmiany"
+                                  : form?.type === "start"
+                                    ? "Rozpocznij od…"
+                                    : form?.id
+                                      ? "Edytuj wpis"
+                                      : "Dodaj przepracowaną zmianę"}
                   </Text>
                 </View>
                 <Pressable
@@ -3074,7 +3109,40 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{ flexShrink: 1 }}
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "weeklyNorm" ? (
+                {form?.type === "breakSettings" ? (
+                  <>
+                    <Field
+                      label="Domyślna przerwa (minuty)"
+                      numeric
+                      value={form.minutes}
+                      onChange={(v) => setField("minutes", v)}
+                    />
+                    <Text style={s.fieldLabel}>Sposób rozliczania przerwy</Text>
+                    <View style={{ gap: 8 }}>
+                      <Chip
+                        label="Ręcznie — używam przycisku Przerwa"
+                        active={form.automatic !== "true"}
+                        onPress={() => setField("automatic", "false")}
+                      />
+                      <Chip
+                        label="Automatycznie po zakończeniu zmiany"
+                        active={form.automatic === "true"}
+                        onPress={() => setField("automatic", "true")}
+                      />
+                    </View>
+                    <Text style={s.caption}>
+                      Ręczny wpis otrzyma proponowaną długość przerwy. W trybie
+                      automatycznym po zakończeniu zmiany odliczymy brakujące
+                      minuty, jeśli zapisane przerwy są krótsze. Ręczne przerwy
+                      nie są liczone podwójnie. Brakujące minuty przypisujemy do
+                      końca zmiany. Ustawienie dotyczy nowych uruchomień.
+                    </Text>
+                    <Text style={s.caption}>
+                      Jeśli kilka razy uruchomisz licznik w ramach tej samej
+                      zmiany, wcześniejsze przerwy zostaną uwzględnione.
+                    </Text>
+                  </>
+                ) : form?.type === "weeklyNorm" ? (
                   <>
                     <Field
                       label="Tygodniowa norma (godziny:minuty)"
@@ -3082,29 +3150,24 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       value={form.weeklyNorm}
                       onChange={(v) => setField("weeklyNorm", v)}
                     />
-                    <Text style={s.fieldLabel}>
-                      Kiedy zaczynają się nadgodziny?
-                    </Text>
-                    <View style={[s.row, { flexWrap: "wrap" }]}>
-                      {(
-                        [
-                          ["both", "Zmiana lub tydzień"],
-                          ["week", "Po normie tygodnia"],
-                          ["shift", "Po normie zmiany"],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <Chip
-                          key={value}
-                          label={label}
-                          active={form.overtimeThreshold === value}
-                          onPress={() => setField("overtimeThreshold", value)}
-                        />
-                      ))}
-                    </View>
                     <Text style={s.caption}>
-                      Tydzień trwa od poniedziałku do niedzieli. Zmiana normy
-                      obowiązuje również w aktywnym liczniku; wcześniejsze wpisy
-                      zachowują swoje ustawienia.
+                      Nadgodziny zaczynają się dopiero po normie tygodniowej.
+                      Tydzień trwa od poniedziałku do niedzieli.
+                    </Text>
+                    <Chip
+                      label="Przelicz również wcześniejsze wpisy"
+                      active={form.recalculateHistory === "true"}
+                      onPress={() =>
+                        setField(
+                          "recalculateHistory",
+                          form.recalculateHistory === "true" ? "false" : "true",
+                        )
+                      }
+                    />
+                    <Text style={s.caption}>
+                      Po zaznaczeniu wcześniejsze wpisy tego miejsca pracy
+                      zostaną przeliczone według nowej normy tygodniowej. Ich
+                      stawki i przerwy pozostaną bez zmian.
                     </Text>
                   </>
                 ) : form?.type === "holidaySettings" ? (
@@ -3521,7 +3584,22 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         : "Zapisz"
                   }
                   icon={form?.type === "start" ? "play" : "checkmark"}
-                  onPress={() => void submit()}
+                  onPress={() => {
+                    if (
+                      form?.type === "weeklyNorm" &&
+                      form.recalculateHistory === "true"
+                    ) {
+                      setConfirm({
+                        title: "Przeliczyć wcześniejsze wpisy?",
+                        body: "Wcześniejsze wpisy tego miejsca pracy zostaną przeliczone według wpisanej normy tygodniowej. Ich stawki i przerwy pozostaną bez zmian, ale kwoty i oznaczenie nadgodzin mogą się zmienić. Oznaczenia wypłaty pozostaną bez zmian.",
+                        label: "Przelicz i zapisz",
+                        action: () => {
+                          setConfirm(null);
+                          void submit();
+                        },
+                      });
+                    } else void submit();
+                  }}
                   disabled={busy}
                 />
                 {form?.type === "shift" &&

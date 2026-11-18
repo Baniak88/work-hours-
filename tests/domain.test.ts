@@ -5,6 +5,9 @@ import {
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
+  setWeeklyTarget,
+  priorShiftBreakMilliseconds,
+  syncTimerBreakContext,
   duration,
   overtimePercentInput,
   extraHourlyRate,
@@ -248,6 +251,162 @@ test("updating the weekly target changes the active shift's overtime preview imm
   assert.equal(totals(previewSlices(prior, changed, now)).extra, 0);
   assert.equal(prior[0].weeklyHours, 40);
 });
+test("weekly-only target begins overtime after 39 hours and optionally corrects past entries", () => {
+  const state = freshState();
+  state.jobs = [{ ...job, overtimeThreshold: "both", weeklyHours: 39 }];
+  state.entries = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19"].map(
+    (d) =>
+      weeklyEntry(d, "06:00", "16:00", {
+        overtimeThreshold: "both",
+        weeklyHours: 39,
+      }),
+  );
+  const preserved = setWeeklyTarget(state, job.id, 39, false);
+  assert.equal(preserved.jobs[0].overtimeThreshold, "week");
+  assert.deepEqual(preserved.entries, state.entries);
+  const corrected = setWeeklyTarget(state, job.id, 39, true);
+  assert.equal(totals(calculate(corrected.entries)).minutes, 40 * 60);
+  assert.equal(totals(calculate(corrected.entries)).extra, 60);
+  assert.equal(corrected.entries[0].rate, state.entries[0].rate);
+  assert.deepEqual(corrected.entries[0].breaks, state.entries[0].breaks);
+  assert.equal(state.entries[0].overtimeThreshold, "both");
+});
+test("automatic break fills only the missing recorded minutes after a shift", () => {
+  const shift = defaultShifts()[0],
+    start = stamp("2026-10-20", "06:00"),
+    end = stamp("2026-10-20", "14:00");
+  const timer = makeTimer({ ...job, ...weeklyPolicy }, shift, start, 30);
+  const noManual = finishTimer(timer, end, "auto");
+  assert.equal(noManual.breaks.length, 1);
+  assert.equal(noManual.breaks[0].start, end - 30 * 60000);
+  assert.equal(totals(calculate([noManual])).minutes, 450);
+  const withTen = {
+    ...timer,
+    breaks: [
+      { start: start + 3 * 3600000, end: start + 3 * 3600000 + 10 * 60000 },
+    ],
+  };
+  const finishedTen = finishTimer(withTen, end, "partial");
+  assert.equal(totals(calculate([finishedTen])).minutes, 450);
+  assert.equal(
+    finishedTen.breaks.reduce((sum, b) => sum + b.end - b.start, 0),
+    30 * 60000,
+  );
+  const withForty = {
+    ...timer,
+    breaks: [
+      { start: start + 3 * 3600000, end: start + 3 * 3600000 + 40 * 60000 },
+    ],
+  };
+  assert.equal(
+    totals(calculate([finishTimer(withForty, end, "long")])).minutes,
+    440,
+  );
+  assert.equal(
+    totals(calculate([finishTimer(timer, start + 10 * 60000, "short")]))
+      .minutes,
+    0,
+  );
+  assert.equal(totals(previewSlices([], timer, end)).minutes, 480);
+});
+test("automatic break at midnight is attributed to the end of the shift", () => {
+  const start = stamp("2026-11-22", "23:40"),
+    end = stamp("2026-11-23", "00:20");
+  const timer = makeTimer(
+    { ...job, ...weeklyPolicy },
+    defaultShifts()[1],
+    start,
+    30,
+  );
+  const slices = calculate([finishTimer(timer, end, "boundary")]);
+  assert.equal(
+    totals(slices.filter((slice) => slice.date === "2026-11-22")).minutes,
+    10,
+  );
+  assert.equal(
+    totals(slices.filter((slice) => slice.date === "2026-11-23")).minutes,
+    0,
+  );
+});
+test("migration applies weekly overtime to current jobs and running timer while retaining history and holiday", () => {
+  const state = freshState();
+  state.jobs = [{ ...job, overtimeThreshold: "both", weeklyHours: 39 }];
+  state.entries = [
+    weeklyEntry("2026-10-19", "06:00", "16:00", {
+      overtimeThreshold: "both",
+      weeklyHours: 39,
+    }),
+  ];
+  state.timer = makeTimer(
+    state.jobs[0],
+    defaultShifts()[1],
+    stamp("2026-10-20", "17:30"),
+  );
+  state.holidays = [{ id: "h1", date: "2026-12-25", hours: 8, rate: 12 }];
+  state.holidaySettings = { "2026": { days: 28, rate: 12 } };
+  const migrated = validateBackup({ ...state, version: 6 });
+  assert.equal(migrated.version, 7);
+  assert.equal(migrated.jobs[0].overtimeThreshold, "week");
+  assert.equal(migrated.timer?.overtimeThreshold, "week");
+  assert.equal(migrated.timer?.weeklyHours, 39);
+  assert.equal(migrated.timer?.rate, state.timer.rate);
+  assert.deepEqual(migrated.entries, state.entries);
+  assert.deepEqual(migrated.holidays, state.holidays);
+  assert.deepEqual(migrated.holidaySettings, state.holidaySettings);
+  assert.equal(migrated.defaultBreakMinutes, 0);
+  assert.equal(migrated.automaticBreak, false);
+});
+test("automatic break setting is saved with running timers, bounded and preserved in backups", () => {
+  const state = freshState();
+  state.jobs = [{ ...job, ...weeklyPolicy }];
+  state.defaultBreakMinutes = 30;
+  state.automaticBreak = true;
+  state.timer = makeTimer(
+    state.jobs[0],
+    defaultShifts()[0],
+    stamp("2026-10-20", "06:00"),
+    state.defaultBreakMinutes,
+  );
+  const restored = validateBackup(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.timer?.autoBreakMinutes, 30);
+  assert.equal(restored.automaticBreak, true);
+  assert.throws(() => validateBackup({ ...state, defaultBreakMinutes: -1 }));
+  assert.throws(() =>
+    validateBackup({
+      ...state,
+      timer: { ...state.timer, autoBreakMinutes: 2000 },
+    }),
+  );
+});
+test("automatic break is applied once across split sessions of the same shift", () => {
+  const shift = defaultShifts()[0],
+    j = { ...job, ...weeklyPolicy };
+  const first = makeTimer(j, shift, stamp("2026-10-20", "06:00"), 30);
+  const saved = finishTimer(first, stamp("2026-10-20", "10:00"), "first");
+  const prior = priorShiftBreakMilliseconds(
+    [saved],
+    j.id,
+    shift,
+    stamp("2026-10-20", "10:00"),
+    30,
+  );
+  assert.equal(prior, 30 * 60000);
+  const second = makeTimer(j, shift, stamp("2026-10-20", "10:00"), 30, prior);
+  const done = finishTimer(second, stamp("2026-10-20", "14:00"), "second");
+  assert.equal(done.breaks.length, 0);
+  assert.equal(totals(calculate([saved, done])).minutes, 450);
+  const state = freshState();
+  state.jobs = [j];
+  state.entries = [{ ...saved, breaks: [] }];
+  state.timer = second;
+  const synchronized = syncTimerBreakContext(state);
+  assert.equal(synchronized.timer?.priorBreakMilliseconds, 0);
+  assert.equal(
+    finishTimer(synchronized.timer!, stamp("2026-10-20", "14:00"), "changed")
+      .breaks.length,
+    1,
+  );
+});
 function weeklyEntry(
   date: string,
   start = "06:00",
@@ -430,7 +589,7 @@ test("weekly basis and target snapshots survive later changes to the workplace p
   });
   const old = { ...freshState(), version: 4, jobs: [job], entries: [legacy] };
   const next = validateBackup(old);
-  assert.equal(next.version, 6);
+  assert.equal(next.version, 7);
   assert.deepEqual(next.entries, old.entries);
   assert.deepEqual(
     totals(calculate(next.entries)),
@@ -712,7 +871,7 @@ test("allowance policies survive backup and CSV, reject malformed values, and mi
     jobs: [job],
     entries: [entry()],
   };
-  assert.equal(validateBackup(previous).version, 6);
+  assert.equal(validateBackup(previous).version, 7);
   assert.deepEqual(
     totals(calculate(validateBackup(previous).entries)),
     totals(calculate(previous.entries)),
@@ -920,7 +1079,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 7 }));
+  assert.throws(() => validateBackup({ ...s, version: 8 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -1079,7 +1238,7 @@ test("night auto-stop respects the local clock across DST and counts elapsed tim
     150,
   );
 });
-test("version 1 migrates without changing existing entries, pay, or running timer", () => {
+test("version 1 migration preserves entries and switches the running timer to weekly overtime", () => {
   const previous = {
     version: 1,
     jobs: [job],
@@ -1089,7 +1248,7 @@ test("version 1 migrates without changing existing entries, pay, or running time
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 6);
+  assert.equal(next.version, 7);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -1106,7 +1265,13 @@ test("version 1 migrates without changing existing entries, pay, or running time
       overtime: 1.25,
     },
   };
-  assert.deepEqual(validateBackup(running).timer, running.timer);
+  assert.deepEqual(validateBackup(running).timer, {
+    ...running.timer,
+    overtimeThreshold: "week",
+    weeklyHours: 40,
+    autoBreakMinutes: undefined,
+    priorBreakMilliseconds: undefined,
+  });
 });
 test("shift backup validates snapshots and rejects malformed hours, norms and deadlines", () => {
   const state = freshState();
@@ -1226,7 +1391,7 @@ test("calendar grids start on Monday, include leap day and contain no adjacent-m
   assert.equal(moveMonth("2026-12", 1), "2027-01");
   assert.equal(moveMonth("2026-01", -1), "2025-12");
 });
-test("version 2 backups migrate unchanged to version 6 so old readers reject new policies", () => {
+test("version 2 backups migrate unchanged to version 7 so old readers reject new policies", () => {
   const legacy = {
     ...freshState(),
     version: 2,
@@ -1234,7 +1399,7 @@ test("version 2 backups migrate unchanged to version 6 so old readers reject new
     entries: [entry()],
   };
   const migrated = validateBackup(legacy);
-  assert.equal(migrated.version, 6);
+  assert.equal(migrated.version, 7);
   assert.deepEqual(migrated.entries, legacy.entries);
   assert.deepEqual(migrated.shifts, legacy.shifts);
   assert.equal(totals(calculate(migrated.entries)).amount, 210);

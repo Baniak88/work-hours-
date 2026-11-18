@@ -53,10 +53,12 @@ export type Timer = OvertimePolicy & {
   overtime: number;
   shift?: ShiftRecord;
   plannedEnd?: number;
+  autoBreakMinutes?: number;
+  priorBreakMilliseconds?: number;
 };
 export type Holiday = { id: string; date: string; hours: number; rate: number };
 export type State = {
-  version: 6;
+  version: 7;
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
@@ -65,6 +67,8 @@ export type State = {
   shifts: Shift[];
   preferredShiftId: string;
   holidays: Holiday[];
+  defaultBreakMinutes: number;
+  automaticBreak: boolean;
   holidaySettings?: Record<string, { days: number; rate: number }>;
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
@@ -100,7 +104,7 @@ export const defaultShifts = (): Shift[] => [
   },
 ];
 export const freshState = (): State => ({
-  version: 6,
+  version: 7,
   jobs: [],
   entries: [],
   timer: null,
@@ -109,6 +113,8 @@ export const freshState = (): State => ({
   shifts: defaultShifts(),
   preferredShiftId: "day",
   holidays: [],
+  defaultBreakMinutes: 0,
+  automaticBreak: false,
 });
 export const uid = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -370,19 +376,53 @@ export function timerWeekMinutes(t: Timer, now: number) {
     t.breaks,
   );
 }
-export function finishTimer(t: Timer, now: number, id = uid()): Entry {
+export function timerBreaksAtEnd(
+  t: Timer,
+  end: number,
+  applyAutomatic = true,
+): Break[] {
+  const manual = [
+    ...t.breaks,
+    ...(t.pausedAt === null ? [] : [{ start: t.pausedAt, end }]),
+  ]
+    .map((b) => ({
+      start: Math.max(t.start, b.start),
+      end: Math.min(b.end, end),
+    }))
+    .filter((b) => b.start < b.end);
+  if (!applyAutomatic || !(t.autoBreakMinutes && t.autoBreakMinutes > 0))
+    return manual;
+  const manualMs = manual.reduce((sum, b) => sum + b.end - b.start, 0);
+  let remaining = Math.max(
+    0,
+    t.autoBreakMinutes * 60000 - (t.priorBreakMilliseconds ?? 0) - manualMs,
+  );
+  let cursor = end;
+  const automatic: Break[] = [];
+  for (let i = manual.length - 1; i >= -1 && remaining > 0; i--) {
+    const gapStart = i >= 0 ? manual[i].end : t.start;
+    const amount = Math.min(remaining, Math.max(0, cursor - gapStart));
+    if (amount > 0) {
+      automatic.push({ start: cursor - amount, end: cursor });
+      remaining -= amount;
+    }
+    if (i >= 0) cursor = manual[i].start;
+  }
+  return [...manual, ...automatic].sort((a, b) => a.start - b.start);
+}
+export function finishTimer(
+  t: Timer,
+  now: number,
+  id = uid(),
+  applyAutomatic = true,
+): Entry {
   const end = Math.min(now, t.plannedEnd ?? Infinity);
   return {
     id,
     jobId: t.jobId,
     start: t.start,
     end,
-    breaks: [
-      ...t.breaks,
-      ...(t.pausedAt === null ? [] : [{ start: t.pausedAt, end }]),
-    ]
-      .map((b) => ({ start: b.start, end: Math.min(b.end, end) }))
-      .filter((b) => b.start < b.end),
+    breaks: timerBreaksAtEnd(t, end, applyAutomatic),
     note: "",
     rate: t.rate,
     dailyHours: t.dailyHours,
@@ -405,7 +445,7 @@ export function previewSlices(
     return calculate(entries);
   let id = "__active_timer_preview__";
   while (entries.some((entry) => entry.id === id)) id += "_";
-  return calculate([...entries, finishTimer(timer, now, id)]);
+  return calculate([...entries, finishTimer(timer, now, id, false)]);
 }
 export function updateActiveWeeklyPolicy(
   timer: Timer | null,
@@ -416,6 +456,29 @@ export function updateActiveWeeklyPolicy(
     ...timer,
     overtimeThreshold: job.overtimeThreshold,
     weeklyHours: job.weeklyHours,
+  };
+}
+export function setWeeklyTarget(
+  state: State,
+  jobId: string,
+  weeklyHours: number,
+  recalculateHistory: boolean,
+): State {
+  const original = state.jobs.find((job) => job.id === jobId);
+  if (!original) throw new Error("Wybierz projekt.");
+  const updated: Job = { ...original, overtimeThreshold: "week", weeklyHours };
+  validateOvertime(updated);
+  return {
+    ...state,
+    jobs: state.jobs.map((job) => (job.id === jobId ? updated : job)),
+    timer: updateActiveWeeklyPolicy(state.timer, updated),
+    entries: recalculateHistory
+      ? state.entries.map((entry) =>
+          entry.jobId === jobId
+            ? { ...entry, overtimeThreshold: "week", weeklyHours }
+            : entry,
+        )
+      : state.entries,
   };
 }
 export function validTime(value: string) {
@@ -452,13 +515,69 @@ export function shiftEnd(shift: Shift, at: number) {
   if (day.getTime() <= at) day.setDate(day.getDate() + 1);
   return day.getTime();
 }
-export function makeTimer(job: Job, shift: Shift, at: number): Timer {
+export function priorShiftBreakMilliseconds(
+  entries: Entry[],
+  jobId: string,
+  shift: Shift,
+  at: number,
+  limitMinutes: number,
+) {
+  const workDate = shiftWorkDate(shift, at);
+  const recorded = entries
+    .filter(
+      (entry) =>
+        entry.jobId === jobId &&
+        entry.shift?.id === shift.id &&
+        entry.shift.workDate === workDate,
+    )
+    .reduce(
+      (sum, entry) =>
+        sum + entry.breaks.reduce((n, pause) => n + pause.end - pause.start, 0),
+      0,
+    );
+  return Math.min(limitMinutes * 60000, Math.max(0, recorded));
+}
+export function syncTimerBreakContext(state: State): State {
+  const timer = state.timer;
+  if (!timer?.shift || !timer.autoBreakMinutes) return state;
+  const prior = priorShiftBreakMilliseconds(
+    state.entries,
+    timer.jobId,
+    timer.shift,
+    timer.start,
+    timer.autoBreakMinutes,
+  );
+  return prior === (timer.priorBreakMilliseconds ?? 0)
+    ? state
+    : { ...state, timer: { ...timer, priorBreakMilliseconds: prior } };
+}
+export function makeTimer(
+  job: Job,
+  shift: Shift,
+  at: number,
+  autoBreakMinutes = 0,
+  priorBreakMilliseconds = 0,
+): Timer {
   validateShift(shift);
+  if (
+    !Number.isInteger(autoBreakMinutes) ||
+    autoBreakMinutes < 0 ||
+    autoBreakMinutes > 1440
+  )
+    throw new Error("Podaj liczbę minut od 0 do 1440.");
+  if (
+    !Number.isFinite(priorBreakMilliseconds) ||
+    priorBreakMilliseconds < 0 ||
+    priorBreakMilliseconds > autoBreakMinutes * 60000
+  )
+    throw new Error("Nieprawidłowa wcześniejsza przerwa.");
   return {
     jobId: job.id,
     start: at,
     breaks: [],
     pausedAt: null,
+    ...(autoBreakMinutes > 0 ? { autoBreakMinutes } : {}),
+    ...(priorBreakMilliseconds > 0 ? { priorBreakMilliseconds } : {}),
     rate: job.rate,
     dailyHours: shift.normHours,
     overtime: job.overtime,
@@ -507,6 +626,17 @@ export function adjustTimerStart(
             ...timer.shift,
             workDate: shiftWorkDate(timer.shift, start),
           },
+        }
+      : {}),
+    ...(timer.shift && timer.autoBreakMinutes
+      ? {
+          priorBreakMilliseconds: priorShiftBreakMilliseconds(
+            entries,
+            timer.jobId,
+            timer.shift,
+            start,
+            timer.autoBreakMinutes,
+          ),
         }
       : {}),
     ...(plannedEnd !== undefined ? { plannedEnd } : {}),
@@ -782,7 +912,8 @@ export function validateBackup(input: unknown): State {
       version !== 3 &&
       version !== 4 &&
       version !== 5 &&
-      version !== 6) ||
+      version !== 6 &&
+      version !== 7) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
@@ -799,7 +930,7 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   if (
-    version === 6 &&
+    (version === 6 || version === 7) &&
     (!Array.isArray(s.holidays) ||
       s.holidays.length > 100000 ||
       !s.holidays.every(
@@ -823,7 +954,7 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   if (
-    version === 6 &&
+    (version === 6 || version === 7) &&
     s.holidaySettings !== undefined &&
     (!s.holidaySettings ||
       typeof s.holidaySettings !== "object" ||
@@ -929,6 +1060,14 @@ export function validateBackup(input: unknown): State {
       t.start <= 0 ||
       t.start > Date.now() ||
       !policy(t) ||
+      (t.autoBreakMinutes !== undefined &&
+        (!Number.isInteger(t.autoBreakMinutes) ||
+          t.autoBreakMinutes < 0 ||
+          t.autoBreakMinutes > 1440)) ||
+      (t.priorBreakMilliseconds !== undefined &&
+        (!number(t.priorBreakMilliseconds) ||
+          t.priorBreakMilliseconds < 0 ||
+          t.priorBreakMilliseconds > (t.autoBreakMinutes ?? 0) * 60000)) ||
       !isRecord(t.shift) ||
       (t.plannedEnd !== undefined &&
         (!number(t.plannedEnd) ||
@@ -954,18 +1093,49 @@ export function validateBackup(input: unknown): State {
     )
   )
     return fail();
-  return version === 1
-    ? {
-        ...s,
-        version: 6,
-        holidays: [],
-        holidaySettings: undefined,
-        shifts: defaultShifts(),
-        preferredShiftId: "day",
-      }
-    : version !== 6
-      ? { ...s, version: 6, holidays: [], holidaySettings: undefined }
-      : s;
+  if (version === 7) {
+    if (
+      !Number.isInteger(s.defaultBreakMinutes) ||
+      s.defaultBreakMinutes < 0 ||
+      s.defaultBreakMinutes > 1440 ||
+      typeof s.automaticBreak !== "boolean"
+    )
+      return fail();
+    return s;
+  }
+  const jobs = s.jobs.map((job) => ({
+    ...job,
+    overtimeThreshold: "week" as const,
+    weeklyHours: job.weeklyHours ?? 40,
+  }));
+  const timerJob = jobs.find((job) => job.id === s.timer?.jobId);
+  return {
+    ...s,
+    version: 7,
+    jobs,
+    timer:
+      s.timer && timerJob
+        ? {
+            ...s.timer,
+            overtimeThreshold: "week",
+            weeklyHours: s.timer.weeklyHours ?? timerJob.weeklyHours,
+            autoBreakMinutes: undefined,
+            priorBreakMilliseconds: undefined,
+          }
+        : s.timer,
+    defaultBreakMinutes: 0,
+    automaticBreak: false,
+    ...(version === 1
+      ? { shifts: defaultShifts(), preferredShiftId: "day" }
+      : {}),
+    ...(version === 1 ||
+    version === 2 ||
+    version === 3 ||
+    version === 4 ||
+    version === 5
+      ? { holidays: [], holidaySettings: undefined }
+      : {}),
+  };
 }
 export function demoState(): State {
   const state = freshState();
@@ -975,6 +1145,8 @@ export function demoState(): State {
     rate: 23.15,
     dailyHours: 8,
     overtime: 1.25,
+    overtimeThreshold: "week",
+    weeklyHours: 40,
     color: "#B4F272",
     demo: true,
   };
@@ -1006,6 +1178,7 @@ export function demoState(): State {
       rate: job.rate,
       dailyHours: job.dailyHours,
       overtime: job.overtime,
+      ...overtimeSnapshot(job),
       shift: { ...selectedShift, workDate: dateKey(d) },
     });
   }
