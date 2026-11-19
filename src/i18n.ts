@@ -21,6 +21,7 @@ const rules: Rule[] = [
     /^Edytuj wpis (.+) (\d{4}-\d{2}-\d{2})$/,
     (name, date) => `Edit entry ${name} ${date}`,
   ],
+  [/^Edytuj wpis (\d{4}-\d{2}-\d{2})$/, (date) => `Edit entry ${date}`],
   [/^Edytuj projekt (.+)$/, (name) => `Edit project ${name}`],
   [/^Wybierz projekt (.+)$/, (name) => `Select project ${name}`],
   [/^Ustawienia projektu (.+)$/, (name) => `Project settings ${name}`],
@@ -77,6 +78,15 @@ const rules: Rule[] = [
       `This file contains ${jobs} projects and ${entries} entries (${currency}). It will replace all current data, including the timer. Save a backup first if you want to keep your current data.`,
   ],
   [/^ · do (.+)$/, (date) => ` · until ${date}`],
+  [
+    /^Work Hours · (.+) · dane na Twoim urządzeniu$/,
+    (version) => `Work Hours · ${version} · data on your device`,
+  ],
+  [
+    /^Usuniemy projekt, jego korekty salda oraz (\d+) jego wpisów\. Inne miejsca pracy zostaną zachowane\. Przywrócenie wymaga kopii JSON\.$/,
+    (count) =>
+      `Delete this project, its balance adjustments and its ${count} entries. Other workplaces will be kept. A JSON backup is required to restore it.`,
+  ],
 ];
 export function translateText(
   value: string,

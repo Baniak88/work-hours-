@@ -3870,7 +3870,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.0 · dane na Twoim urządzeniu
+          Work Hours · 2.0.1 · dane na Twoim urządzeniu
         </Text>
       </>
     );
