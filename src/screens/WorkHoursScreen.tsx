@@ -1429,7 +1429,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         <View style={[s.entryMark, { backgroundColor: C.muted + "19" }]}>
           <I name="briefcase-outline" color={C.muted} size={19} />
         </View>
-        <View style={{ flex: 1, gap: 5 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
           <Text style={s.rowTitle}>
             <Text verbatim>{j.name}</Text>
             {e.demo ? " · przykład" : ""}
@@ -2213,7 +2213,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 </View>
                 {row(last)}
                 <View
-                  style={{ paddingHorizontal: 15, paddingBottom: 15, gap: 10 }}
+                  style={{
+                    paddingHorizontal: 15,
+                    paddingTop: 14,
+                    paddingBottom: 15,
+                    gap: 10,
+                  }}
                 >
                   <Button
                     label={
@@ -2663,12 +2668,23 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           "EWIDENCJA PRACY",
           "Twój czas w szczegółach.",
           "Wszystkie zmiany, przerwy i zarobki w jednym miejscu.",
-          <Button
-            label="Dodaj wpis"
-            icon="add"
-            small={!wide}
-            onPress={() => (jobs.length ? openEntry() : openJob())}
-          />,
+          wide ? (
+            <Button
+              label="Dodaj wpis"
+              icon="add"
+              onPress={() => (jobs.length ? openEntry() : openJob())}
+            />
+          ) : undefined,
+        )}
+        {!wide && (
+          <View style={{ marginBottom: 16 }}>
+            <Button
+              label="Dodaj wpis"
+              icon="add"
+              kind="secondary"
+              onPress={() => (jobs.length ? openEntry() : openJob())}
+            />
+          </View>
         )}
         {entryViewToggle()}
         {showFilters && entryFilters()}
@@ -2690,8 +2706,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </Pressable>
           ))}
         </View>
-        <View style={s.summaryStrip}>
-          <View style={{ flex: 1, gap: 5 }}>
+        <View style={[s.summaryStrip, !wide && { flexWrap: "wrap" }]}>
+          <View style={[{ flex: 1, gap: 5 }, !wide && { flexBasis: "100%" }]}>
             <Text style={s.caption}>ZAROBKI</Text>
             <Text style={s.summaryMoney}>{fmt(ft.amount)}</Text>
           </View>
@@ -3052,9 +3068,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   return (
                     <View key={j.id} style={s.projectReport}>
                       <View style={s.between}>
-                        <View style={s.row}>
+                        <View style={[s.row, { flex: 1, minWidth: 0 }]}>
                           <View style={[s.dot, { backgroundColor: C.muted }]} />
-                          <Text verbatim style={s.rowTitle}>
+                          <Text
+                            verbatim
+                            style={[s.rowTitle, { flexShrink: 1 }]}
+                          >
                             {j.name}
                           </Text>
                         </View>
@@ -3134,7 +3153,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       </View>
                       <Text style={s.rowMoney}>{fmt(t.amount)}</Text>
                     </View>
-                    <View style={s.between}>
+                    <View style={[s.between, !wide && { flexWrap: "wrap" }]}>
                       <View
                         style={[
                           s.pill,
@@ -3204,7 +3223,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         <View style={s.iconTile}>
           <I name={icon} color={C.text} />
         </View>
-        <View style={{ flex: 1, gap: 5 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
           <Text style={s.rowTitle}>{title}</Text>
           <Text style={s.caption}>{desc}</Text>
         </View>
@@ -3783,7 +3802,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.6 · dane na Twoim urządzeniu
+          Work Hours · 1.9.7 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3986,9 +4005,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       {tr("Tydzień:")} {weekTitle(form.week ?? week, locale)}
                     </Text>
                     <Text style={s.caption}>
-                      Wpisz aktualny stan z czytnika po ostatniej zapisanej zmianie, np.
-                      29:28. Uwzględnij zmiany przepracowane po odczycie. Korekta
-                      nie tworzy zmiany ani nie zmienia zapisanych zarobków.
+                      Wpisz aktualny stan z czytnika po ostatniej zapisanej
+                      zmianie, np. 29:28. Uwzględnij zmiany przepracowane po
+                      odczycie. Korekta nie tworzy zmiany ani nie zmienia
+                      zapisanych zarobków.
                     </Text>
                     <Field
                       label="Stan godzin (godziny:minuty)"
@@ -4826,7 +4846,12 @@ const s = StyleSheet.create({
   smallButton: { minHeight: 36, paddingHorizontal: 10, paddingVertical: 9 },
   primary: { backgroundColor: C.green },
   secondary: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line },
-  buttonText: { fontSize: 13, fontWeight: "600" },
+  buttonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "center",
+  },
   startAt: {
     width: 48,
     height: 48,

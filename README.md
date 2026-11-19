@@ -2,6 +2,10 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Czytelność ekranów — 1.9.7
+
+Poprawiono odstęp przy przycisku obliczeń, układ listy, kwot, długich nazw w raportach i rozliczeń na małych ekranach.
+
 ## Stan z czytnika — 1.9.6
 
 Po zakończeniu aktywnej zmiany wybierz **Dopasuj stan z czytnika** i wpisz aktualny stan godzin dla wybranego miejsca pracy i tygodnia, np. **29:28**. Jeśli od odczytu były kolejne zmiany, uwzględnij je w podanej wartości. Korekta zmienia wyświetlany stan oraz próg nadgodzin dla dalszej pracy; nie tworzy fikcyjnej zmiany i nie zmienia zarobków ani nadgodzin wcześniejszych wpisów. Jest widoczna osobno i zapisywana w kopii JSON.
