@@ -48,6 +48,7 @@ import {
   updateActiveWeeklyPolicy,
   setWeeklyTarget,
   checkEntry,
+  findEntryConflicts,
   csv,
   dateKey,
   demoState,
@@ -731,6 +732,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     });
   }
   function selectManualDate(day: string) {
+    setFormError("");
     setForm((f) => {
       if (!f || f.type !== "entry") return f;
       const selectedShift =
@@ -747,6 +749,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     });
   }
   function editManualStartDate(value: string) {
+    setFormError("");
     setForm((f) => {
       if (!f || f.type !== "entry") return f;
       if (f.endDateEdited === "true") return { ...f, startDate: value };
@@ -1501,6 +1504,89 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       ))}
     </View>
   );
+  function overlapHelp() {
+    if (
+      form?.type !== "entry" ||
+      formError !== "Ten wpis nakłada się na inną zmianę lub aktywny licznik."
+    )
+      return null;
+    try {
+      const start = parseLocal(form.startDate ?? "", form.startTime ?? "");
+      const end = parseLocal(form.endDate ?? "", form.endTime ?? "");
+      const conflicts = findEntryConflicts(
+        { id: form.id ?? "", start, end },
+        data.entries,
+        timer,
+      );
+      if (!conflicts.entries.length && !conflicts.activeTimer) return null;
+      const clock = (value: number) =>
+        new Date(value).toLocaleString(locale, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      return (
+        <View
+          style={{
+            gap: 12,
+            borderRadius: 14,
+            padding: 14,
+            backgroundColor: C.raised,
+          }}
+        >
+          <Text style={s.rowTitle}>Znaleziono nakładającą się pracę</Text>
+          <Text style={s.caption}>
+            Aby uniknąć podwójnego naliczania, zmień godziny lub popraw zapisany
+            wpis.
+          </Text>
+          {conflicts.entries.slice(0, 4).map((entry) => (
+            <View key={entry.id} style={{ gap: 7 }}>
+              <Text verbatim style={s.rowTitle}>
+                {data.jobs.find((item) => item.id === entry.jobId)?.name ??
+                  tr("Miejsce pracy")}
+              </Text>
+              <Text verbatim style={s.caption}>
+                {clock(entry.start)} – {clock(entry.end)}
+              </Text>
+              <Button
+                label="Edytuj istniejącą zmianę"
+                kind="secondary"
+                icon="create-outline"
+                onPress={() => openEntry(entry)}
+              />
+            </View>
+          ))}
+          {conflicts.entries.length > 4 && (
+            <Text style={s.caption}>
+              Znaleziono więcej nakładających się zmian. Popraw je kolejno.
+            </Text>
+          )}
+          {conflicts.activeTimer && timer && (
+            <View style={{ gap: 7 }}>
+              <Text style={s.rowTitle}>Aktywny licznik</Text>
+              <Text style={s.caption}>
+                {tr("Rozpoczęto:")} {clock(timer.start)}
+              </Text>
+              <Button
+                label="Popraw początek licznika"
+                kind="secondary"
+                icon="time-outline"
+                onPress={openAdjust}
+              />
+            </View>
+          )}
+          <Text style={s.caption}>
+            Otwarcie innej zmiany zamknie ten formularz bez zapisywania
+            wpisanych tu danych.
+          </Text>
+        </View>
+      );
+    } catch {
+      return null;
+    }
+  }
   function weeklyCorrectionBanner() {
     if (!data.weeklyCorrectionNotice) return null;
     return (
@@ -3506,13 +3592,15 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.4 · dane na Twoim urządzeniu
+          Work Hours · 1.9.5 · dane na Twoim urządzeniu
         </Text>
       </>
     );
   }
-  const setField = (key: string, value: string) =>
+  const setField = (key: string, value: string) => {
+    setFormError("");
     setForm((f) => (f ? { ...f, [key]: value } : f));
+  };
   return (
     <View style={[s.app, { paddingTop: insets.top }]}>
       <StatusBar style={state?.theme === "light" ? "dark" : "light"} />
@@ -4117,13 +4205,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                             label="Data zakończenia"
                             placeholder="RRRR-MM-DD"
                             value={form.endDate}
-                            onChange={(v) =>
+                            onChange={(v) => {
+                              setFormError("");
                               setForm((f) =>
                                 f
                                   ? { ...f, endDate: v, endDateEdited: "true" }
                                   : f,
-                              )
-                            }
+                              );
+                            }}
                           />
                           <Field
                             label="Godzina zakończenia"
@@ -4191,6 +4280,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     {formError}
                   </Text>
                 )}
+                {overlapHelp()}
                 <Button
                   label={
                     busy

@@ -21,6 +21,7 @@ import {
   demoState,
   overtimeHourlyRate,
   checkEntry,
+  findEntryConflicts,
   csv,
   dateKey,
   localDate,
@@ -223,6 +224,39 @@ test("corrected shift end preserves breaks and rejects future or lost break time
   assert.throws(
     () => finishShiftAt(state, timer, stamp("2026-10-20", "23:15"), now),
     /przerwą/,
+  );
+});
+test("overlap details identify overnight entries, the active clock and allow adjacent work", () => {
+  const saved = {
+    ...entry("2026-11-16", "18:00", "23:30"),
+    end: stamp("2026-11-17", "03:45"),
+    id: "saved",
+  };
+  const duplicate = { ...saved, id: "new", end: stamp("2026-11-17", "03:00") };
+  const found = findEntryConflicts(duplicate, [saved], null);
+  assert.deepEqual(
+    found.entries.map((e) => e.id),
+    ["saved"],
+  );
+  assert.equal(found.activeTimer, false);
+  assert.throws(() => checkEntry(duplicate, [saved], null), /nakłada/);
+  assert.deepEqual(findEntryConflicts(saved, [saved], null).entries, []);
+  const adjacent = {
+    ...duplicate,
+    start: saved.end,
+    end: stamp("2026-11-17", "05:00"),
+  };
+  assert.deepEqual(findEntryConflicts(adjacent, [saved], null).entries, []);
+  const timer = makeTimer(
+    job,
+    defaultShifts()[1],
+    stamp("2026-11-17", "04:00"),
+  );
+  assert.equal(findEntryConflicts(adjacent, [saved], timer).activeTimer, true);
+  assert.equal(
+    findEntryConflicts({ ...adjacent, end: timer.start }, [saved], timer)
+      .activeTimer,
+    false,
   );
 });
 test("countdown shows remaining seconds without reaching zero early", () => {

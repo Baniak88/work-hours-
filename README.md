@@ -80,6 +80,10 @@ Weryfikacja: **51 testów obliczeń, danych i preferencji**, **5 testów offline
 - Interfejs używa grafitu, szarości i jasnych akcentów zamiast jaskrawej zieleni. Nowy formularz korzysta z kwotowej stawki Overtime; dotychczasowe mnożniki w historii pozostają obsługiwane bez przeliczania zapisów.
 - **Kopie JSON mają format 4**, aby starsze aplikacje nie zignorowały dodatku procentowego. Kopie 1–3 są odczytywane z zachowaniem wcześniejszych zarobków. Przed przywróceniem kopii 4 na drugim telefonie zaktualizuj aplikację.
 
+## Nakładające się zmiany — 1.9.5
+
+Formularz wskazuje, które zapisane zmiany lub aktywny licznik pokrywają się z nowym wpisem. Istniejący wpis można otworzyć do edycji. Pokrywające się godziny nie są zapisywane dwukrotnie.
+
 ## Pulpit tygodniowy — 1.9.4
 
 Pulpit pokazuje zegar, pozostały czas do tygodniowej normy, przepracowane godziny oraz siedem dni z godzinami zmian i nadgodzinami. Przyciski pozwalają rozpocząć i zakończyć zmianę, poprawić jej początek lub koniec, dodać wcześniejszy wpis i urlop. Urlop nie wlicza się do normy nadgodzin. Aktywna zmiana z automatyczną przerwą jest rozliczana ostatecznie po zatrzymaniu licznika.

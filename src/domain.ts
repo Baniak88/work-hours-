@@ -877,6 +877,22 @@ export function parseLocal(date: string, time: string) {
     throw new Error("Ta data lub godzina nie istnieje.");
   return value.getTime();
 }
+/** Identify the exact saved entries and active clock that overlap an attempted entry. */
+export function findEntryConflicts(
+  entry: Pick<Entry, "id" | "start" | "end">,
+  entries: Entry[],
+  timer: Timer | null,
+) {
+  return {
+    entries: entries.filter(
+      (other) =>
+        other.id !== entry.id &&
+        entry.start < other.end &&
+        entry.end > other.start,
+    ),
+    activeTimer: !!timer && entry.end > timer.start,
+  };
+}
 export function checkEntry(
   entry: Entry,
   entries: Entry[],
@@ -897,12 +913,8 @@ export function checkEntry(
     minutesWorked(entry.start, entry.end, entry.breaks) <= 0
   )
     throw new Error("Przerwa musi być krótsza od czasu zmiany.");
-  if (
-    entries.some(
-      (e) => e.id !== entry.id && entry.start < e.end && entry.end > e.start,
-    ) ||
-    (timer && entry.end > timer.start)
-  )
+  const conflicts = findEntryConflicts(entry, entries, timer);
+  if (conflicts.entries.length || conflicts.activeTimer)
     throw new Error("Ten wpis nakłada się na inną zmianę lub aktywny licznik.");
 }
 /** Finish a running timer at a corrected past time without silently losing breaks. */

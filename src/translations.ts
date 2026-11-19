@@ -1,4 +1,16 @@
 export const english: Record<string, string> = {
+  "Znaleziono nakładającą się pracę": "Overlapping work found",
+  "Aby uniknąć podwójnego naliczania, zmień godziny lub popraw zapisany wpis.":
+    "To avoid counting work twice, change the times or edit the saved entry.",
+  "Edytuj istniejącą zmianę": "Edit existing shift",
+  "Znaleziono więcej nakładających się zmian. Popraw je kolejno.":
+    "More overlapping shifts were found. Edit them one at a time.",
+  "Aktywny licznik": "Running clock",
+  "Rozpoczęto:": "Started:",
+  "Popraw początek licznika": "Adjust clock start",
+  "Otwarcie innej zmiany zamknie ten formularz bez zapisywania wpisanych tu danych.":
+    "Opening another shift closes this form without saving its contents.",
+
   "Automatyczny koniec:": "Automatic finish:",
   "Automatyczny stop o": "Automatic stop at",
   dzień: "day",

@@ -1,6 +1,6 @@
 {
   "name": "work-hours",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
