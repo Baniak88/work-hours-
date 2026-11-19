@@ -1440,6 +1440,21 @@ test("English interface localises actions, dynamic confirmations and decimal hou
   assert.match(csv(state), /Workplace/);
   assert.match(csv(state), /"Przerwa"/);
 });
+test("dashboard week table, errors and labels are translated to English", () => {
+  for (const text of [
+    "Dzień",
+    "Start – koniec · razem",
+    "Urlop",
+    "Poprzedni tydzień",
+    "Następny tydzień",
+    "dni ·",
+    "Koniec pracy nie może być w przyszłości.",
+    "Edytuj wpis 2026-11-16",
+    "Work Hours · 2.0.1 · dane na Twoim urządzeniu",
+    "Usuniemy projekt, jego korekty salda oraz 3 jego wpisów. Inne miejsca pracy zostaną zachowane. Przywrócenie wymaga kopii JSON.",
+  ])
+    assert.notEqual(translateText(text, "en"), text, text);
+});
 test("all palettes preserve text contrast and map colours including transparent borders", () => {
   function luminance(hex: string) {
     const channels = hex

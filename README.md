@@ -2,6 +2,11 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Pełne tłumaczenie i nowe logo — 2.0.1
+
+- W wersji angielskiej przetłumaczone zostały pozostałe polskie napisy (tabela tygodnia na pulpicie, kalendarz, komunikaty błędów, etykiety dostępności).
+- Nowa ikona aplikacji: biała tarcza zegara z łukiem postępu na fioletowym tle, także jako ikona adaptacyjna i monochromatyczna na Androidzie.
+
 ## Nowy wygląd w stylu iPhone'a — 2.0
 
 Wersja 2.0 odświeża cały interfejs, zachowując dotychczasowy układ ekranów:

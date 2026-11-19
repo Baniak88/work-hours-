@@ -753,10 +753,32 @@ export const english: Record<string, string> = {
   "Norma tygodniowa (h)": "Weekly target (hours)",
   "Tydzień od": "Week starting",
   "Łączna stawka nadgodzin za godzinę": "Total hourly overtime rate",
-  "Work Hours · 1.6.0 · dane na Twoim urządzeniu":
-    "Work Hours · 1.6.0 · data on your device",
   "Kwoty obliczamy ze stawek zapisanych przy zmianie. Bez podatków i potrąceń. Normę tygodniową ustawisz osobno dla miejsca pracy.":
     "Amounts use each shift's saved rates, before tax and deductions. Set a weekly target separately for each workplace.",
   "Poprawka godzin może zmienić podział nadgodzin w dalszych wpisach tego samego tygodnia.":
     "Correcting hours may change overtime allocation in later entries of the same week.",
+  "Licznik nie jest uruchomiony.": "The timer is not running.",
+  "Poprzedni tydzień": "Previous week",
+  "Następny tydzień": "Next week",
+  Dzień: "Day",
+  "Start – koniec · razem": "Start – end · total",
+  Urlop: "Holiday",
+  "Korekta zmienia stan godzin i próg dla kolejnej pracy. Nie zmienia zarobków z zapisanych zmian.":
+    "The adjustment changes the balance and threshold for future work. Pay from saved shifts stays unchanged.",
+  "h pracy · zapisane zmiany": "h worked · saved shifts",
+  PRZERWA: "BREAK",
+  "Np. 09:45 oznacza 9 godzin 45 minut. Przerwy są odliczane od normy; północ jej nie zeruje.":
+    "E.g. 09:45 means 9 hours 45 minutes. Breaks are deducted from the target; midnight does not reset it.",
+  "Nieprawidłowa wcześniejsza przerwa.": "Invalid earlier break.",
+  "Nieprawidłowy czas korekty.": "Invalid adjustment time.",
+  "Wybierz miejsce pracy.": "Choose a workplace.",
+  "Koniec pracy nie może być w przyszłości.":
+    "The end time cannot be in the future.",
+  "Koniec pracy musi wypadać po rozpoczęciu.":
+    "The end time must be after the start.",
+  "Koniec przekracza ustawioną godzinę automatycznego zakończenia.":
+    "The end time is later than the automatic stop time.",
+  "Koniec wypada przed zapisaną przerwą. Popraw najpierw przerwy.":
+    "The end time is before a saved break. Correct the breaks first.",
+  "dni ·": "days ·",
 };

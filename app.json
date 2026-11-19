@@ -2,7 +2,7 @@
   "expo": {
     "name": "Work Hours",
     "slug": "work-hours",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -17,12 +17,12 @@
     "android": {
       "package": "com.baniak88.workhours",
       "adaptiveIcon": {
-        "backgroundColor": "#101314",
+        "backgroundColor": "#5B4BDB",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 18
+      "versionCode": 19
     },
     "web": {
       "favicon": "./assets/favicon.png",
