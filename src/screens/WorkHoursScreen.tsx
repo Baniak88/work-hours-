@@ -1915,14 +1915,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     ? "#34C7591F"
                     : "#30D15829"
                   : lightTheme
-                    ? "#248A3D"
+                    ? "#1F7F37"
                     : "#30D158",
                 flexDirection: "row",
                 gap: 6,
                 opacity: timer ? 0.6 : 1,
                 boxShadow: timer
                   ? undefined
-                  : "0px 6px 16px rgba(36, 138, 61, 0.28)",
+                  : "0px 6px 16px rgba(31, 127, 55, 0.28)",
               }}
             >
               <I
@@ -1931,7 +1931,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 color={
                   timer
                     ? lightTheme
-                      ? "#248A3D"
+                      ? "#1F7F37"
                       : "#30D158"
                     : lightTheme
                       ? "#FFFFFF"
@@ -1942,7 +1942,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{
                   color: timer
                     ? lightTheme
-                      ? "#248A3D"
+                      ? "#1F7F37"
                       : "#30D158"
                     : lightTheme
                       ? "#FFFFFF"
@@ -1968,9 +1968,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: timer
-                  ? lightTheme
-                    ? "#E5262E"
-                    : "#FF453A"
+                  ? "#D7332B"
                   : lightTheme
                     ? "#FF3B301A"
                     : "#FF453A24",
@@ -1978,7 +1976,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 gap: 6,
                 opacity: timer ? 1 : 0.6,
                 boxShadow: timer
-                  ? "0px 6px 16px rgba(229, 38, 46, 0.28)"
+                  ? "0px 6px 16px rgba(215, 51, 43, 0.28)"
                   : undefined,
               }}
             >
@@ -3872,7 +3870,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.8 · dane na Twoim urządzeniu
+          Work Hours · 2.0.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );

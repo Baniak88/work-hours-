@@ -1458,15 +1458,16 @@ test("all palettes preserve text contrast and map colours including transparent 
     assert.ok(contrast(p.muted, p.card) >= 4.5, name + " secondary text");
     assert.ok(contrast(p.bg, p.accent) >= 4.5, name + " primary button");
   }
-  for (const tint of ["#EAE4FA", "#FFF1C9", "#FCE5EF"]) {
+  for (const tint of ["#EEEBFD", "#FFF4D6", "#FDE9F0"]) {
     assert.ok(contrast(themes.pastel.text, tint) >= 4.5, "pastel card text");
     assert.ok(
       contrast(themes.pastel.muted, tint) >= 4.5,
       "pastel card caption",
     );
   }
-  assert.ok(contrast("#24513A", "#D7F0E0") >= 4.5, "start button");
-  assert.ok(contrast("#87343D", "#FCE0E4") >= 4.5, "stop button");
+  assert.ok(contrast("#FFFFFF", "#1F7F37") >= 4.5, "start button");
+  assert.ok(contrast("#00230A", "#30D158") >= 4.5, "dark start button");
+  assert.ok(contrast("#FFFFFF", "#D7332B") >= 4.5, "stop button");
   assert.equal(themeColor("#DCE2EA70", "light"), themes.light.accent + "70");
   assert.equal(themeColor("transparent", "light"), "transparent");
   assert.ok(
