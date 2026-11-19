@@ -84,6 +84,7 @@ import { dashboardWeek } from "../dashboardWeek";
 import WorkCalendar from "../components/WorkCalendar";
 import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
+import { isLightTheme } from "../themes";
 
 const C = {
   bg: "#111214",
@@ -322,6 +323,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     save,
   } = useWorkHours();
   const { language, locale, theme, t: tr } = usePresentation();
+  const lightTheme = isLightTheme(theme);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 850;
@@ -1521,7 +1523,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           ]}
         >
           <I
-            name={t.icon}
+            name={
+              tab === t.key ? (t.icon.replace("-outline", "") as Icon) : t.icon
+            }
             size={22}
             color={tab === t.key ? C.green : C.muted}
           />
@@ -1750,11 +1754,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             onPress={() => setTab("settings")}
             style={s.avatar}
           >
-            <Text style={{ color: C.green, fontWeight: "700" }}>WH</Text>
+            <I name="person-circle" size={30} color={C.green} />
           </Pressable>,
         )}
         {weeklyCorrectionBanner()}
-        <View style={[s.card, { padding: 16, gap: 12, borderRadius: 22 }]}>
+        <View style={[s.card, { padding: 16, gap: 12 }]}>
           {!timer && data.shifts.length > 1 && (
             <View style={[s.row, { flexWrap: "wrap" }]}>
               {data.shifts.map((v) => (
@@ -1783,7 +1787,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 }),
                 note: timer ? tr("W trakcie zmiany") : tr("Gotowy do startu"),
                 icon: "time-outline" as Icon,
-                tint: "#EAE4FA",
+                tint: "#EEEBFD",
               },
               {
                 label: tr("Do normy"),
@@ -1792,7 +1796,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   ? `${tr("Norma")} ${duration(weeklyTarget)} h`
                   : tr("Ustaw miejsce pracy"),
                 icon: "hourglass-outline" as Icon,
-                tint: "#FFF1C9",
+                tint: "#FFF4D6",
               },
               {
                 label: tr("Wykonano"),
@@ -1801,7 +1805,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   ? tr("Z korektą salda")
                   : tr("W tym tygodniu"),
                 icon: "checkmark-done-outline" as Icon,
-                tint: "#FCE5EF",
+                tint: "#FDE9F0",
               },
             ].map((item) => (
               <View
@@ -1810,10 +1814,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   flex: 1,
                   minWidth: 0,
                   backgroundColor: theme === "pastel" ? item.tint : C.raised,
-                  borderRadius: 17,
-                  paddingHorizontal: 10,
+                  borderRadius: 20,
+                  borderCurve: "continuous",
+                  paddingHorizontal: 11,
                   paddingVertical: 12,
-                  gap: 7,
+                  gap: 6,
                 }}
               >
                 <I name={item.icon} size={18} color={C.text} />
@@ -1900,23 +1905,51 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               onPress={() => (job ? void start() : openJob())}
               style={{
                 flex: 1,
-                minHeight: 52,
-                borderRadius: 13,
+                minHeight: 54,
+                borderRadius: 27,
+                borderCurve: "continuous",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: theme === "pastel" ? "#D7F0E0" : "#285C46",
-                opacity: timer ? 0.45 : 1,
+                backgroundColor: timer
+                  ? lightTheme
+                    ? "#34C7591F"
+                    : "#30D15829"
+                  : lightTheme
+                    ? "#1F7F37"
+                    : "#30D158",
+                flexDirection: "row",
+                gap: 6,
+                opacity: timer ? 0.6 : 1,
+                boxShadow: timer
+                  ? undefined
+                  : "0px 6px 16px rgba(31, 127, 55, 0.28)",
               }}
             >
               <I
                 name="play"
-                size={15}
-                color={theme === "pastel" ? "#24513A" : "#FFFFFF"}
+                size={16}
+                color={
+                  timer
+                    ? lightTheme
+                      ? "#1F7F37"
+                      : "#30D158"
+                    : lightTheme
+                      ? "#FFFFFF"
+                      : "#00230A"
+                }
               />
               <Text
                 style={{
-                  color: theme === "pastel" ? "#24513A" : "#FFFFFF",
+                  color: timer
+                    ? lightTheme
+                      ? "#1F7F37"
+                      : "#30D158"
+                    : lightTheme
+                      ? "#FFFFFF"
+                      : "#00230A",
                   fontWeight: "700",
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 }}
               >
                 Start
@@ -1929,23 +1962,35 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               onPress={() => void stop()}
               style={{
                 flex: 1,
-                minHeight: 52,
-                borderRadius: 13,
+                minHeight: 54,
+                borderRadius: 27,
+                borderCurve: "continuous",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: theme === "pastel" ? "#FCE0E4" : "#813D40",
-                opacity: timer ? 1 : 0.45,
+                backgroundColor: timer
+                  ? "#D7332B"
+                  : lightTheme
+                    ? "#FF3B301A"
+                    : "#FF453A24",
+                flexDirection: "row",
+                gap: 6,
+                opacity: timer ? 1 : 0.6,
+                boxShadow: timer
+                  ? "0px 6px 16px rgba(215, 51, 43, 0.28)"
+                  : undefined,
               }}
             >
               <I
                 name="stop"
-                size={15}
-                color={theme === "pastel" ? "#87343D" : "#FFFFFF"}
+                size={16}
+                color={timer ? "#FFFFFF" : lightTheme ? "#D70015" : "#FF6961"}
               />
               <Text
                 style={{
-                  color: theme === "pastel" ? "#87343D" : "#FFFFFF",
+                  color: timer ? "#FFFFFF" : lightTheme ? "#D70015" : "#FF6961",
                   fontWeight: "700",
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 }}
               >
                 Stop
@@ -1960,8 +2005,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               }
               style={{
                 flex: 1,
-                minHeight: 52,
-                borderRadius: 13,
+                minHeight: 54,
+                borderRadius: 27,
+                borderCurve: "continuous",
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: C.raised,
@@ -1972,6 +2018,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{
                   color: C.text,
                   fontWeight: "700",
+                  fontSize: 15,
+                  letterSpacing: -0.2,
                   textAlign: "center",
                 }}
               >
@@ -2033,12 +2081,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </Text>
           )}
         </View>
-        <View
-          style={[
-            s.card,
-            { padding: 16, marginTop: 14, gap: 10, borderRadius: 22 },
-          ]}
-        >
+        <View style={[s.card, { padding: 16, marginTop: 16, gap: 10 }]}>
           <View style={s.between}>
             <Pressable
               accessibilityRole="button"
@@ -2066,7 +2109,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View
             style={[
               s.between,
-              { borderBottomWidth: 1, borderColor: C.line, paddingBottom: 8 },
+              {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderColor: C.line,
+                paddingBottom: 8,
+              },
             ]}
           >
             <Text style={s.caption}>Dzień</Text>
@@ -2085,10 +2132,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <View
                 key={day.date}
                 style={{
-                  borderBottomWidth: 1,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
                   borderColor: C.line,
-                  paddingVertical: 8,
-                  gap: 7,
+                  paddingVertical: 10,
+                  gap: 6,
                 }}
               >
                 <View style={s.between}>
@@ -2253,8 +2300,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             );
           })()}
         <View style={s.sectionHeader}>
-          <View style={s.row}>
-            <Text style={s.sectionTitle}>Twoje projekty</Text>
+          <View style={[s.row, { flexShrink: 1 }]}>
+            <Text style={[s.sectionTitle, { flexShrink: 1 }]}>
+              Twoje projekty
+            </Text>
             <Text style={s.count}>{jobs.length}</Text>
           </View>
           <Button
@@ -3821,7 +3870,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.8 · dane na Twoim urządzeniu
+          Work Hours · 2.0.0 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3907,10 +3956,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         {!wide && (
           <View
             style={{
-              paddingBottom: Math.max(8, insets.bottom),
+              paddingTop: 6,
+              paddingBottom: Math.max(10, insets.bottom),
               backgroundColor: C.bg,
-              borderTopWidth: 1,
-              borderTopColor: C.line,
             }}
           >
             {navigation()}
@@ -3920,7 +3968,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       {!!notice && (
         <View
           accessibilityRole="alert"
-          style={[s.toast, { bottom: wide ? 24 : 90 + insets.bottom }]}
+          style={[s.toast, { bottom: wide ? 24 : 96 + insets.bottom }]}
         >
           <I name="information-circle-outline" color={C.green} />
           <Text
@@ -3960,6 +4008,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 },
               ]}
             >
+              <View style={s.grabber} />
               <View style={s.sheetHeader}>
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
@@ -4001,7 +4050,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   onPress={() => Keyboard.dismiss()}
                   style={s.iconTile}
                 >
-                  <I name="keypad-outline" color={C.text} />
+                  <I name="keypad-outline" size={18} color={C.muted} />
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
@@ -4010,13 +4059,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   onPress={() => setForm(null)}
                   style={s.iconTile}
                 >
-                  <I name="close" color={C.text} />
+                  <I name="close" size={20} color={C.muted} />
                 </Pressable>
               </View>
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 style={{ flexShrink: 1 }}
-                contentContainerStyle={{ gap: 22, padding: 24 }}
+                contentContainerStyle={{ gap: 20, padding: 20 }}
               >
                 {form?.type === "weekBalance" ? (
                   <>
@@ -4728,29 +4777,38 @@ const s = StyleSheet.create({
     gap: 12,
   },
   content: { width: "100%", maxWidth: 1160, alignSelf: "center" },
-  rail: { width: 226, padding: 25, borderRightWidth: 1, borderColor: C.line },
+  rail: {
+    width: 240,
+    padding: 24,
+    backgroundColor: C.card,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+  },
   brandIcon: {
     width: 34,
     height: 34,
     borderRadius: 10,
+    borderCurve: "continuous",
     backgroundColor: C.green,
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.18)",
   },
   brandName: {
     color: C.text,
     fontSize: 21,
     fontWeight: "700",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
   railNav: { gap: 8 },
   railItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 13,
-    paddingVertical: 15,
+    paddingVertical: 13,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   railBottom: {
     marginTop: "auto",
@@ -4760,65 +4818,80 @@ const s = StyleSheet.create({
   },
   mobileBrand: {
     paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   bottomNav: {
     flexDirection: "row",
-    paddingTop: 8,
-    paddingHorizontal: 8,
-    gap: 4,
+    padding: 6,
+    gap: 2,
+    marginHorizontal: 16,
+    borderRadius: 34,
+    borderCurve: "continuous",
+    backgroundColor: C.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+    boxShadow:
+      "0px 2px 6px rgba(15, 15, 30, 0.06), 0px 12px 32px rgba(15, 15, 30, 0.12)",
   },
   navItem: {
     flex: 1,
-    minHeight: 54,
-    borderRadius: 14,
+    minHeight: 56,
+    borderRadius: 28,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingBottom: 4,
+    gap: 3,
   },
   navItemSelected: { backgroundColor: C.raised },
-  navText: { fontSize: 12, fontWeight: "500" },
+  navText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.1 },
   pageHeader: {
     flexDirection: "row",
     gap: 16,
-    alignItems: "center",
-    marginBottom: 24,
-    marginTop: 12,
+    alignItems: "flex-end",
+    marginBottom: 20,
+    marginTop: 6,
   },
   eyebrow: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.7,
-    color: C.green,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    color: C.muted,
+    textTransform: "uppercase",
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    letterSpacing: -1.1,
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.8,
     color: C.text,
   },
-  subtitle: { fontSize: 13, color: C.muted, lineHeight: 20 },
+  subtitle: {
+    fontSize: 15,
+    color: C.muted,
+    lineHeight: 20,
+  },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: C.raised,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.card,
     alignItems: "center",
     justifyContent: "center",
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   columns: { gap: 16 },
   timerCard: {
     backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: "#393C44",
-    padding: 23,
-    borderRadius: 22,
+    padding: 22,
+    borderRadius: 28,
+    borderCurve: "continuous",
     overflow: "hidden",
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   liveDot: { width: 7, height: 7, borderRadius: 4 },
   overline: {
@@ -4828,9 +4901,9 @@ const s = StyleSheet.create({
     color: C.muted,
   },
   iconTile: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: C.raised,
     alignItems: "center",
     justifyContent: "center",
@@ -4853,31 +4926,37 @@ const s = StyleSheet.create({
   },
   timerHint: { color: C.muted, fontSize: 11, marginTop: 5, marginBottom: 25 },
   button: {
-    minHeight: 52,
-    borderRadius: 18,
-    paddingHorizontal: 18,
+    minHeight: 50,
+    borderRadius: 25,
+    borderCurve: "continuous",
+    paddingHorizontal: 20,
     paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 9,
+    gap: 8,
   },
   smallButton: {
     minHeight: 44,
-    paddingHorizontal: 6,
-    paddingVertical: 9,
-    gap: 5,
+    borderRadius: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
   },
   outlineButton: {
-    backgroundColor: "transparent",
+    backgroundColor: C.green + "14",
     borderWidth: 1,
-    borderColor: C.green,
+    borderColor: C.green + "59",
   },
-  primary: { backgroundColor: C.green },
-  secondary: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line },
+  primary: {
+    backgroundColor: C.green,
+    boxShadow: "0px 4px 14px rgba(0, 0, 0, 0.14)",
+  },
+  secondary: { backgroundColor: C.raised },
   buttonText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "600",
+    letterSpacing: -0.2,
     flexShrink: 1,
     textAlign: "center",
   },
@@ -4887,9 +4966,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.raised,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.line,
+    borderRadius: 24,
   },
   timerFooter: {
     flexDirection: "row",
@@ -4897,18 +4974,19 @@ const s = StyleSheet.create({
     gap: 7,
     marginTop: 20,
     paddingTop: 16,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: C.line,
   },
-  caption: { fontSize: 12, lineHeight: 18, color: C.muted },
+  caption: { fontSize: 13, lineHeight: 18, color: C.muted },
   statsColumn: { gap: 14 },
   statCard: {
-    padding: 21,
-    borderRadius: 20,
+    padding: 20,
+    borderRadius: 24,
+    borderCurve: "continuous",
     backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    gap: 15,
+    gap: 14,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   label: { fontSize: 12, color: C.muted },
   bigMoney: {
@@ -4919,15 +4997,15 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   pill: {
-    backgroundColor: "#2B2E34",
+    backgroundColor: C.green + "1A",
     paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    borderRadius: 999,
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
   },
-  pillText: { fontSize: 10, color: C.green, fontWeight: "600" },
+  pillText: { fontSize: 11, color: C.green, fontWeight: "600" },
   statNumber: {
     fontSize: 32,
     color: C.text,
@@ -4938,33 +5016,36 @@ const s = StyleSheet.create({
   unit: { fontSize: 16, color: C.muted },
   todayMoney: { fontSize: 19, color: C.text, fontWeight: "500" },
   sectionHeader: {
-    marginTop: 27,
-    marginBottom: 15,
+    marginTop: 28,
+    marginBottom: 12,
+    paddingHorizontal: 4,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: C.text,
     letterSpacing: -0.4,
   },
   count: {
-    fontSize: 11,
+    fontSize: 12,
     color: C.muted,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     backgroundColor: C.raised,
-    borderRadius: 6,
+    borderRadius: 999,
+    overflow: "hidden",
   },
   card: {
     backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: "#2A2C31",
-    borderRadius: 22,
+    borderRadius: 26,
+    borderCurve: "continuous",
     overflow: "hidden",
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   empty: {
     alignItems: "center",
@@ -4973,10 +5054,10 @@ const s = StyleSheet.create({
     gap: 15,
   },
   emptyIcon: {
-    width: 58,
-    height: 58,
-    backgroundColor: "#2B2E34",
-    borderRadius: 18,
+    width: 60,
+    height: 60,
+    backgroundColor: C.green + "14",
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
@@ -4988,28 +5069,35 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   emptyBody: {
-    fontSize: 13,
+    fontSize: 15,
     color: C.muted,
-    lineHeight: 22,
+    lineHeight: 21,
     textAlign: "center",
     maxWidth: 360,
   },
   projectGrid: { gap: 14 },
   projectCard: {
-    padding: 17,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.line,
+    padding: 18,
+    borderRadius: 22,
+    borderCurve: "continuous",
     backgroundColor: C.card,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   projectIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
   },
-  rowTitle: { color: C.text, fontSize: 14, fontWeight: "600" },
+  rowTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: -0.2,
+  },
   rowMoney: {
     fontSize: 15,
     color: C.green,
@@ -5017,104 +5105,112 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   projectFooter: {
-    marginTop: 17,
-    paddingTop: 15,
-    borderTopWidth: 1,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: C.line,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  textLink: { fontSize: 11, color: C.green, fontWeight: "500" },
+  textLink: { fontSize: 13, color: C.green, fontWeight: "600" },
   entryRow: {
-    paddingVertical: 18,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: C.line,
   },
   entryMark: {
-    width: 37,
-    height: 37,
+    width: 38,
+    height: 38,
     borderRadius: 11,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
   },
   dateLabel: {
     color: C.muted,
-    fontSize: 10,
-    paddingTop: 15,
+    fontSize: 12,
+    fontWeight: "600",
+    paddingTop: 16,
     paddingHorizontal: 16,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.4,
   },
   tip: {
     flexDirection: "row",
-    gap: 11,
+    gap: 12,
     alignItems: "center",
-    padding: 17,
+    padding: 16,
     marginTop: 20,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 13,
+    backgroundColor: C.card,
+    borderRadius: 20,
+    borderCurve: "continuous",
   },
   chip: {
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 13,
-    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: C.raised,
     borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.card,
+    borderColor: "transparent",
   },
-  chipActive: { backgroundColor: C.raised, borderColor: "#858D9B" },
+  chipActive: { backgroundColor: C.green + "1F", borderColor: C.green + "59" },
   chips: { gap: 8, paddingVertical: 18 },
   searchBox: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    paddingHorizontal: 15,
-    borderRadius: 12,
+    backgroundColor: C.raised,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderCurve: "continuous",
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 15,
+    paddingVertical: 12,
     color: C.text,
-    fontSize: 13,
+    fontSize: 16,
     outlineWidth: 0,
   } as any,
   segment: {
-    backgroundColor: C.card,
-    padding: 5,
+    backgroundColor: C.raised,
+    padding: 3,
     borderRadius: 12,
+    borderCurve: "continuous",
     flexDirection: "row",
-    gap: 4,
+    gap: 2,
   },
   segmentItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 11,
-    borderRadius: 8,
+    paddingVertical: 9,
+    borderRadius: 9,
+    borderCurve: "continuous",
   },
-  segmentActive: { backgroundColor: "#34363C" },
-  segmentText: { fontSize: 12, color: C.muted, fontWeight: "600" },
+  segmentActive: {
+    backgroundColor: C.card,
+    boxShadow:
+      "0px 1px 3px rgba(0, 0, 0, 0.12), 0px 3px 8px rgba(0, 0, 0, 0.06)",
+  },
+  segmentText: { fontSize: 13, color: C.text, fontWeight: "600" },
   summaryStrip: {
-    backgroundColor: "#23252A",
-    borderWidth: 1,
-    borderColor: "#353841",
-    borderRadius: 16,
+    backgroundColor: C.card,
+    borderRadius: 22,
+    borderCurve: "continuous",
     padding: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 15,
-    marginVertical: 20,
+    marginVertical: 18,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   summaryMoney: {
     fontSize: 23,
@@ -5129,7 +5225,7 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   groupHeader: {
-    padding: 18,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -5143,26 +5239,28 @@ const s = StyleSheet.create({
     gap: 8,
   },
   reportHero: {
-    borderRadius: 20,
+    borderRadius: 26,
+    borderCurve: "continuous",
     backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    padding: 18,
+    padding: 20,
     marginVertical: 16,
     gap: 8,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   reportMoney: {
-    fontSize: 38,
+    fontSize: 40,
     color: C.green,
-    fontWeight: "600",
-    letterSpacing: -1.8,
+    fontWeight: "700",
+    letterSpacing: -1.4,
     marginTop: 3,
+    fontVariant: ["tabular-nums"],
   },
   reportStats: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 14,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderColor: C.line,
     paddingTop: 14,
     marginTop: 6,
@@ -5182,126 +5280,162 @@ const s = StyleSheet.create({
     maxWidth: 42,
     justifyContent: "flex-end",
   },
-  bar: { borderRadius: 6, width: "100%" },
-  chartFooter: { padding: 18, borderTopWidth: 1, borderColor: C.line },
+  bar: { borderRadius: 8, borderCurve: "continuous", width: "100%" },
+  chartFooter: {
+    padding: 18,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: C.line,
+  },
   projectReport: {
     padding: 20,
     gap: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: C.line,
   },
   progressTrack: {
-    height: 5,
+    height: 6,
     backgroundColor: C.raised,
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: "hidden",
   },
-  footnote: { fontSize: 11, color: C.muted, lineHeight: 20, marginTop: 12 },
+  footnote: {
+    fontSize: 13,
+    color: C.muted,
+    lineHeight: 18,
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
   paymentCard: {
     padding: 20,
     backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
+    borderRadius: 24,
+    borderCurve: "continuous",
     marginBottom: 14,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   privacyCard: {
-    padding: 22,
-    backgroundColor: "#23252A",
-    borderWidth: 1,
-    borderColor: "#353841",
-    borderRadius: 17,
+    padding: 20,
+    backgroundColor: C.card,
+    borderRadius: 24,
+    borderCurve: "continuous",
     flexDirection: "row",
-    gap: 17,
+    gap: 16,
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
   },
   settingsHeading: {
-    fontSize: 10,
-    letterSpacing: 1.5,
+    fontSize: 13,
+    letterSpacing: 0.2,
     color: C.muted,
-    fontWeight: "600",
+    fontWeight: "500",
+    textTransform: "uppercase",
     marginTop: 28,
-    marginBottom: 13,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   settingRow: {
-    padding: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: C.line,
   },
   about: { alignItems: "center", padding: 28, gap: 15 },
   toast: {
     position: "absolute",
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     maxWidth: 600,
     alignSelf: "center",
-    backgroundColor: "#30333A",
-    borderWidth: 1,
-    borderColor: "#737D8C",
-    padding: 16,
-    borderRadius: 13,
+    backgroundColor: C.card,
+    padding: 14,
+    paddingLeft: 16,
+    borderRadius: 22,
+    borderCurve: "continuous",
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
     zIndex: 200,
+    boxShadow:
+      "0px 4px 10px rgba(15, 15, 30, 0.08), 0px 18px 40px rgba(15, 15, 30, 0.18)",
   },
   overlay: {
     flex: 1,
-    backgroundColor: "#000000B8",
+    backgroundColor: "#00000066",
     justifyContent: "flex-end",
     alignItems: "center",
   },
   sheet: {
-    backgroundColor: C.card,
+    backgroundColor: C.bg,
     width: "100%",
     maxWidth: 560,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderWidth: 1,
-    borderColor: C.line,
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    borderCurve: "continuous",
+    overflow: "hidden",
+    boxShadow: "0px -8px 40px rgba(0, 0, 0, 0.18)",
+  },
+  grabber: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#AFB2BB66",
+    alignSelf: "center",
+    marginTop: 8,
   },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 18,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
     gap: 16,
-    borderBottomWidth: 1,
-    borderColor: C.line,
   },
   sheetTitle: {
-    fontSize: 23,
+    fontSize: 22,
     color: C.text,
-    fontWeight: "600",
-    letterSpacing: -0.7,
+    fontWeight: "700",
+    letterSpacing: -0.5,
   },
-  fieldLabel: { fontSize: 13, color: "#BCC0C8", fontWeight: "600" },
+  fieldLabel: {
+    fontSize: 13,
+    color: C.muted,
+    fontWeight: "500",
+    paddingHorizontal: 4,
+  },
   input: {
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     color: C.text,
-    backgroundColor: C.bg,
-    borderWidth: 1,
+    backgroundColor: C.card,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: C.line,
-    borderRadius: 16,
-    fontSize: 16,
-    minHeight: 52,
+    borderRadius: 14,
+    borderCurve: "continuous",
+    fontSize: 17,
+    minHeight: 50,
   },
   error: {
     padding: 14,
-    borderRadius: 10,
+    borderRadius: 14,
+    borderCurve: "continuous",
     backgroundColor: "#452A29",
     color: C.red,
-    fontSize: 13,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 20,
+    overflow: "hidden",
   },
   confirmBox: {
     width: "100%",
-    maxWidth: 430,
-    padding: 26,
+    maxWidth: 400,
+    padding: 24,
     backgroundColor: C.card,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: C.line,
+    borderRadius: 30,
+    borderCurve: "continuous",
+    boxShadow: "0px 20px 60px rgba(0, 0, 0, 0.25)",
   },
 });

@@ -55,10 +55,11 @@ export default function InstallHelp() {
 const s = StyleSheet.create({
   card: {
     padding: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#34363C",
+    borderRadius: 24,
+    borderCurve: "continuous",
     backgroundColor: "#1C1D20",
+    boxShadow:
+      "0px 1px 2px rgba(15, 15, 30, 0.04), 0px 8px 24px rgba(15, 15, 30, 0.06)",
     gap: 12,
   },
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
