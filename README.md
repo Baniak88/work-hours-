@@ -2,6 +2,10 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Przyciski z obramowaniem — 1.9.8
+
+Akcje na ekranach mają czytelne obramowanie i ikony, z kolorami dopasowanymi do wybranego motywu.
+
 ## Czytelność ekranów — 1.9.7
 
 Poprawiono odstęp przy przycisku obliczeń, układ listy, kwot, długich nazw w raportach i rozliczeń na małych ekranach.

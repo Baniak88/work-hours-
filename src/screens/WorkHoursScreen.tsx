@@ -176,7 +176,7 @@ function Button({
           : kind === "danger"
             ? { backgroundColor: "#452A29" }
             : kind === "ghost"
-              ? { backgroundColor: "transparent" }
+              ? s.outlineButton
               : s.secondary,
         { opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
       ]}
@@ -184,16 +184,31 @@ function Button({
       {icon && (
         <I
           name={icon}
-          color={kind === "primary" ? C.bg : kind === "danger" ? C.red : C.text}
-          size={small ? 17 : 20}
+          color={
+            kind === "primary"
+              ? C.bg
+              : kind === "danger"
+                ? C.red
+                : kind === "ghost"
+                  ? C.green
+                  : C.text
+          }
+          size={small ? 16 : 20}
         />
       )}
       <Text
         style={[
           s.buttonText,
+          small && { fontSize: 12 },
           {
             color:
-              kind === "primary" ? C.bg : kind === "danger" ? C.red : C.text,
+              kind === "primary"
+                ? C.bg
+                : kind === "danger"
+                  ? C.red
+                  : kind === "ghost"
+                    ? C.green
+                    : C.text,
           },
         ]}
       >
@@ -1968,6 +1983,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             {!timer ? (
               <Button
                 label="Start od godziny"
+                icon="time-outline"
                 kind="ghost"
                 small
                 onPress={() => (job ? openStart() : openJob())}
@@ -1976,12 +1992,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <>
                 <Button
                   label="Popraw początek"
+                  icon="create-outline"
                   kind="ghost"
                   small
                   onPress={openAdjust}
                 />
                 <Button
                   label="Popraw koniec"
+                  icon="create-outline"
                   kind="ghost"
                   small
                   onPress={() => {
@@ -2003,6 +2021,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             )}
             <Button
               label="Dodaj urlop"
+              icon="calendar-outline"
               kind="ghost"
               small
               onPress={() => openHoliday(undefined, today)}
@@ -3802,7 +3821,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.7 · dane na Twoim urządzeniu
+          Work Hours · 1.9.8 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -4843,7 +4862,17 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: 9,
   },
-  smallButton: { minHeight: 36, paddingHorizontal: 10, paddingVertical: 9 },
+  smallButton: {
+    minHeight: 44,
+    paddingHorizontal: 6,
+    paddingVertical: 9,
+    gap: 5,
+  },
+  outlineButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: C.green,
+  },
   primary: { backgroundColor: C.green },
   secondary: { backgroundColor: C.raised, borderWidth: 1, borderColor: C.line },
   buttonText: {
