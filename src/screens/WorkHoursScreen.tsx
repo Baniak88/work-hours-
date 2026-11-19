@@ -3322,7 +3322,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               style={[s.card, { padding: 16, gap: 16 }]}
             >
               <View style={s.between}>
-                <Text verbatim style={s.rowTitle}>
+                <Text verbatim style={[s.rowTitle, { flexShrink: 1 }]}>
                   {j.name}
                 </Text>
                 <I name="create-outline" color={C.text} />
