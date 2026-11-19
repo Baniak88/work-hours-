@@ -18,7 +18,7 @@ import { translateText } from "./i18n";
 export function usePresentation() {
   const { state } = useWorkHours();
   const language = state?.language ?? "pl",
-    theme = state?.theme ?? "navy";
+    theme = state?.theme ?? "pastel";
   return {
     language,
     theme,
@@ -50,7 +50,16 @@ export const Text = React.forwardRef<
     <NativeText
       {...props}
       ref={ref}
-      style={style(appearance, theme)}
+      style={[
+        {
+          fontFamily: Platform.select({
+            ios: "System",
+            android: "sans-serif",
+            default: "system-ui",
+          }),
+        },
+        style(appearance, theme),
+      ]}
       accessibilityLabel={
         accessibilityLabel ? t(accessibilityLabel) : undefined
       }
@@ -112,8 +121,19 @@ export const TextInput = React.forwardRef<
     <NativeInput
       {...props}
       ref={ref}
-      style={style(appearance, theme)}
-      keyboardAppearance={theme === "light" ? "light" : "dark"}
+      style={[
+        {
+          fontFamily: Platform.select({
+            ios: "System",
+            android: "sans-serif",
+            default: "system-ui",
+          }),
+        },
+        style(appearance, theme),
+      ]}
+      keyboardAppearance={
+        theme === "light" || theme === "pastel" ? "light" : "dark"
+      }
       accessibilityLabel={
         accessibilityLabel ? t(accessibilityLabel) : undefined
       }

@@ -47,6 +47,9 @@ import {
   previewSlices,
   updateActiveWeeklyPolicy,
   setWeeklyTarget,
+  setWeeklyBalance,
+  parseWeeklyBalance,
+  weeklyCorrectionMinutes,
   checkEntry,
   findEntryConflicts,
   csv,
@@ -107,6 +110,7 @@ type Form = {
     | "holiday"
     | "holidaySettings"
     | "weeklyNorm"
+    | "weekBalance"
     | "breakSettings";
   id?: string;
   [key: string]: string | undefined;
@@ -302,7 +306,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     setSelected,
     save,
   } = useWorkHours();
-  const { language, locale, t: tr } = usePresentation();
+  const { language, locale, theme, t: tr } = usePresentation();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 850;
@@ -342,10 +346,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   const calculated = useMemo(
     () =>
       groupSlices(
-        calculate(state?.entries ?? [], state?.weekBoundary ?? "midnight"),
+        calculate(
+          state?.entries ?? [],
+          state?.weekBoundary ?? "midnight",
+          state?.balanceCorrections ?? [],
+        ),
         state?.countingMode ?? "shift",
       ),
-    [state?.entries, state?.countingMode, state?.weekBoundary],
+    [
+      state?.entries,
+      state?.countingMode,
+      state?.weekBoundary,
+      state?.balanceCorrections,
+    ],
   );
   const liveCalculated = useMemo(
     () =>
@@ -356,6 +369,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               state.timer,
               now,
               state.weekBoundary ?? "midnight",
+              state.balanceCorrections,
             ),
             state.countingMode ?? "shift",
           )
@@ -964,6 +978,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           setSelected(j.id);
           setForm(null);
         }
+        return;
+      }
+      if (form.type === "weekBalance") {
+        const target = parseWeeklyBalance(form.balance ?? "");
+        // eslint-disable-next-line react-hooks/purity -- Snapshot the user's correction at the save action.
+        const asOf = Date.now();
+        const next = setWeeklyBalance(
+          data,
+          form.jobId ?? "",
+          form.week ?? "",
+          target,
+          asOf,
+        );
+        if (await save(next, "Stan godzin zaktualizowany")) setForm(null);
         return;
       }
       if (form.type === "weeklyNorm") {
@@ -1605,6 +1633,29 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       </View>
     );
   }
+  function openWeeklyBalance(
+    workplace: Job | undefined,
+    targetWeek: string,
+    balance: number,
+  ) {
+    if (timer) {
+      setNotice(
+        "Najpierw zakończ aktywną zmianę, aby ustawić stan po jej zakończeniu.",
+      );
+      return;
+    }
+    if (!workplace) {
+      openJob();
+      return;
+    }
+    setFormError("");
+    setForm({
+      type: "weekBalance",
+      jobId: workplace.id,
+      week: targetWeek,
+      balance: formatDuration(balance, "clock", language),
+    });
+  }
   function home() {
     const timerJob = timer ? jobFor(timer.jobId) : job;
     const liveWeekSlices = liveCalculated.filter(
@@ -1627,7 +1678,25 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     );
     const weeklyTarget =
       (timer?.weeklyHours ?? timerJob?.weeklyHours ?? 40) * 60;
-    const remaining = Math.max(0, weeklyTarget - currentWeekData.total.minutes);
+    const hasCurrentCorrection = data.balanceCorrections.some(
+      (item) => item.jobId === timerJob?.id && item.week === activeWeek,
+    );
+    const hasWeekCorrection = data.balanceCorrections.some(
+      (item) => item.jobId === timerJob?.id && item.week === displayedWeek,
+    );
+    const currentCorrection = weeklyCorrectionMinutes(
+      data.balanceCorrections,
+      timerJob?.id ?? "",
+      activeWeek,
+    );
+    const weekCorrection = weeklyCorrectionMinutes(
+      data.balanceCorrections,
+      timerJob?.id ?? "",
+      displayedWeek,
+    );
+    const currentBalance = currentWeekData.total.minutes + currentCorrection;
+    const displayedBalance = weekData.total.minutes + weekCorrection;
+    const remaining = Math.max(0, weeklyTarget - currentBalance);
     const earlierThisShift = timer?.shift
       ? totals(
           slices.filter(
@@ -1670,7 +1739,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </Pressable>,
         )}
         {weeklyCorrectionBanner()}
-        <View style={[s.card, { padding: 14, gap: 12 }]}>
+        <View style={[s.card, { padding: 16, gap: 12, borderRadius: 22 }]}>
           {!timer && data.shifts.length > 1 && (
             <View style={[s.row, { flexWrap: "wrap" }]}>
               {data.shifts.map((v) => (
@@ -1698,6 +1767,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   second: "2-digit",
                 }),
                 note: timer ? tr("W trakcie zmiany") : tr("Gotowy do startu"),
+                icon: "time-outline" as Icon,
+                tint: "#EAE4FA",
               },
               {
                 label: tr("Do normy"),
@@ -1705,13 +1776,17 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 note: timerJob
                   ? `${tr("Norma")} ${duration(weeklyTarget)} h`
                   : tr("Ustaw miejsce pracy"),
+                icon: "hourglass-outline" as Icon,
+                tint: "#FFF1C9",
               },
               {
-                label: tr("Przepracowano"),
-                value: timerJob
-                  ? `${duration(currentWeekData.total.minutes)} h`
-                  : "—",
-                note: tr("W tym tygodniu"),
+                label: tr("Wykonano"),
+                value: timerJob ? `${duration(currentBalance)} h` : "—",
+                note: hasCurrentCorrection
+                  ? tr("Z korektą salda")
+                  : tr("W tym tygodniu"),
+                icon: "checkmark-done-outline" as Icon,
+                tint: "#FCE5EF",
               },
             ].map((item) => (
               <View
@@ -1719,13 +1794,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  backgroundColor: C.raised,
-                  borderRadius: 13,
-                  paddingHorizontal: 9,
+                  backgroundColor: theme === "pastel" ? item.tint : C.raised,
+                  borderRadius: 17,
+                  paddingHorizontal: 10,
                   paddingVertical: 12,
                   gap: 7,
                 }}
               >
+                <I name={item.icon} size={18} color={C.text} />
                 <Text verbatim style={[s.caption, { minHeight: 34 }]}>
                   {item.label}
                 </Text>
@@ -1735,7 +1811,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   style={[
                     s.rowTitle,
                     {
-                      fontSize: width < 360 ? 13 : 16,
+                      fontSize: width < 360 ? 13 : 17,
+                      fontWeight: "700",
+                      letterSpacing: -0.3,
                       fontVariant: ["tabular-nums"],
                     },
                   ]}
@@ -1753,6 +1831,20 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               ? `${timerJob.name} · ${timer?.shift?.name ?? shift.name}`
               : tr("Dodaj miejsce pracy, aby rozpocząć.")}
           </Text>
+          <Button
+            label="Dopasuj stan z czytnika"
+            kind="ghost"
+            small
+            icon="create-outline"
+            onPress={() =>
+              openWeeklyBalance(timerJob, activeWeek, currentBalance)
+            }
+          />
+          {timer && (
+            <Text style={s.caption}>
+              Aby dopasować stan po zakończeniu pracy, najpierw naciśnij Stop.
+            </Text>
+          )}
           <Text style={s.caption}>
             {(timer?.shift ?? shift).startTime} –{" "}
             {(timer?.shift ?? shift).endTime}
@@ -1797,11 +1889,23 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 borderRadius: 13,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#285C46",
+                backgroundColor: theme === "pastel" ? "#D7F0E0" : "#285C46",
                 opacity: timer ? 0.45 : 1,
               }}
             >
-              <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Start</Text>
+              <I
+                name="play"
+                size={15}
+                color={theme === "pastel" ? "#24513A" : "#FFFFFF"}
+              />
+              <Text
+                style={{
+                  color: theme === "pastel" ? "#24513A" : "#FFFFFF",
+                  fontWeight: "700",
+                }}
+              >
+                Start
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -1814,11 +1918,23 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 borderRadius: 13,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#813D40",
+                backgroundColor: theme === "pastel" ? "#FCE0E4" : "#813D40",
                 opacity: timer ? 1 : 0.45,
               }}
             >
-              <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Stop</Text>
+              <I
+                name="stop"
+                size={15}
+                color={theme === "pastel" ? "#87343D" : "#FFFFFF"}
+              />
+              <Text
+                style={{
+                  color: theme === "pastel" ? "#87343D" : "#FFFFFF",
+                  fontWeight: "700",
+                }}
+              >
+                Stop
+              </Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -1898,7 +2014,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </Text>
           )}
         </View>
-        <View style={[s.card, { padding: 14, marginTop: 14, gap: 10 }]}>
+        <View
+          style={[
+            s.card,
+            { padding: 16, marginTop: 14, gap: 10, borderRadius: 22 },
+          ]}
+        >
           <View style={s.between}>
             <Pressable
               accessibilityRole="button"
@@ -2017,14 +2138,41 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </View>
             );
           })}
+          {hasWeekCorrection && (
+            <View style={s.between}>
+              <Text style={s.caption}>Korekta salda</Text>
+              <Text style={s.rowTitle}>
+                {weekCorrection < 0 ? "−" : "+"}
+                {duration(Math.abs(weekCorrection))} h
+              </Text>
+            </View>
+          )}
           <View style={[s.between, { paddingTop: 4 }]}>
             <Text style={s.rowTitle}>Razem w tygodniu</Text>
-            <Text style={s.rowTitle}>{duration(weekData.total.minutes)} h</Text>
+            <Text style={s.rowTitle}>{duration(displayedBalance)} h</Text>
           </View>
+          {displayedBalance < 0 && (
+            <Text style={s.caption}>
+              Korekta jest większa niż suma wpisów. Ustaw stan ponownie.
+            </Text>
+          )}
           <View style={s.between}>
-            <Text style={s.caption}>Nadgodziny</Text>
+            <Text style={s.caption}>Nadgodziny z wpisów</Text>
             <Text style={s.rowTitle}>{duration(weekData.total.extra)} h</Text>
           </View>
+          <Button
+            label="Dopasuj ten tydzień"
+            kind="secondary"
+            icon="create-outline"
+            disabled={!timerJob || displayedWeek > week}
+            onPress={() =>
+              openWeeklyBalance(timerJob, displayedWeek, displayedBalance)
+            }
+          />
+          <Text style={s.caption}>
+            Korekta zmienia stan godzin i próg dla kolejnej pracy. Nie zmienia
+            zarobków z zapisanych zmian.
+          </Text>
           <Text style={s.caption}>
             Urlop jest liczony osobno i nie zwiększa normy nadgodzin.
           </Text>
@@ -2118,6 +2266,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               const jt = totals(
                 liveWeekSlices.filter((x) => x.entry.jobId === j.id),
               );
+              const jobWeekBalance =
+                jt.minutes +
+                weeklyCorrectionMinutes(data.balanceCorrections, j.id, week);
               return (
                 <View
                   key={j.id}
@@ -2166,7 +2317,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   </View>
                   <View style={s.projectFooter}>
                     <Text style={s.caption}>
-                      Ten tydzień · {duration(jt.minutes)} h
+                      Ten tydzień · {duration(jobWeekBalance)} h
                     </Text>
                     <Text style={s.rowMoney}>{fmt(jt.amount)}</Text>
                   </View>
@@ -2394,6 +2545,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             onSelect={chooseDay}
             onMonth={chooseMonth}
           />
+          {data.balanceCorrections.length > 0 && (
+            <Text style={[s.caption, { marginTop: 10 }]}>
+              Kalendarz pokazuje zapisane zmiany. Korekty salda są widoczne w
+              stanie tygodnia na pulpicie.
+            </Text>
+          )}
           <View style={[s.card, { padding: 14, marginTop: 12, gap: 10 }]}>
             <View style={s.between}>
               <View style={{ flex: 1, gap: 4 }}>
@@ -2539,7 +2696,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             <Text style={s.summaryMoney}>{fmt(ft.amount)}</Text>
           </View>
           <View style={{ gap: 5 }}>
-            <Text style={s.caption}>CZAS PRACY</Text>
+            <Text style={s.caption}>CZAS WPISÓW</Text>
             <Text style={s.summaryValue}>{duration(ft.minutes)} h</Text>
           </View>
           <View style={{ gap: 5 }}>
@@ -2547,6 +2704,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             <Text style={s.summaryValue}>{duration(ft.extra)} h</Text>
           </View>
         </View>
+        {data.balanceCorrections.length > 0 && (
+          <Text style={[s.caption, { marginBottom: 12 }]}>
+            Lista pokazuje godziny zapisanych zmian, bez korekt salda.
+          </Text>
+        )}
         {period !== "all" && (
           <Button
             label="Wróć do wszystkich okresów"
@@ -2648,7 +2810,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     });
     const max = Math.max(8 * 60, ...days.map((d) => d.minutes));
     const weeks = [
-      ...new Set(slices.map((x) => weekKey(localDate(x.weekDate)))),
+      ...new Set([
+        ...slices.map((x) => weekKey(localDate(x.weekDate))),
+        ...data.balanceCorrections.map((item) => item.week),
+      ]),
     ]
       .sort()
       .reverse();
@@ -2732,9 +2897,15 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             </View>
             {job &&
               (() => {
-                const worked = totals(
-                  weekSlices.filter((part) => part.entry.jobId === job.id),
-                ).minutes;
+                const worked =
+                  totals(
+                    weekSlices.filter((part) => part.entry.jobId === job.id),
+                  ).minutes +
+                  weeklyCorrectionMinutes(
+                    data.balanceCorrections,
+                    job.id,
+                    week,
+                  );
                 const target = (job.weeklyHours ?? 40) * 60;
                 const remaining = Math.max(0, target - worked);
                 return (
@@ -2761,7 +2932,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <View style={s.progressTrack}>
                       <View
                         style={{
-                          width: `${Math.min(100, (worked / target) * 100)}%`,
+                          width: `${Math.min(100, Math.max(0, (worked / target) * 100))}%`,
                           height: 5,
                           backgroundColor: C.green,
                           borderRadius: 4,
@@ -2769,9 +2940,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       />
                     </View>
                     <Text style={s.caption}>
-                      {remaining > 0
-                        ? `${tr("Do nadgodzin pozostało")} ${duration(remaining)} h`
-                        : tr("Norma tygodniowa wykonana")}
+                      {worked < 0
+                        ? tr(
+                            "Korekta jest większa niż suma wpisów. Ustaw stan ponownie.",
+                          )
+                        : remaining > 0
+                          ? `${tr("Do nadgodzin pozostało")} ${duration(remaining)} h`
+                          : tr("Norma tygodniowa wykonana")}
                     </Text>
                   </View>
                 );
@@ -2859,7 +3034,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     ]}
                   />
                   <Text style={s.caption}>
-                    Zapisany czas pracy · tydzień od poniedziałku
+                    Wykres pokazuje zapisane zmiany, bez korekty salda.
                   </Text>
                 </View>
               </View>
@@ -2932,6 +3107,13 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 const t = totals(
                     slices.filter((x) => weekKey(localDate(x.weekDate)) === k),
                   ),
+                  weekCorrections = data.balanceCorrections.filter(
+                    (item) => item.week === k,
+                  ),
+                  correction = weekCorrections.reduce(
+                    (sum, item) => sum + item.deltaMinutes,
+                    0,
+                  ),
                   paid = data.paidWeeks.includes(k);
                 return (
                   <View key={k} style={[s.paymentCard, { gap: 18 }]}>
@@ -2939,9 +3121,16 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <View style={{ gap: 8, flex: 1 }}>
                         <Text style={s.rowTitle}>{weekTitle(k, locale)}</Text>
                         <Text style={s.caption}>
-                          {duration(t.minutes)} h · nadgodziny{" "}
+                          {duration(t.minutes + correction)} h · nadgodziny{" "}
                           {duration(t.extra)} h
                         </Text>
+                        {weekCorrections.length > 0 && (
+                          <Text style={s.caption}>
+                            Korekta salda bez wynagrodzenia:{" "}
+                            {correction < 0 ? "−" : "+"}
+                            {duration(Math.abs(correction))} h
+                          </Text>
+                        )}
                       </View>
                       <Text style={s.rowMoney}>{fmt(t.amount)}</Text>
                     </View>
@@ -3085,6 +3274,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={[s.row, { flexWrap: "wrap" }]}>
             {(
               [
+                ["pastel", "Pastelowy"],
                 ["navy", "Nocny granat"],
                 ["graphite", "Grafit"],
                 ["light", "Jasny"],
@@ -3093,7 +3283,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <Chip
                 key={value}
                 label={label}
-                active={(data.theme ?? "navy") === value}
+                active={(data.theme ?? "pastel") === value}
                 onPress={() => void save({ ...data, theme: value })}
               />
             ))}
@@ -3267,7 +3457,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               }
               setConfirm({
                 title: "Wyczyścić ewidencję?",
-                body: `Usuniemy wszystkie wpisy, urlopy, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.`,
+                body: `Usuniemy wszystkie wpisy, korekty salda, urlopy, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.`,
                 label: "Wyczyść ewidencję",
                 danger: true,
                 action: () => {
@@ -3386,7 +3576,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         if (active) return;
                         setConfirm({
                           title: "Zmienić sposób liczenia tygodnia?",
-                          body: "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Oznaczenia wypłat pozostaną bez zmian.",
+                          body: "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Korekty salda pozostaną przypisane do wybranych tygodni, a oznaczenia wypłat bez zmian.",
                           label: "Zmień sposób liczenia",
                           action: () => {
                             void save({ ...data, weekBoundary: v.key }).then(
@@ -3535,7 +3725,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     }
                     setConfirm({
                       title: `Usunąć ${j.name}?`,
-                      body: `Usuniemy projekt oraz ${data.entries.filter((e) => e.jobId === j.id).length} jego wpisów. Inne miejsca pracy zostaną zachowane. Przywrócenie wymaga kopii JSON.`,
+                      body: `Usuniemy projekt, jego korekty salda oraz ${data.entries.filter((e) => e.jobId === j.id).length} jego wpisów. Inne miejsca pracy zostaną zachowane. Przywrócenie wymaga kopii JSON.`,
                       label: "Usuń projekt i wpisy",
                       danger: true,
                       action: () => {
@@ -3552,6 +3742,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </View>
             ))}
           {!data.entries.length &&
+            !data.balanceCorrections.length &&
             !timer &&
             settingRow(
               "sparkles-outline",
@@ -3592,7 +3783,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 1.9.5 · dane na Twoim urządzeniu
+          Work Hours · 1.9.6 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3603,7 +3794,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   };
   return (
     <View style={[s.app, { paddingTop: insets.top }]}>
-      <StatusBar style={state?.theme === "light" ? "dark" : "light"} />
+      <StatusBar
+        style={
+          (state?.theme ?? "pastel") === "light" ||
+          (state?.theme ?? "pastel") === "pastel"
+            ? "dark"
+            : "light"
+        }
+      />
       {wide && (
         <View style={s.rail}>
           <View style={[s.row, { marginBottom: 45 }]}>
@@ -3728,33 +3926,35 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 <View style={{ gap: 6, flex: 1 }}>
                   <Text style={s.eyebrow}>WORK HOURS</Text>
                   <Text style={s.sheetTitle}>
-                    {form?.type === "breakSettings"
-                      ? "Ustawienia przerwy"
-                      : form?.type === "weeklyNorm"
-                        ? "Norma tygodniowa"
-                        : form?.type === "holidaySettings"
-                          ? "Ustawienia urlopu"
-                          : form?.type === "holiday"
-                            ? form.id
-                              ? "Edytuj urlop"
-                              : "Dodaj urlop"
-                            : form?.type === "shift"
+                    {form?.type === "weekBalance"
+                      ? "Dopasuj stan godzin"
+                      : form?.type === "breakSettings"
+                        ? "Ustawienia przerwy"
+                        : form?.type === "weeklyNorm"
+                          ? "Norma tygodniowa"
+                          : form?.type === "holidaySettings"
+                            ? "Ustawienia urlopu"
+                            : form?.type === "holiday"
                               ? form.id
-                                ? "Ustawienia zmiany"
-                                : "Własna zmiana"
-                              : form?.type === "job"
+                                ? "Edytuj urlop"
+                                : "Dodaj urlop"
+                              : form?.type === "shift"
                                 ? form.id
-                                  ? "Edytuj projekt"
-                                  : "Nowy projekt"
-                                : form?.type === "stopAt"
-                                  ? "Zakończ o wybranej godzinie"
-                                  : form?.type === "adjust"
-                                    ? "Popraw początek zmiany"
-                                    : form?.type === "start"
-                                      ? "Rozpocznij od…"
-                                      : form?.id
-                                        ? "Edytuj wpis"
-                                        : "Dodaj przepracowaną zmianę"}
+                                  ? "Ustawienia zmiany"
+                                  : "Własna zmiana"
+                                : form?.type === "job"
+                                  ? form.id
+                                    ? "Edytuj projekt"
+                                    : "Nowy projekt"
+                                  : form?.type === "stopAt"
+                                    ? "Zakończ o wybranej godzinie"
+                                    : form?.type === "adjust"
+                                      ? "Popraw początek zmiany"
+                                      : form?.type === "start"
+                                        ? "Rozpocznij od…"
+                                        : form?.id
+                                          ? "Edytuj wpis"
+                                          : "Dodaj przepracowaną zmianę"}
                   </Text>
                 </View>
                 <Pressable
@@ -3780,7 +3980,29 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{ flexShrink: 1 }}
                 contentContainerStyle={{ gap: 22, padding: 24 }}
               >
-                {form?.type === "breakSettings" ? (
+                {form?.type === "weekBalance" ? (
+                  <>
+                    <Text style={s.rowTitle}>
+                      {tr("Tydzień:")} {weekTitle(form.week ?? week, locale)}
+                    </Text>
+                    <Text style={s.caption}>
+                      Wpisz aktualny stan z czytnika po ostatniej zapisanej zmianie, np.
+                      29:28. Uwzględnij zmiany przepracowane po odczycie. Korekta
+                      nie tworzy zmiany ani nie zmienia zapisanych zarobków.
+                    </Text>
+                    <Field
+                      label="Stan godzin (godziny:minuty)"
+                      placeholder="29:28"
+                      value={form.balance}
+                      onChange={(v) => setField("balance", v)}
+                    />
+                    <Text style={s.caption}>
+                      Nowy stan określa, ile brakuje do normy i kiedy rozpoczną
+                      się nadgodziny dla kolejnych zmian. Korekta jest zapisana
+                      osobno.
+                    </Text>
+                  </>
+                ) : form?.type === "breakSettings" ? (
                   <>
                     <Field
                       label="Domyślna przerwa (minuty)"

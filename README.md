@@ -2,6 +2,12 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Stan z czytnika — 1.9.6
+
+Po zakończeniu aktywnej zmiany wybierz **Dopasuj stan z czytnika** i wpisz aktualny stan godzin dla wybranego miejsca pracy i tygodnia, np. **29:28**. Jeśli od odczytu były kolejne zmiany, uwzględnij je w podanej wartości. Korekta zmienia wyświetlany stan oraz próg nadgodzin dla dalszej pracy; nie tworzy fikcyjnej zmiany i nie zmienia zarobków ani nadgodzin wcześniejszych wpisów. Jest widoczna osobno i zapisywana w kopii JSON.
+
+Jasny motyw pastelowy zachowuje dotychczasowy układ pulpitu. Wybrany wcześniej motyw można zmienić w ustawieniach.
+
 ## Wersja 1.9 — nadgodziny tygodniowe i przerwy
 
 Nadgodziny nowych i aktywnych zmian zaczynają się **wyłącznie po normie tygodniowej** miejsca pracy, np. 39:00. Cel pojedynczej zmiany nie uruchamia nadgodzin. Każde miejsce zachowuje swoją wcześniej ustawioną normę; jeśli jej nie miało, początkowo wynosi 40:00 — wpisz właściwą przez **Zmień normę** na pulpicie.
@@ -10,7 +16,7 @@ Dotychczasowe wpisy zachowują swoje zasady i kwoty. Aby poprawić je na normę 
 
 W **Ustawienia → Przerwa** wpisz liczbę minut i wybierz ręczne lub automatyczne rozliczenie. Domyślnie jest 0 minut i tryb ręczny. W trybie automatycznym po zakończeniu nowej zmiany brakująca część przerwy jest odejmowana z końca pracy; ręcznie zapisane przerwy i wcześniejsze części tej samej zmiany są uwzględniane, bez podwójnego odejmowania. Podsumowania na żywo uwzględniają tylko zarejestrowane przerwy — brakująca automatyczna część zostanie odjęta po zatrzymaniu, co może zmienić wskazaną kwotę i nadgodziny. Ustawienie dotyczy kolejnych uruchomień. Gdy ręczna przerwa zostanie zarejestrowana w późniejszej części tej samej zmiany, wcześniejsza przerwa automatyczna może zostać zmniejszona, a kwota poprzedniego wpisu ponownie obliczona. Wpisy ręczne proponują ustawioną długość przerwy.
 
-Nowa kopia JSON ma format 7. Kopie 1–6 są odczytywane, a zapisane wcześniej wpisy zachowują swoje reguły do czasu świadomego przeliczenia. Przed przenoszeniem kopii zaktualizuj aplikację na obu urządzeniach.
+Nowa kopia JSON ma format 8. Kopie 1–7 są odczytywane, a zapisane wcześniej wpisy zachowują swoje reguły do czasu świadomego przeliczenia. Przed przenoszeniem kopii zaktualizuj aplikację na obu urządzeniach.
 
 ## Wersja 1.8 — czytelne normy i podsumowanie na żywo
 
@@ -33,7 +39,7 @@ Formularz dostosowuje się do klawiatury; przycisk klawiatury w jego nagłówku 
 
 ## Pobieranie i udostępnianie
 
-- **Android:** [instrukcja i instalator APK 1.9.4](docs/android/README.md).
+- **Android:** [instrukcja i instalator APK 1.9.5](docs/android/README.md).
 - **iPhone:** [instrukcja instalacji z Safari](docs/iphone/README.md).
 
 Link do wersji dla iPhone’a oraz bezpośredni link APK z wydania możesz wysłać przez e-mail lub WhatsApp. Każdy użytkownik przechowuje własne dane na swoim urządzeniu.
@@ -109,15 +115,15 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 - Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
 - Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
 
-## Instalator Android 1.9.4
+## Instalator Android 1.9.5
 
-**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.9.4/work-hours-1.9.4.apk)** · około 91 MB.
+**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v1.9.5/work-hours-1.9.5.apk)** · około 91 MB.
 
-[Wydanie v1.9.4 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.9.4) zawiera plik `work-hours-1.9.4.apk` w sekcji **Assets**. Repozytorium jest publiczne; pobranie nie wymaga logowania do GitHuba. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/15puO0TWkE5Li8CKOdwZBC51XXmz2162L7aPQq7mSH8.apk).
+[Wydanie v1.9.5 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v1.9.5) zawiera plik `work-hours-1.9.5.apk` w sekcji **Assets**. Repozytorium jest publiczne; pobranie nie wymaga logowania do GitHuba. [Alternatywne pobranie z Expo](https://expo.dev/artifacts/eas/3mJDd4vz2LMKdZ1kbvkCKtszIqd17WQsxAfceEsWLgg.apk).
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli masz wcześniejszą wersję, zainstaluj aktualizację bez jej odinstalowywania, aby zachować dane. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 
-[Strona kompilacji i kod QR](https://expo.dev/accounts/neospecto82/projects/work-hours/builds/39950c6a-2a41-4d10-b4cd-e6dacf80d211). Podpis APK v2 i integralność archiwum zostały sprawdzone. [Metadane i suma SHA-256](docs/releases/android-1.9.4.json). Pliku APK nie przechowujemy w historii Git; klucz podpisu jest na koncie Expo właściciela. Nie wykonano jeszcze testu instalacji na fizycznym telefonie.
+Podpis APK v2 i integralność archiwum zostały sprawdzone. SHA-256: `4f4a337fdd2f23b82efafc15e18be9b4e54b7a41ab42654f7681f93d264e3c46`. Pliku APK nie przechowujemy w historii Git. Nie wykonano testu instalacji na fizycznym telefonie. Wersja 1.9.5 nie zawiera jeszcze korekty salda z 1.9.6.
 
 Osobny instalator iOS nie został zbudowany: dystrybucja IPA przez EAS wymaga podpisu z konta Apple Developer oraz rejestracji urządzenia lub dystrybucji przez TestFlight.
 

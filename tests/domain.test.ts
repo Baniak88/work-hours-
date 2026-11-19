@@ -4,6 +4,9 @@ import {
   calculate,
   groupSlices,
   normalizeWeeklyOvertime,
+  setWeeklyBalance,
+  parseWeeklyBalance,
+  weeklyCorrectionMinutes,
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
@@ -258,6 +261,313 @@ test("overlap details identify overnight entries, the active clock and allow adj
       .activeTimer,
     false,
   );
+});
+test("weekly balance correction leaves past earnings intact and affects future overtime", () => {
+  assert.equal(parseWeeklyBalance("29:28"), 29 * 60 + 28);
+  assert.equal(parseWeeklyBalance("0:00"), 0);
+  for (const invalid of ["29.28", "29:60", "-1:00", "337:00"])
+    assert.throws(() => parseWeeklyBalance(invalid));
+  const j = {
+    ...job,
+    rate: 20,
+    overtime: 1.5,
+    overtimeMode: "multiplier" as const,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  };
+  const entries = ["2026-11-16", "2026-11-17", "2026-11-18"].map((date, i) => ({
+    ...entry(date, "06:00", "16:00"),
+    ...j,
+    id: `old${i}`,
+    jobId: j.id,
+  }));
+  const state = { ...freshState(), jobs: [j], entries };
+  const before = totals(calculate(entries));
+  const adjusted = setWeeklyBalance(
+    state,
+    j.id,
+    "2026-11-16",
+    29 * 60 + 28,
+    stamp("2026-11-19", "04:00"),
+  );
+  assert.equal(adjusted.balanceCorrections.length, 1);
+  assert.equal(
+    weeklyCorrectionMinutes(adjusted.balanceCorrections, j.id, "2026-11-16"),
+    -32,
+  );
+  assert.deepEqual(
+    totals(calculate(entries, "midnight", adjusted.balanceCorrections)),
+    before,
+  );
+  assert.deepEqual(adjusted.entries, state.entries);
+  const future = {
+    ...entry("2026-11-19", "06:00", "16:00"),
+    ...j,
+    id: "new",
+    jobId: j.id,
+  };
+  const after = calculate(
+    [...entries, future],
+    "midnight",
+    adjusted.balanceCorrections,
+  );
+  assert.equal(
+    totals(after.filter((part) => part.entry.id === "new")).extra,
+    28,
+  );
+  assert.deepEqual(
+    totals(after.filter((part) => part.entry.id !== "new")),
+    before,
+  );
+  const backup = validateBackup(JSON.parse(JSON.stringify(adjusted)));
+  assert.deepEqual(backup.balanceCorrections, adjusted.balanceCorrections);
+  assert.throws(() =>
+    validateBackup({
+      ...backup,
+      balanceCorrections: [
+        { ...backup.balanceCorrections[0], deltaMinutes: Infinity },
+      ],
+    }),
+  );
+  assert.throws(
+    () =>
+      setWeeklyBalance(
+        {
+          ...state,
+          timer: makeTimer(j, state.shifts[0], stamp("2026-11-19", "04:00")),
+        },
+        j.id,
+        "2026-11-16",
+        0,
+        stamp("2026-11-19", "05:00"),
+      ),
+    /Najpierw zakończ/,
+  );
+});
+test("positive and repeated corrections preserve existing pay and affect only later work", () => {
+  const j = {
+    ...job,
+    rate: 20,
+    overtime: 1.5,
+    overtimeMode: "multiplier" as const,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  };
+  const first = {
+    ...entry("2026-11-16", "06:00", "16:00"),
+    ...j,
+    id: "first",
+    jobId: j.id,
+  };
+  const state = { ...freshState(), jobs: [j], entries: [first] };
+  const firstPay = totals(calculate(state.entries)).amount;
+  const corrected = setWeeklyBalance(
+    state,
+    j.id,
+    "2026-11-16",
+    35 * 60,
+    stamp("2026-11-17", "04:00"),
+  );
+  assert.equal(
+    weeklyCorrectionMinutes(corrected.balanceCorrections, j.id, "2026-11-16"),
+    25 * 60,
+  );
+  const next = {
+    ...entry("2026-11-17", "06:00", "14:00"),
+    ...j,
+    id: "second",
+    jobId: j.id,
+  };
+  const intermediate = { ...corrected, entries: [...corrected.entries, next] };
+  const afterFirst = calculate(
+    intermediate.entries,
+    "midnight",
+    intermediate.balanceCorrections,
+  );
+  assert.equal(
+    totals(afterFirst.filter((x) => x.entry.id === "first")).amount,
+    firstPay,
+  );
+  assert.equal(
+    totals(afterFirst.filter((x) => x.entry.id === "second")).extra,
+    4 * 60,
+  );
+  const secondPay = totals(
+    afterFirst.filter((x) => x.entry.id === "second"),
+  ).amount;
+  const correctedAgain = setWeeklyBalance(
+    intermediate,
+    j.id,
+    "2026-11-16",
+    38 * 60,
+    stamp("2026-11-18", "04:00"),
+  );
+  assert.equal(correctedAgain.balanceCorrections.length, 2);
+  const afterSecond = calculate(
+    intermediate.entries,
+    "midnight",
+    correctedAgain.balanceCorrections,
+  );
+  assert.equal(
+    totals(afterSecond.filter((x) => x.entry.id === "second")).amount,
+    secondPay,
+  );
+  const last = {
+    ...entry("2026-11-18", "06:00", "08:00"),
+    ...j,
+    id: "third",
+    jobId: j.id,
+  };
+  assert.equal(
+    totals(
+      calculate(
+        [...intermediate.entries, last],
+        "midnight",
+        correctedAgain.balanceCorrections,
+      ).filter((x) => x.entry.id === "third"),
+    ).extra,
+    60,
+  );
+  const nextWeek = {
+    ...entry("2026-11-23", "06:00", "08:00"),
+    ...j,
+    id: "next-week",
+    jobId: j.id,
+  };
+  assert.equal(
+    totals(
+      calculate(
+        [...intermediate.entries, nextWeek],
+        "midnight",
+        correctedAgain.balanceCorrections,
+      ).filter((x) => x.entry.id === "next-week"),
+    ).extra,
+    0,
+  );
+});
+test("week-boundary options apply an adjustment to the intended week only", () => {
+  const j = {
+    ...job,
+    overtime: 1.5,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  };
+  const state = { ...freshState(), jobs: [j] };
+  const corrected = setWeeklyBalance(
+    state,
+    j.id,
+    "2026-11-09",
+    38 * 60,
+    stamp("2026-11-15", "17:00"),
+  );
+  const night = {
+    ...entry("2026-11-15", "18:00", "23:30"),
+    ...j,
+    id: "sunday-night",
+    jobId: j.id,
+    end: stamp("2026-11-16", "02:00"),
+    breaks: [],
+  };
+  const split = totals(
+    calculate([night], "midnight", corrected.balanceCorrections),
+  );
+  const startingWeek = totals(
+    calculate([night], "shift", corrected.balanceCorrections),
+  );
+  assert.equal(split.extra, 5 * 60);
+  assert.equal(startingWeek.extra, 7 * 60);
+  assert.equal(split.minutes, 8 * 60);
+  assert.equal(startingWeek.minutes, split.minutes);
+  const other = { ...night, id: "other", jobId: "other" };
+  assert.equal(
+    totals(calculate([other], "shift", corrected.balanceCorrections)).extra,
+    0,
+  );
+});
+test("a correction splits a later-entered shift at the exact correction time", () => {
+  const j = {
+    ...job,
+    overtime: 1.5,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  };
+  const state = { ...freshState(), jobs: [j] };
+  const corrected = setWeeklyBalance(
+    state,
+    j.id,
+    "2026-11-16",
+    38 * 60,
+    stamp("2026-11-18", "12:00"),
+  );
+  const work = {
+    ...entry("2026-11-18", "11:00", "13:00"),
+    ...j,
+    id: "crosses-correction",
+    jobId: j.id,
+    breaks: [],
+  };
+  const pieces = calculate([work], "midnight", corrected.balanceCorrections);
+  assert.equal(pieces.length, 2);
+  assert.equal(pieces[0].regular, 60);
+  assert.equal(pieces[0].extra, 0);
+  assert.equal(pieces[1].regular, 0);
+  assert.equal(pieces[1].extra, 60);
+});
+test("removing examples preserves a user's separate balance correction", () => {
+  const sample = demoState();
+  const jobId = sample.jobs[0].id;
+  const correction = {
+    id: "user-correction",
+    jobId,
+    week: weekKey(Date.now()),
+    asOf: Date.now(),
+    deltaMinutes: 60,
+  };
+  const adjusted = { ...sample, balanceCorrections: [correction] };
+  const result = removeSampleData(adjusted);
+  assert.ok(result.jobs.some((j) => j.id === jobId));
+  assert.deepEqual(result.balanceCorrections, [correction]);
+  assert.doesNotThrow(() => validateBackup(JSON.parse(JSON.stringify(result))));
+});
+test("adjustment backups migrate safely and exports never invent paid shifts", () => {
+  const j = { ...job, overtimeThreshold: "week" as const, weeklyHours: 39 };
+  const state = {
+    ...freshState(),
+    jobs: [j],
+    entries: [{ ...entry(), jobId: j.id }],
+  };
+  const legacy = { ...state, version: 7 };
+  const { balanceCorrections: _ignored, ...oldBackup } = legacy;
+  const migrated = validateBackup(JSON.parse(JSON.stringify(oldBackup)));
+  assert.equal(migrated.version, 8);
+  assert.deepEqual(migrated.balanceCorrections, []);
+  assert.deepEqual(migrated.entries, state.entries);
+  const corrected = setWeeklyBalance(
+    state,
+    j.id,
+    "2026-10-19",
+    29 * 60 + 28,
+    stamp("2026-11-19", "04:00"),
+  );
+  const exported = csv(corrected);
+  assert.match(exported, /Korekta salda bez wynagrodzenia/);
+  assert.match(exported, /"0\.00"/);
+  assert.throws(() =>
+    validateBackup({ ...corrected, balanceCorrections: [null] }),
+  );
+  assert.throws(() =>
+    validateBackup({
+      ...corrected,
+      balanceCorrections: [
+        corrected.balanceCorrections[0],
+        corrected.balanceCorrections[0],
+      ],
+    }),
+  );
+  const cleaned = clearWorkData(corrected);
+  assert.deepEqual(cleaned.balanceCorrections, []);
+  const removed = removeJobData(corrected, j.id);
+  assert.deepEqual(removed.balanceCorrections, []);
 });
 test("countdown shows remaining seconds without reaching zero early", () => {
   assert.equal(formatCountdown(11 + 35 / 60), "00:11:35");
@@ -540,7 +850,7 @@ test("migration applies weekly overtime to current jobs and running timer while 
   state.holidays = [{ id: "h1", date: "2026-12-25", hours: 8, rate: 12 }];
   state.holidaySettings = { "2026": { days: 28, rate: 12 } };
   const migrated = validateBackup({ ...state, version: 6 });
-  assert.equal(migrated.version, 7);
+  assert.equal(migrated.version, 8);
   assert.equal(migrated.jobs[0].overtimeThreshold, "week");
   assert.equal(migrated.timer?.overtimeThreshold, "week");
   assert.equal(migrated.timer?.weeklyHours, 39);
@@ -961,7 +1271,7 @@ test("weekly basis and target snapshots survive later changes to the workplace p
   });
   const old = { ...freshState(), version: 4, jobs: [job], entries: [legacy] };
   const next = validateBackup(old);
-  assert.equal(next.version, 7);
+  assert.equal(next.version, 8);
   assert.deepEqual(next.entries, old.entries);
   assert.deepEqual(
     totals(calculate(next.entries)),
@@ -1130,7 +1440,7 @@ test("English interface localises actions, dynamic confirmations and decimal hou
   assert.match(csv(state), /Workplace/);
   assert.match(csv(state), /"Przerwa"/);
 });
-test("all three palettes preserve text contrast and map colours including transparent borders", () => {
+test("all palettes preserve text contrast and map colours including transparent borders", () => {
   function luminance(hex: string) {
     const channels = hex
       .match(/[a-f\d]{2}/gi)!
@@ -1148,6 +1458,15 @@ test("all three palettes preserve text contrast and map colours including transp
     assert.ok(contrast(p.muted, p.card) >= 4.5, name + " secondary text");
     assert.ok(contrast(p.bg, p.accent) >= 4.5, name + " primary button");
   }
+  for (const tint of ["#EAE4FA", "#FFF1C9", "#FCE5EF"]) {
+    assert.ok(contrast(themes.pastel.text, tint) >= 4.5, "pastel card text");
+    assert.ok(
+      contrast(themes.pastel.muted, tint) >= 4.5,
+      "pastel card caption",
+    );
+  }
+  assert.ok(contrast("#24513A", "#D7F0E0") >= 4.5, "start button");
+  assert.ok(contrast("#87343D", "#FCE0E4") >= 4.5, "stop button");
   assert.equal(themeColor("#DCE2EA70", "light"), themes.light.accent + "70");
   assert.equal(themeColor("transparent", "light"), "transparent");
   assert.ok(
@@ -1243,7 +1562,7 @@ test("allowance policies survive backup and CSV, reject malformed values, and mi
     jobs: [job],
     entries: [entry()],
   };
-  assert.equal(validateBackup(previous).version, 7);
+  assert.equal(validateBackup(previous).version, 8);
   assert.deepEqual(
     totals(calculate(validateBackup(previous).entries)),
     totals(calculate(previous.entries)),
@@ -1451,7 +1770,7 @@ test("backup round trip and rejection of malformed or overlapping data", () => {
   s.jobs = [job];
   s.entries = [entry()];
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(s))), s);
-  assert.throws(() => validateBackup({ ...s, version: 8 }));
+  assert.throws(() => validateBackup({ ...s, version: 9 }));
   assert.throws(() =>
     validateBackup({
       ...s,
@@ -1620,7 +1939,7 @@ test("version 1 migration preserves entries and switches the running timer to we
     paidWeeks: [],
   };
   const next = validateBackup(previous);
-  assert.equal(next.version, 7);
+  assert.equal(next.version, 8);
   assert.equal(next.shifts.length, 2);
   assert.deepEqual(next.entries, previous.entries);
   assert.equal(totals(calculate(next.entries)).amount, 210);
@@ -1763,7 +2082,7 @@ test("calendar grids start on Monday, include leap day and contain no adjacent-m
   assert.equal(moveMonth("2026-12", 1), "2027-01");
   assert.equal(moveMonth("2026-01", -1), "2025-12");
 });
-test("version 2 backups migrate unchanged to version 7 so old readers reject new policies", () => {
+test("version 2 backups migrate unchanged to version 8 so old readers reject new policies", () => {
   const legacy = {
     ...freshState(),
     version: 2,
@@ -1771,7 +2090,7 @@ test("version 2 backups migrate unchanged to version 7 so old readers reject new
     entries: [entry()],
   };
   const migrated = validateBackup(legacy);
-  assert.equal(migrated.version, 7);
+  assert.equal(migrated.version, 8);
   assert.deepEqual(migrated.entries, legacy.entries);
   assert.deepEqual(migrated.shifts, legacy.shifts);
   assert.equal(totals(calculate(migrated.entries)).amount, 210);

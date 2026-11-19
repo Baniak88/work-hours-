@@ -83,20 +83,29 @@ export function removeSampleData(state: State): State {
   const entries = state.entries.filter((e) => !ids.has(e.id));
   const referenced = new Set([
     ...entries.map((e) => e.jobId),
+    ...state.balanceCorrections.map((item) => item.jobId),
     ...(state.timer ? [state.timer.jobId] : []),
   ]);
   const jobs = state.jobs
     .filter((j) => !sampleJobs.has(j.id) || referenced.has(j.id))
     .map((j) => ({ ...j, demo: undefined }));
-  const occupiedWeeks = new Set(
-    calculate(entries, state.weekBoundary ?? "midnight").map((s) =>
-      weekKey(localDate(s.weekDate)),
-    ),
+  const keptIds = new Set(jobs.map((job) => job.id));
+  const balanceCorrections = state.balanceCorrections.filter((item) =>
+    keptIds.has(item.jobId),
   );
+  const occupiedWeeks = new Set([
+    ...calculate(
+      entries,
+      state.weekBoundary ?? "midnight",
+      balanceCorrections,
+    ).map((s) => weekKey(localDate(s.weekDate))),
+    ...balanceCorrections.map((item) => item.week),
+  ]);
   return {
     ...state,
     jobs,
     entries,
+    balanceCorrections,
     paidWeeks: state.paidWeeks.filter((w) => occupiedWeeks.has(w)),
   };
 }
@@ -107,6 +116,7 @@ export function clearWorkData(state: State): State {
     jobs: [],
     entries: [],
     holidays: [],
+    balanceCorrections: [],
     timer: null,
     paidWeeks: [],
   };
@@ -115,15 +125,22 @@ export function removeJobData(state: State, jobId: string): State {
   if (state.timer?.jobId === jobId)
     throw new Error("Najpierw zakończ zmianę w tym miejscu pracy.");
   const entries = state.entries.filter((e) => e.jobId !== jobId);
-  const weeks = new Set(
-    calculate(entries, state.weekBoundary ?? "midnight").map((s) =>
-      weekKey(localDate(s.weekDate)),
-    ),
+  const balanceCorrections = state.balanceCorrections.filter(
+    (item) => item.jobId !== jobId,
   );
+  const weeks = new Set([
+    ...calculate(
+      entries,
+      state.weekBoundary ?? "midnight",
+      balanceCorrections,
+    ).map((s) => weekKey(localDate(s.weekDate))),
+    ...balanceCorrections.map((item) => item.week),
+  ]);
   return {
     ...state,
     jobs: state.jobs.filter((j) => j.id !== jobId),
     entries,
+    balanceCorrections,
     paidWeeks: state.paidWeeks.filter((w) => weeks.has(w)),
   };
 }

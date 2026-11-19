@@ -1,4 +1,54 @@
 export const english: Record<string, string> = {
+  "Usuniemy wszystkie wpisy, korekty salda, urlopy, projekty i oznaczenia wypłat z tego urządzenia. Zostawimy profile zmian, walutę i ustawienia. Tej operacji nie można cofnąć bez kopii JSON.":
+    "All entries, balance adjustments, leave, workplaces and payment markers will be removed from this device. Shift profiles, currency and settings will remain. This cannot be undone without a JSON backup.",
+
+  "Aby dopasować stan po zakończeniu pracy, najpierw naciśnij Stop.":
+    "To match the final balance, press Stop first.",
+  "Kalendarz pokazuje zapisane zmiany. Korekty salda są widoczne w stanie tygodnia na pulpicie.":
+    "The calendar shows recorded shifts. Balance adjustments appear in the weekly dashboard.",
+  "Lista pokazuje godziny zapisanych zmian, bez korekt salda.":
+    "This list shows recorded shift hours without balance adjustments.",
+  "Zmiana przeliczy również wcześniejsze i aktywne zmiany przechodzące na nowy tydzień. Kwoty i nadgodziny mogą się zmienić. Korekty salda pozostaną przypisane do wybranych tygodni, a oznaczenia wypłat bez zmian.":
+    "This recalculates previous and active shifts across a week boundary. Pay and overtime may change. Balance adjustments stay with their chosen weeks and payment markers remain unchanged.",
+
+  "Dopasuj ten tydzień": "Adjust this week",
+
+  "Korekta salda": "Balance adjustment",
+  "Z korektą salda": "Includes adjustment",
+  "Korekta jest większa niż suma wpisów. Ustaw stan ponownie.":
+    "The adjustment exceeds recorded hours. Set the balance again.",
+  "Nadgodziny z wpisów": "Overtime from entries",
+  "Dopasuj stan z czytnika": "Match clock balance",
+  "Dopasuj stan godzin": "Set hours balance",
+  "Tydzień:": "Week:",
+  "Stan godzin (godziny:minuty)": "Hours balance (hours:minutes)",
+  "Wpisz aktualny stan z czytnika po ostatniej zapisanej zmianie, np. 29:28. Uwzględnij zmiany przepracowane po odczycie. Korekta nie tworzy zmiany ani nie zmienia zapisanych zarobków.":
+    "Enter the current clock balance after your latest saved shift, e.g. 29:28. Include any shifts worked since the reading. This does not create a shift or change saved earnings.",
+  "Nowy stan określa, ile brakuje do normy i kiedy rozpoczną się nadgodziny dla kolejnych zmian. Korekta jest zapisana osobno.":
+    "The new balance determines time remaining and when overtime begins for future shifts. The adjustment is stored separately.",
+  "Korekta zmienia stan godzin i próg dla kolejnej pracy. Nie zmienia zarobków ani nadgodzin z zapisanych zmian.":
+    "The adjustment changes the balance and threshold for future work. Past entries' pay and overtime stay unchanged.",
+  "Najpierw zakończ aktywną zmianę, aby ustawić stan po jej zakończeniu.":
+    "Finish the active shift before setting its final balance.",
+  "Stan godzin zaktualizowany": "Hours balance updated",
+  "Korekta salda bez wynagrodzenia": "Balance adjustment without pay",
+  "CZAS WPISÓW": "RECORDED HOURS",
+  "Wykres pokazuje zapisane zmiany, bez korekty salda.":
+    "The chart shows recorded shifts without the balance adjustment.",
+  "Wpisz stan jako godziny:minuty, np. 29:28.":
+    "Enter the balance as hours:minutes, e.g. 29:28.",
+  "Stan nie może przekraczać 336 godzin.":
+    "The balance cannot exceed 336 hours.",
+  "Wybierz bieżący lub wcześniejszy tydzień.":
+    "Choose the current or a previous week.",
+  "Podaj prawidłowy stan godzin.": "Enter a valid hours balance.",
+  "Ostatni wpis kończy się w przyszłości. Popraw jego godzinę przed korektą salda.":
+    "The latest entry ends in the future. Correct its time before adjusting the balance.",
+
+  Wykonano: "Worked",
+
+  Pastelowy: "Pastel",
+
   "Znaleziono nakładającą się pracę": "Overlapping work found",
   "Aby uniknąć podwójnego naliczania, zmień godziny lub popraw zapisany wpis.":
     "To avoid counting work twice, change the times or edit the saved entry.",

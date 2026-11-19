@@ -58,8 +58,16 @@ export type Timer = OvertimePolicy & {
   priorBreakMilliseconds?: number;
 };
 export type Holiday = { id: string; date: string; hours: number; rate: number };
+export type WeeklyBalanceCorrection = {
+  id: string;
+  jobId: string;
+  week: string;
+  asOf: number;
+  deltaMinutes: number;
+};
 export type State = {
-  version: 7;
+  version: 8;
+  balanceCorrections: WeeklyBalanceCorrection[];
   jobs: Job[];
   entries: Entry[];
   timer: Timer | null;
@@ -77,7 +85,7 @@ export type State = {
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
-  theme?: "navy" | "graphite" | "light";
+  theme?: "navy" | "graphite" | "light" | "pastel";
 };
 export type Slice = {
   entry: Entry;
@@ -110,7 +118,8 @@ export const defaultShifts = (): Shift[] => [
   },
 ];
 export const freshState = (): State => ({
-  version: 7,
+  version: 8,
+  balanceCorrections: [],
   jobs: [],
   entries: [],
   timer: null,
@@ -524,14 +533,16 @@ export function previewSlices(
   timer: Timer | null,
   now: number,
   weekBoundary: "shift" | "midnight" = "midnight",
+  balanceCorrections: WeeklyBalanceCorrection[] = [],
 ): Slice[] {
   if (!timer || Math.min(now, timer.plannedEnd ?? Infinity) <= timer.start)
-    return calculate(entries, weekBoundary);
+    return calculate(entries, weekBoundary, balanceCorrections);
   let id = "__active_timer_preview__";
   while (entries.some((entry) => entry.id === id)) id += "_";
   return calculate(
     [...entries, finishTimer(timer, now, id, false)],
     weekBoundary,
+    balanceCorrections,
   );
 }
 export function updateActiveWeeklyPolicy(
@@ -784,7 +795,18 @@ export function settleTimer(state: State, now: number): State {
 export function calculate(
   entries: Entry[],
   weekBoundary: "shift" | "midnight" = "midnight",
+  balanceCorrections: WeeklyBalanceCorrection[] = [],
 ): Slice[] {
+  const adjustmentsByWeek = new Map<string, WeeklyBalanceCorrection[]>();
+  for (const correction of balanceCorrections) {
+    const key = `${correction.jobId}/${correction.week}`;
+    const list = adjustmentsByWeek.get(key) ?? [];
+    list.push(correction);
+    adjustmentsByWeek.set(key, list);
+  }
+  for (const list of adjustmentsByWeek.values())
+    list.sort((a, b) => a.asOf - b.asOf || a.id.localeCompare(b.id));
+  const adjustmentCursor = new Map<string, number>();
   const used = new Map<string, number>();
   const weekUsed = new Map<string, number>();
   const out: Slice[] = [];
@@ -795,16 +817,26 @@ export function calculate(
     while (start < e.end) {
       const next = new Date(start);
       next.setHours(24, 0, 0, 0);
-      const end = Math.min(e.end, next.getTime());
+      let end = Math.min(e.end, next.getTime());
       const date = dateKey(start),
         key = e.shift
           ? `${e.jobId}/shift/${e.shift.id}/${e.shift.workDate}`
           : `${e.jobId}/${date}`;
-      const minutes = minutesWorked(start, end, e.breaks),
-        previous = used.get(key) ?? 0;
+      const previous = used.get(key) ?? 0;
       const weekDate = weekBoundary === "shift" ? dateKey(e.start) : date;
       const weeklyKey = `${e.jobId}/${weekKey(localDate(weekDate))}`;
-      const previousWeekly = weekUsed.get(weeklyKey) ?? 0;
+      const adjustments = adjustmentsByWeek.get(weeklyKey) ?? [];
+      let cursor = adjustmentCursor.get(weeklyKey) ?? 0;
+      let previousWeekly = weekUsed.get(weeklyKey) ?? 0;
+      while (cursor < adjustments.length && adjustments[cursor].asOf <= start) {
+        previousWeekly += adjustments[cursor].deltaMinutes;
+        cursor++;
+      }
+      adjustmentCursor.set(weeklyKey, cursor);
+      const nextAdjustment = adjustments[cursor];
+      if (nextAdjustment && nextAdjustment.asOf < end)
+        end = nextAdjustment.asOf;
+      const minutes = minutesWorked(start, end, e.breaks);
       const threshold = e.overtimeThreshold ?? "shift";
       const shiftRemaining = Math.max(
         0,
@@ -842,6 +874,83 @@ export function calculate(
     }
   }
   return out;
+}
+/** The signed correction is kept separately from shifts and has no pay of its own. */
+export function weeklyCorrectionMinutes(
+  corrections: WeeklyBalanceCorrection[],
+  jobId: string,
+  week: string,
+) {
+  return corrections
+    .filter((item) => item.jobId === jobId && item.week === week)
+    .reduce((sum, item) => sum + item.deltaMinutes, 0);
+}
+export function parseWeeklyBalance(input: string) {
+  const match = /^(\d{1,3}):([0-5]\d)$/.exec(input.trim());
+  if (!match) throw new Error("Wpisz stan jako godziny:minuty, np. 29:28.");
+  const value = Number(match[1]) * 60 + Number(match[2]);
+  if (value > 336 * 60)
+    throw new Error("Stan nie może przekraczać 336 godzin.");
+  return value;
+}
+export function setWeeklyBalance(
+  state: State,
+  jobId: string,
+  week: string,
+  targetMinutes: number,
+  asOf: number,
+): State {
+  if (state.timer)
+    throw new Error(
+      "Najpierw zakończ aktywną zmianę, aby ustawić stan po jej zakończeniu.",
+    );
+  if (!Number.isFinite(asOf) || asOf <= 0 || asOf > Date.now() + 60000)
+    throw new Error("Nieprawidłowy czas korekty.");
+  if (state.entries.some((entry) => entry.jobId === jobId && entry.end > asOf))
+    throw new Error(
+      "Ostatni wpis kończy się w przyszłości. Popraw jego godzinę przed korektą salda.",
+    );
+  if (!state.jobs.some((job) => job.id === jobId))
+    throw new Error("Wybierz miejsce pracy.");
+  const parsed = localDate(week);
+  if (
+    !Number.isFinite(parsed.getTime()) ||
+    dateKey(parsed) !== week ||
+    weekKey(parsed) !== week ||
+    week > weekKey(asOf)
+  )
+    throw new Error("Wybierz bieżący lub wcześniejszy tydzień.");
+  if (
+    !Number.isFinite(targetMinutes) ||
+    targetMinutes < 0 ||
+    targetMinutes > 336 * 60
+  )
+    throw new Error("Podaj prawidłowy stan godzin.");
+  const recorded = totals(
+    calculate(
+      state.entries,
+      state.weekBoundary ?? "midnight",
+      state.balanceCorrections,
+    ).filter(
+      (part) =>
+        part.entry.jobId === jobId &&
+        weekKey(localDate(part.weekDate)) === week,
+    ),
+  ).minutes;
+  const previous = weeklyCorrectionMinutes(
+    state.balanceCorrections,
+    jobId,
+    week,
+  );
+  const deltaMinutes = targetMinutes - recorded - previous;
+  if (Math.abs(deltaMinutes) < 1e-8) return state;
+  return {
+    ...state,
+    balanceCorrections: [
+      ...state.balanceCorrections,
+      { id: uid(), jobId, week, asOf, deltaMinutes },
+    ],
+  };
 }
 // Group reports by the actual start date while retaining each slice's pay.
 export function groupSlices(
@@ -984,7 +1093,11 @@ export function csv(state: State, entries = state.entries) {
       "Łączna stawka nadgodzin za godzinę",
     ],
     ...groupSlices(
-      calculate(context, state.weekBoundary ?? "midnight"),
+      calculate(
+        context,
+        state.weekBoundary ?? "midnight",
+        state.balanceCorrections,
+      ),
       state.countingMode ?? "shift",
     )
       .filter((s) => selected.has(s.entry.id))
@@ -1045,6 +1158,53 @@ export function csv(state: State, entries = state.entries) {
         extraHourlyRate(s.entry).toFixed(2),
       ]),
   ];
+  const selectedWeeks = new Set(
+    calculate(
+      context,
+      state.weekBoundary ?? "midnight",
+      state.balanceCorrections,
+    )
+      .filter((part) => selected.has(part.entry.id))
+      .map(
+        (part) => `${part.entry.jobId}/${weekKey(localDate(part.weekDate))}`,
+      ),
+  );
+  for (const correction of state.balanceCorrections) {
+    if (
+      entries !== state.entries &&
+      !selectedWeeks.has(`${correction.jobId}/${correction.week}`)
+    )
+      continue;
+    rows.push([
+      correction.week,
+      state.jobs.find((job) => job.id === correction.jobId)?.name ?? "Projekt",
+      translateText("Korekta salda bez wynagrodzenia", state.language),
+      "",
+      "",
+      "",
+      "",
+      "",
+      (correction.deltaMinutes / 60).toFixed(4),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "0.00",
+      state.currency,
+      new Date(correction.asOf).toISOString(),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      correction.week,
+      "",
+    ]);
+  }
   rows[0] = rows[0].map((header) =>
     translateText(String(header), state.language),
   );
@@ -1097,11 +1257,12 @@ export function validateBackup(input: unknown): State {
       version !== 4 &&
       version !== 5 &&
       version !== 6 &&
-      version !== 7) ||
+      version !== 7 &&
+      version !== 8) ||
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
-      !["navy", "graphite", "light"].includes(s.theme)) ||
+      !["navy", "graphite", "light", "pastel"].includes(s.theme)) ||
     (s.weeklyCorrectionNotice !== undefined &&
       typeof s.weeklyCorrectionNotice !== "boolean") ||
     (s.weekBoundary !== undefined &&
@@ -1120,7 +1281,7 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   if (
-    (version === 6 || version === 7) &&
+    (version === 6 || version === 7 || version === 8) &&
     (!Array.isArray(s.holidays) ||
       s.holidays.length > 100000 ||
       !s.holidays.every(
@@ -1144,7 +1305,7 @@ export function validateBackup(input: unknown): State {
   )
     return fail();
   if (
-    (version === 6 || version === 7) &&
+    (version === 6 || version === 7 || version === 8) &&
     s.holidaySettings !== undefined &&
     (!s.holidaySettings ||
       typeof s.holidaySettings !== "object" ||
@@ -1294,7 +1455,7 @@ export function validateBackup(input: unknown): State {
     )
   )
     return fail();
-  if (version === 7) {
+  if (version === 7 || version === 8) {
     if (
       !Number.isInteger(s.defaultBreakMinutes) ||
       s.defaultBreakMinutes < 0 ||
@@ -1302,7 +1463,32 @@ export function validateBackup(input: unknown): State {
       typeof s.automaticBreak !== "boolean"
     )
       return fail();
-    return s;
+    if (
+      version === 8 &&
+      (!Array.isArray(s.balanceCorrections) ||
+        s.balanceCorrections.length > 100000 ||
+        s.balanceCorrections.some(
+          (v) =>
+            !v ||
+            !text(v.id) ||
+            !v.id ||
+            !ids.has(v.jobId) ||
+            typeof v.week !== "string" ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(v.week) ||
+            !Number.isFinite(localDate(v.week).getTime()) ||
+            dateKey(localDate(v.week)) !== v.week ||
+            weekKey(localDate(v.week)) !== v.week ||
+            !number(v.asOf) ||
+            v.asOf <= 0 ||
+            v.asOf > Date.now() + 60000 ||
+            !number(v.deltaMinutes) ||
+            Math.abs(v.deltaMinutes) > 672 * 60,
+        ) ||
+        new Set(s.balanceCorrections.map((v) => v.id)).size !==
+          s.balanceCorrections.length)
+    )
+      return fail();
+    return version === 8 ? s : { ...s, version: 8, balanceCorrections: [] };
   }
   const jobs = s.jobs.map((job) => ({
     ...job,
@@ -1312,7 +1498,8 @@ export function validateBackup(input: unknown): State {
   const timerJob = jobs.find((job) => job.id === s.timer?.jobId);
   return {
     ...s,
-    version: 7,
+    version: 8,
+    balanceCorrections: [],
     jobs,
     timer:
       s.timer && timerJob
