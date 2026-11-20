@@ -11,6 +11,7 @@ import {
 } from "../ui";
 import React, { useMemo, useRef, useState } from "react";
 import {
+  Image,
   Keyboard,
   Modal,
   Platform,
@@ -86,6 +87,8 @@ import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
 import { isLightTheme } from "../themes";
 
+// Same artwork as the app icon, so the in-app logo matches the home screen.
+const logoMark = require("../../assets/logo-mark.png");
 const C = {
   bg: "#111214",
   card: "#1C1D20",
@@ -1848,7 +1851,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </View>
           <Text style={s.caption}>
             {timerJob
-              ? `${timerJob.name} · ${timer?.shift?.name ?? shift.name}`
+              ? `${timerJob.name} · ${tr(timer?.shift?.name ?? shift.name)}`
               : tr("Dodaj miejsce pracy, aby rozpocząć.")}
           </Text>
           <Button
@@ -3870,7 +3873,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.1 · dane na Twoim urządzeniu
+          Work Hours · 2.0.2 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3892,9 +3895,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       {wide && (
         <View style={s.rail}>
           <View style={[s.row, { marginBottom: 45 }]}>
-            <View style={s.brandIcon}>
-              <I name="time" size={22} color={C.bg} />
-            </View>
+            <Image
+              source={logoMark}
+              accessibilityIgnoresInvertColors
+              style={s.brandIcon}
+            />
             <Text style={s.brandName}>
               work<Text style={{ color: C.green }}>hours</Text>
               <Text style={{ color: C.muted }}> /</Text>
@@ -3913,14 +3918,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         {!wide && (
           <View style={s.mobileBrand}>
             <View style={s.row}>
-              <View
+              <Image
+                source={logoMark}
+                accessibilityIgnoresInvertColors
                 style={[
                   s.brandIcon,
-                  { width: 27, height: 27, borderRadius: 8 },
+                  { width: 30, height: 30, borderRadius: 8 },
                 ]}
-              >
-                <I name="time" size={18} color={C.bg} />
-              </View>
+              />
               <Text style={[s.brandName, { fontSize: 18 }]}>
                 work<Text style={{ color: C.green }}>hours</Text>
                 <Text style={{ color: C.muted }}> /</Text>
@@ -4789,9 +4794,7 @@ const s = StyleSheet.create({
     height: 34,
     borderRadius: 10,
     borderCurve: "continuous",
-    backgroundColor: C.green,
-    alignItems: "center",
-    justifyContent: "center",
+    overflow: "hidden",
     boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.18)",
   },
   brandName: {
