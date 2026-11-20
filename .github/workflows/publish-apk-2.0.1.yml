@@ -1,0 +1,28 @@
+name: Publish Android 2.0.1
+on:
+  push:
+    branches: [ccr-9280ef63-c3br7q]
+    paths: [tmp-apk/work-hours-2.0.1.apk]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify, create release and attach APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          printf '%s  %s\n' '53601c9474948223d315a616c89a4c8129d2415e9d5de8fbfebf542a3bafc767' 'tmp-apk/work-hours-2.0.1.apk' | sha256sum --check --strict
+          cat > notes.md <<'NOTES'
+          Work Hours 2.0.1
+
+          - Pełne tłumaczenie wersji angielskiej (tabela tygodnia, kalendarz, komunikaty).
+          - Nowe logo aplikacji.
+
+          Zainstaluj na starszą wersję bez odinstalowywania — dane zostają. Podpis jak w poprzednich wersjach.
+          SHA-256: 53601c9474948223d315a616c89a4c8129d2415e9d5de8fbfebf542a3bafc767
+          NOTES
+          gh release create v2.0.1 --target main --latest --title "Work Hours 2.0.1" --notes-file notes.md tmp-apk/work-hours-2.0.1.apk
