@@ -3348,6 +3348,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={s.row}>
             {(
               [
+                ["auto", "Automatyczny"],
                 ["pl", "Polski"],
                 ["en", "English"],
               ] as const
@@ -3355,11 +3356,19 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <Chip
                 key={value}
                 label={label}
-                active={(data.language ?? "pl") === value}
-                onPress={() => void save({ ...data, language: value })}
+                active={(data.language ?? "auto") === value}
+                onPress={() =>
+                  void save({
+                    ...data,
+                    language: value === "auto" ? undefined : value,
+                  })
+                }
               />
             ))}
           </View>
+          <Text style={s.caption}>
+            Automatyczny wybiera język telefonu: polski albo angielski.
+          </Text>
           <Text style={s.rowTitle}>Motyw kolorystyczny</Text>
           <View style={[s.row, { flexWrap: "wrap" }]}>
             {(
@@ -3873,7 +3882,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.2 · dane na Twoim urządzeniu
+          Work Hours · 2.0.3 · dane na Twoim urządzeniu
         </Text>
       </>
     );

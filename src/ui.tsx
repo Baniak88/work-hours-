@@ -13,11 +13,15 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useWorkHours } from "./WorkHoursProvider";
 import { themeColor, themes, ThemeName } from "./themes";
-import { translateText } from "./i18n";
+import { useLocales } from "expo-localization";
+import { languageFromLocale, setDeviceLanguage, translateText } from "./i18n";
 
 export function usePresentation() {
   const { state } = useWorkHours();
-  const language = state?.language ?? "pl",
+  const locales = useLocales();
+  const device = languageFromLocale(locales[0]?.languageCode);
+  setDeviceLanguage(device);
+  const language = state?.language ?? device,
     theme = state?.theme ?? "pastel";
   return {
     language,

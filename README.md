@@ -2,6 +2,10 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Język telefonu — 2.0.3
+
+**Ustawienia → Język → Automatyczny** (domyślnie): aplikacja jest po polsku, gdy telefon ma język polski, a w pozostałych przypadkach po angielsku. Zmiana języka telefonu działa od razu. Wybór **Polski** lub **English** nadal ustawia język na stałe.
+
 ## Poprawki — 2.0.2
 
 - Nazwa zmiany na pulpicie (np. „Night shift”) jest tłumaczona w wersji angielskiej.

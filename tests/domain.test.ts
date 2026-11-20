@@ -56,7 +56,12 @@ import {
   moveManualDay,
   previousLocalDay,
 } from "../src/manualEntry";
-import { translateText } from "../src/i18n";
+import {
+  languageFromLocale,
+  resolveLanguage,
+  setDeviceLanguage,
+  translateText,
+} from "../src/i18n";
 import { themes, themeColor } from "../src/themes";
 import {
   clearWorkData,
@@ -1439,6 +1444,22 @@ test("English interface localises actions, dynamic confirmations and decimal hou
   state.entries = [entry(undefined, undefined, undefined, { note: "Przerwa" })];
   assert.match(csv(state), /Workplace/);
   assert.match(csv(state), /"Przerwa"/);
+});
+test("automatic language follows the device locale unless one is chosen", () => {
+  assert.equal(languageFromLocale("pl"), "pl");
+  assert.equal(languageFromLocale("PL"), "pl");
+  assert.equal(languageFromLocale("en"), "en");
+  assert.equal(languageFromLocale("de"), "en");
+  assert.equal(languageFromLocale(null), "en");
+  setDeviceLanguage("en");
+  try {
+    assert.equal(resolveLanguage(undefined), "en");
+    assert.equal(resolveLanguage("pl"), "pl");
+    assert.equal(translateText("Dzień"), "Day");
+    assert.equal(translateText("Dzień", "pl"), "Dzień");
+  } finally {
+    setDeviceLanguage("pl");
+  }
 });
 test("dashboard week table, errors and labels are translated to English", () => {
   for (const text of [
