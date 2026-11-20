@@ -781,4 +781,7 @@ export const english: Record<string, string> = {
   "Koniec wypada przed zapisaną przerwą. Popraw najpierw przerwy.":
     "The end time is before a saved break. Correct the breaks first.",
   "dni ·": "days ·",
+  Automatyczny: "Automatic",
+  "Automatyczny wybiera język telefonu: polski albo angielski.":
+    "Automatic follows your phone's language: Polish or English.",
 };

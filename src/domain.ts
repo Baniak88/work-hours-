@@ -1,4 +1,4 @@
-import { translateText } from "./i18n";
+import { resolveLanguage, translateText } from "./i18n";
 export type OvertimePolicy = {
   overtimeMode?: "multiplier" | "fixed";
   overtimeRate?: number;
@@ -165,11 +165,11 @@ export function timeLabel(value: number) {
 export function duration(
   minutes: number,
   format: "clock" | "decimal" = "clock",
-  language: "pl" | "en" = "pl",
+  language?: "pl" | "en",
 ) {
   if (format === "decimal")
     return (Math.max(0, minutes) / 60).toLocaleString(
-      language === "en" ? "en-GB" : "pl-PL",
+      resolveLanguage(language) === "en" ? "en-GB" : "pl-PL",
       {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,

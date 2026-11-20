@@ -6,6 +6,8 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:8081",
     timezoneId: "Europe/London",
+    // The app follows the device language; the suite checks the Polish UI.
+    locale: "pl-PL",
     ...devices["iPhone 13"],
     defaultBrowserType: "chromium",
     launchOptions: {

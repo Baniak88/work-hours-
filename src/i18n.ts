@@ -1,5 +1,17 @@
 import { english } from "./translations";
 export type Language = "pl" | "en";
+// Language used when the person has not picked one in settings (state.language
+// undefined). The app sets it from the device locale; tests keep Polish.
+let deviceLanguage: Language = "pl";
+export function setDeviceLanguage(language: Language) {
+  deviceLanguage = language;
+}
+export function languageFromLocale(code: string | null | undefined): Language {
+  return code?.toLowerCase().startsWith("pl") ? "pl" : "en";
+}
+export function resolveLanguage(language?: Language | null): Language {
+  return language ?? deviceLanguage;
+}
 type Rule = [RegExp, (...parts: string[]) => string];
 const rules: Rule[] = [
   [
@@ -88,11 +100,8 @@ const rules: Rule[] = [
       `Delete this project, its balance adjustments and its ${count} entries. Other workplaces will be kept. A JSON backup is required to restore it.`,
   ],
 ];
-export function translateText(
-  value: string,
-  language: Language = "pl",
-): string {
-  if (language === "pl") return value;
+export function translateText(value: string, language?: Language): string {
+  if (resolveLanguage(language) === "pl") return value;
   if (english[value]) return english[value];
   for (const [pattern, replace] of rules) {
     const match = value.match(pattern);
