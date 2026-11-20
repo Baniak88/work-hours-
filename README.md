@@ -2,6 +2,11 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Poprawki — 2.0.2
+
+- Nazwa zmiany na pulpicie (np. „Night shift”) jest tłumaczona w wersji angielskiej.
+- Logo w nagłówku aplikacji jest takie samo jak ikona na ekranie telefonu.
+
 ## Pełne tłumaczenie i nowe logo — 2.0.1
 
 - W wersji angielskiej przetłumaczone zostały pozostałe polskie napisy (tabela tygodnia na pulpicie, kalendarz, komunikaty błędów, etykiety dostępności).
