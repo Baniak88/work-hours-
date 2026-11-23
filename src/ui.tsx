@@ -12,7 +12,13 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useWorkHours } from "./WorkHoursProvider";
-import { themeColor, themes, ThemeName } from "./themes";
+import {
+  heroes,
+  isLightTheme,
+  themeColor,
+  themes,
+  ThemeName,
+} from "./themes";
 import { useLocales } from "expo-localization";
 import { languageFromLocale, setDeviceLanguage, translateText } from "./i18n";
 
@@ -22,7 +28,7 @@ export function usePresentation() {
   const device = languageFromLocale(locales[0]?.languageCode);
   setDeviceLanguage(device);
   const language = state?.language ?? device,
-    theme = state?.theme ?? "pastel";
+    theme = state?.theme ?? "emerald";
   return {
     language,
     theme,
@@ -135,9 +141,7 @@ export const TextInput = React.forwardRef<
         },
         style(appearance, theme),
       ]}
-      keyboardAppearance={
-        theme === "light" || theme === "pastel" ? "light" : "dark"
-      }
+      keyboardAppearance={isLightTheme(theme) ? "light" : "dark"}
       accessibilityLabel={
         accessibilityLabel ? t(accessibilityLabel) : undefined
       }
@@ -208,7 +212,7 @@ export function PresentationEffects() {
     document.body.style.backgroundColor = themes[theme].bg;
     document
       .querySelectorAll('meta[name="theme-color"]')
-      .forEach((meta) => meta.setAttribute("content", themes[theme].bg));
+      .forEach((meta) => meta.setAttribute("content", heroes[theme].from));
   }, [theme, language]);
   return null;
 }

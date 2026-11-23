@@ -789,4 +789,16 @@ export const english: Record<string, string> = {
     "The limit applies to the selected year. Hours and rate apply to new holidays; saved days keep their values.",
   "Możesz wpisać 0 dla urlopu bezpłatnego. Godziny urlopu wliczają się do sumy tygodnia i normy, a kwota urlopu jest podsumowana osobno.":
     "Enter 0 for unpaid leave. Holiday hours count towards the weekly total and target; holiday pay is summarised separately.",
+  "Godziny urlopu wliczają się do sumy tygodnia i normy.":
+    "Holiday hours count towards the weekly total and target.",
+  "Dzień dobry!": "Good morning!",
+  "Miłego dnia!": "Good afternoon!",
+  "Dobry wieczór!": "Good evening!",
+  "Wykonano w tym tygodniu": "Worked this week",
+  "Dotknij dnia, aby zobaczyć zmiany lub urlop.":
+    "Tap a day to see its shifts or holiday.",
+  "Albo wybierz z kalendarza": "Or pick from the calendar",
+  "Dotknij pierwszego dnia, a potem ostatniego dnia urlopu.":
+    "Tap the first day, then the last day of your holiday.",
+  Szmaragdowy: "Emerald",
 };
