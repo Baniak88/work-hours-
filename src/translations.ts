@@ -86,8 +86,8 @@ export const english: Record<string, string> = {
   teraz: "now",
   "w trakcie": "in progress",
   "Razem w tygodniu": "Weekly total",
-  "Urlop jest liczony osobno i nie zwiększa normy nadgodzin.":
-    "Leave is counted separately and does not count towards overtime.",
+  "Godziny urlopu wliczają się do sumy tygodnia i normy. Dotknij urlopu, aby go zmienić lub usunąć.":
+    "Holiday hours count towards the weekly total and target. Tap a holiday to change or delete it.",
 
   "Do nadgodzin pozostało": "Time until overtime",
   "Norma tygodniowa wykonana": "Weekly target reached",
@@ -309,8 +309,6 @@ export const english: Record<string, string> = {
   "Godziny urlopu (godziny:minuty)": "Holiday hours (hours:minutes)",
   "Ten dzień zostanie usunięty z kalendarza i podsumowania urlopów.":
     "This day will be removed from the calendar and holiday summary.",
-  "Możesz wpisać 0 dla urlopu bezpłatnego. Urlop i jego kwota są podsumowane osobno; nie zwiększają normy nadgodzin.":
-    "Enter 0 for unpaid leave. Holiday and its pay are shown separately and do not count towards overtime thresholds.",
   "Ustaw rzeczywistą datę i godzinę rozpoczęcia. Zapisane przerwy pozostaną bez zmian.":
     "Enter the actual start date and time. Recorded breaks will stay unchanged.",
   "Usuniemy profil zmiany. Zapisane wpisy i uruchomiony licznik zachowają swoje dane.":
@@ -706,8 +704,8 @@ export const english: Record<string, string> = {
   "RRRR-MM-DD": "YYYY-MM-DD",
   "np. 15": "e.g. 15",
   "np. 20,00": "e.g. 20.00",
-  "np. Bowmill": "e.g. Bowmill",
-  "np. Nocna w Bowmill": "e.g. Bowmill night shift",
+  "np. Zmiana nocna": "e.g. Night shift",
+  "Nazwa pracodawcy": "Employer name",
   "150 lub 1,5": "150 or 1.5",
   "Podstawa nadgodzin": "Overtime basis",
   "Samo Basic": "Basic only",
@@ -784,4 +782,11 @@ export const english: Record<string, string> = {
   Automatyczny: "Automatic",
   "Automatyczny wybiera język telefonu: polski albo angielski.":
     "Automatic follows your phone's language: Polish or English.",
+  "Z urlopem": "Includes holiday",
+  "Urlop w tygodniu": "Holiday this week",
+  "Godziny dnia urlopu (godziny:minuty)": "Holiday day hours (hours:minutes)",
+  "Limit dotyczy wybranego roku. Godziny i stawka dotyczą nowych urlopów; zapisane dni zachowują swoje wartości.":
+    "The limit applies to the selected year. Hours and rate apply to new holidays; saved days keep their values.",
+  "Możesz wpisać 0 dla urlopu bezpłatnego. Godziny urlopu wliczają się do sumy tygodnia i normy, a kwota urlopu jest podsumowana osobno.":
+    "Enter 0 for unpaid leave. Holiday hours count towards the weekly total and target; holiday pay is summarised separately.",
 };

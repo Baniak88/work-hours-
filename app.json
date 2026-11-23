@@ -2,7 +2,7 @@
   "expo": {
     "name": "Work Hours",
     "slug": "work-hours",
-    "version": "2.0.3",
+    "version": "2.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -22,7 +22,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 21
+      "versionCode": 22
     },
     "web": {
       "favicon": "./assets/favicon.png",

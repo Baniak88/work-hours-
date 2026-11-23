@@ -2,6 +2,14 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Urlop w sumie tygodnia i szybsze wpisywanie godzin — 2.0.4
+
+- Godziny urlopu wliczają się do sumy tygodnia, pola „Wykonano” i „Do normy” oraz progu tygodniowej normy. Przykład: 29:15 pracy i 1 dzień urlopu 9:45 daje 39:00. Kwota urlopu jest nadal podsumowana osobno.
+- **Kalendarz → Ustawienia urlopu → Godziny dnia urlopu**: standardowa długość dnia urlopu (domyślnie norma zmiany) używana przy dodawaniu urlopu.
+- Urlop na pulpicie można dotknąć, aby go zmienić lub usunąć. „Dodaj urlop” w dniu, który już ma urlop, otwiera ten urlop.
+- W polach z godzinami wystarczy wpisać `17.45`, `17,45` albo `1745`; aplikacja zamieni to na `17:45`.
+- Z podpowiedzi usunięto przykładowe nazwy; dane przykładowe nazywają się teraz „Demo”.
+
 ## Język telefonu — 2.0.3
 
 **Ustawienia → Język → Automatyczny** (domyślnie): aplikacja jest po polsku, gdy telefon ma język polski, a w pozostałych przypadkach po angielsku. Zmiana języka telefonu działa od razu. Wybór **Polski** lub **English** nadal ustawia język na stałe.
