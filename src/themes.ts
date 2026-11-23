@@ -1,7 +1,22 @@
-export type ThemeName = "navy" | "graphite" | "light" | "pastel";
+export type ThemeName = "emerald" | "navy" | "graphite" | "light" | "pastel";
 // Palettes follow the iOS system colour scale (grouped backgrounds, fills,
 // separators and labels) so every theme reads like a native iPhone app.
 export const themes = {
+  emerald: {
+    bg: "#EAF4F0",
+    card: "#FFFFFF",
+    raised: "#E2EFEA",
+    line: "#D2E5DE",
+    text: "#0E2620",
+    muted: "#4A645C",
+    accent: "#0B6650",
+    blue: "#16707F",
+    red: "#C0262D",
+    inner: "#F4FAF7",
+    selected: "#CFF1E4",
+    day: "#4A645C",
+    night: "#0B6650",
+  },
   pastel: {
     bg: "#F2F2F7",
     card: "#FFFFFF",
@@ -64,8 +79,44 @@ export const themes = {
   },
 } as const;
 export function isLightTheme(name: ThemeName): boolean {
-  return name === "light" || name === "pastel";
+  return name === "light" || name === "pastel" || name === "emerald";
 }
+/** The dark gradient header and floating tab bar of each theme. */
+export const heroes: Record<
+  ThemeName,
+  { from: string; to: string; highlight: string; onHighlight: string }
+> = {
+  emerald: {
+    from: "#0B4F3E",
+    to: "#06291F",
+    highlight: "#2FE0B7",
+    onHighlight: "#05261D",
+  },
+  pastel: {
+    from: "#5240CF",
+    to: "#2B1D80",
+    highlight: "#B9AEFF",
+    onHighlight: "#1C1255",
+  },
+  navy: {
+    from: "#1C2245",
+    to: "#0A0D1F",
+    highlight: "#ADC9FF",
+    onHighlight: "#0A1330",
+  },
+  graphite: {
+    from: "#2C2E33",
+    to: "#111214",
+    highlight: "#DCE2EA",
+    onHighlight: "#111214",
+  },
+  light: {
+    from: "#1257A8",
+    to: "#082C5A",
+    highlight: "#9FD0FF",
+    onHighlight: "#06223F",
+  },
+};
 export function themeColor(value: string, name: ThemeName = "navy"): string {
   if (!/^#[a-f\d]{6}([a-f\d]{2})?$/i.test(value)) return value;
   const base = value.slice(0, 7).toUpperCase(),
@@ -99,15 +150,15 @@ export function themeColor(value: string, name: ThemeName = "navy"): string {
     "#81848C": p.muted,
     "#7F838D": p.muted,
     "#9CA7B8": p.accent,
-    "#33363D": name === "light" || name === "pastel" ? "#EEF2FA" : p.bg,
-    "#452A29": name === "light" || name === "pastel" ? "#FFE5E7" : "#3A1E1F",
+    "#33363D": isLightTheme(name) ? "#EEF2FA" : p.bg,
+    "#452A29": isLightTheme(name) ? "#FFE5E7" : "#3A1E1F",
     "#23252A": p.inner,
     "#303138": p.raised,
     "#30333A": p.raised,
     "#353841": p.selected,
     "#393C44": p.selected,
-    "#596779": name === "light" || name === "pastel" ? "#D8E5F8" : p.night,
-    "#5C5E64": name === "light" || name === "pastel" ? "#FFFFFF" : p.day,
+    "#596779": isLightTheme(name) ? "#D8E5F8" : p.night,
+    "#5C5E64": isLightTheme(name) ? "#FFFFFF" : p.day,
     "#606977": p.muted,
     "#737D8C": p.muted,
     "#858D9B": p.muted,

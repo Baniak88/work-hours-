@@ -88,7 +88,7 @@ export type State = {
   timeFormat?: "clock" | "decimal";
   calendarMetric?: "hours" | "money";
   language?: "pl" | "en";
-  theme?: "navy" | "graphite" | "light" | "pastel";
+  theme?: "emerald" | "navy" | "graphite" | "light" | "pastel";
 };
 export type Slice = {
   entry: Entry;
@@ -1296,7 +1296,7 @@ export function validateBackup(input: unknown): State {
     !["GBP", "PLN", "EUR"].includes(s.currency) ||
     (s.language !== undefined && !["pl", "en"].includes(s.language)) ||
     (s.theme !== undefined &&
-      !["navy", "graphite", "light", "pastel"].includes(s.theme)) ||
+      !["emerald", "navy", "graphite", "light", "pastel"].includes(s.theme)) ||
     (s.weeklyCorrectionNotice !== undefined &&
       typeof s.weeklyCorrectionNotice !== "boolean") ||
     (s.weekBoundary !== undefined &&

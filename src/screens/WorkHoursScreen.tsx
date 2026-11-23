@@ -85,10 +85,11 @@ import {
 import InstallHelp from "../components/InstallHelp";
 import { dashboardWeek } from "../dashboardWeek";
 import WorkCalendar from "../components/WorkCalendar";
+import DatePicker from "../components/DatePicker";
 import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
 import { finishTimeInput, typeTimeInput } from "../timeInput";
-import { isLightTheme } from "../themes";
+import { heroes, isLightTheme } from "../themes";
 
 // Same artwork as the app icon, so the in-app logo matches the home screen.
 const logoMark = require("../../assets/logo-mark.png");
@@ -339,6 +340,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   } = useWorkHours();
   const { language, locale, theme, t: tr } = usePresentation();
   const lightTheme = isLightTheme(theme);
+  const hero = heroes[theme];
+  const heroBackground = {
+    backgroundColor: hero.from,
+    backgroundImage: `linear-gradient(160deg, ${hero.from} 0%, ${hero.to} 100%)`,
+  } as const;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = width >= 850;
@@ -1516,25 +1522,71 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       </Pressable>
     );
   }
+  // Dark gradient hero at the top of each screen; on phones the content
+  // "sheet" overlaps it with rounded corners, as in the reference design.
   function header(
     eyebrow: string,
     title: string,
     subtitle: string,
     action?: React.ReactNode,
+    extra?: React.ReactNode,
   ) {
     return (
-      <View style={s.pageHeader}>
-        <View style={{ flex: 1, gap: 7 }}>
-          <Text style={s.eyebrow}>{eyebrow}</Text>
-          <Text style={[s.title, !wide && { fontSize: 30 }]}>{title}</Text>
-          <Text style={s.subtitle}>{subtitle}</Text>
+      <>
+        <View
+          style={[
+            s.hero,
+            heroBackground,
+            wide
+              ? { borderRadius: 28, marginBottom: 20 }
+              : { marginHorizontal: -16, marginTop: -16 },
+          ]}
+        >
+          <View style={s.pageHeader}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={s.heroEyebrow}>{eyebrow}</Text>
+              <Text style={[s.heroTitle, !wide && { fontSize: 30 }]}>
+                {title}
+              </Text>
+              <Text style={s.heroSubtitle}>{subtitle}</Text>
+            </View>
+            {action}
+          </View>
+          {extra}
         </View>
-        {action}
-      </View>
+        {!wide && <View style={s.heroLip} />}
+      </>
+    );
+  }
+  function heroAction(
+    label: string,
+    icon: Icon,
+    onPress: () => void,
+    disabled = false,
+  ) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        disabled={disabled}
+        onPress={onPress}
+        style={({ pressed }) => [
+          s.heroButton,
+          { opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+        ]}
+      >
+        <I name={icon} size={22} color="#FFFFFF" />
+      </Pressable>
     );
   }
   const navigation = (rail = false) => (
-    <View style={rail ? s.railNav : s.bottomNav}>
+    <View
+      style={
+        rail
+          ? s.railNav
+          : [s.bottomNav, { backgroundColor: hero.to, borderColor: hero.from }]
+      }
+    >
       {tabs.map((t) => (
         <Pressable
           key={t.key}
@@ -1548,7 +1600,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           style={[
             rail ? s.railItem : s.navItem,
             rail && tab === t.key && { backgroundColor: C.raised },
-            !rail && tab === t.key && s.navItemSelected,
+            !rail &&
+              tab === t.key && [
+                s.navItemSelected,
+                { backgroundColor: hero.highlight },
+              ],
           ]}
         >
           <I
@@ -1556,13 +1612,33 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               tab === t.key ? (t.icon.replace("-outline", "") as Icon) : t.icon
             }
             size={22}
-            color={tab === t.key ? C.green : C.muted}
+            color={
+              rail
+                ? tab === t.key
+                  ? C.green
+                  : C.muted
+                : tab === t.key
+                  ? hero.onHighlight
+                  : "rgba(255, 255, 255, 0.78)"
+            }
           />
-          <Text
-            style={[s.navText, { color: tab === t.key ? C.green : C.muted }]}
-          >
-            {t.label}
-          </Text>
+          {(rail || tab === t.key) && (
+            <Text
+              numberOfLines={1}
+              style={[
+                s.navText,
+                {
+                  color: rail
+                    ? tab === t.key
+                      ? C.green
+                      : C.muted
+                    : hero.onHighlight,
+                },
+              ]}
+            >
+              {t.label}
+            </Text>
+          )}
           {rail && tab === t.key && (
             <View
               style={[
@@ -1781,14 +1857,33 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             month: "long",
             year: "numeric",
           }),
-          <Pressable
-            accessibilityLabel="Ustawienia"
-            accessibilityRole="button"
-            onPress={() => setTab("settings")}
-            style={s.avatar}
-          >
-            <I name="person-circle" size={30} color={C.green} />
-          </Pressable>,
+          heroAction("Ustawienia", "person-outline", () => setTab("settings")),
+          timerJob ? (
+            <View style={{ marginTop: 22, gap: 6 }}>
+              <Text style={s.heroSubtitle}>Wykonano w tym tygodniu</Text>
+              <View style={[s.between, { alignItems: "flex-end" }]}>
+                <Text verbatim style={s.heroNumber}>
+                  {duration(currentBalance)}
+                  <Text style={s.heroUnit}> h</Text>
+                </Text>
+                <View style={s.heroChip}>
+                  <Text verbatim style={s.heroChipText}>
+                    {tr("Norma")} {duration(weeklyTarget)} h
+                  </Text>
+                </View>
+              </View>
+              <View style={s.heroTrack}>
+                <View
+                  style={{
+                    width: `${Math.min(100, (currentBalance / Math.max(1, weeklyTarget)) * 100)}%`,
+                    height: "100%",
+                    borderRadius: 4,
+                    backgroundColor: hero.highlight,
+                  }}
+                />
+              </View>
+            </View>
+          ) : undefined,
         )}
         {weeklyCorrectionBanner()}
         <View style={[s.card, { padding: 16, gap: 12 }]}>
@@ -1821,6 +1916,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 note: timer ? tr("W trakcie zmiany") : tr("Gotowy do startu"),
                 icon: "time-outline" as Icon,
                 tint: "#EEEBFD",
+                mint: "#DDF5EC",
               },
               {
                 label: tr("Do normy"),
@@ -1830,6 +1926,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   : tr("Ustaw miejsce pracy"),
                 icon: "hourglass-outline" as Icon,
                 tint: "#FFF4D6",
+                mint: "#EEF7DA",
               },
               {
                 label: tr("Wykonano"),
@@ -1841,6 +1938,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     : tr("W tym tygodniu"),
                 icon: "checkmark-done-outline" as Icon,
                 tint: "#FDE9F0",
+                mint: "#DCEFF3",
               },
             ].map((item) => (
               <View
@@ -1848,7 +1946,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  backgroundColor: theme === "pastel" ? item.tint : C.raised,
+                  backgroundColor:
+                    theme === "pastel"
+                      ? item.tint
+                      : theme === "emerald"
+                        ? item.mint
+                        : C.raised,
                   borderRadius: 20,
                   borderCurve: "continuous",
                   paddingHorizontal: 11,
@@ -2576,6 +2679,28 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   function chooseDay(day: string) {
     setCalendarDate(day);
     setCalendarMonth(day.slice(0, 7));
+    // A holiday-only day opens straight into its edit sheet (change or delete).
+    const holiday = data.holidays.find((h) => h.date === day);
+    if (holiday && !slices.some((x) => x.date === day)) openHoliday(holiday);
+  }
+  function confirmDeleteHoliday(id: string, closeForm = false) {
+    setConfirm({
+      title: "Usunąć ten urlop?",
+      body: "Ten dzień zostanie usunięty z kalendarza i podsumowania urlopów.",
+      label: "Usuń urlop",
+      danger: true,
+      action: () => {
+        void save(
+          { ...data, holidays: data.holidays.filter((h) => h.id !== id) },
+          "Urlop usunięty",
+        ).then((ok) => {
+          if (ok) {
+            setConfirm(null);
+            if (closeForm) setForm(null);
+          }
+        });
+      },
+    });
   }
   function chooseMonth(value: string) {
     setCalendarMonth(value);
@@ -2625,35 +2750,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       ].sort((a, b) => a.start - b.start);
       return (
         <>
-          <View style={[s.between, { marginBottom: 12, marginTop: 2 }]}>
-            <Text
-              style={{
-                color: C.text,
-                fontSize: 23,
-                fontWeight: "700",
-                letterSpacing: -0.6,
-              }}
-            >
-              Kalendarz pracy.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Dodaj wpis"
-              disabled={calendarDate > today}
-              onPress={() =>
-                jobs.length ? openEntry(undefined, calendarDate) : openJob()
-              }
-              style={[
-                s.avatar,
-                {
-                  backgroundColor: C.green,
-                  opacity: calendarDate > today ? 0.4 : 1,
-                },
-              ]}
-            >
-              <I name="add" color={C.bg} size={23} />
-            </Pressable>
-          </View>
+          {header(
+            "EWIDENCJA PRACY",
+            "Kalendarz pracy.",
+            "Dotknij dnia, aby zobaczyć zmiany lub urlop.",
+            heroAction(
+              "Dodaj wpis",
+              "add",
+              () =>
+                jobs.length ? openEntry(undefined, calendarDate) : openJob(),
+              calendarDate > today,
+            ),
+          )}
           {entryViewToggle()}
           {showFilters && entryFilters()}
           <WorkCalendar
@@ -2692,22 +2800,41 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   )}
                 </Text>
               </View>
-              <Button
-                label={holiday ? "Edytuj urlop" : "Dodaj urlop"}
-                icon={holiday ? "create-outline" : "add"}
-                kind="secondary"
-                small
-                onPress={() => openHoliday(holiday)}
-              />
+              {!holiday && (
+                <Button
+                  label="Dodaj urlop"
+                  icon="add"
+                  kind="secondary"
+                  small
+                  onPress={() => openHoliday(undefined, calendarDate)}
+                />
+              )}
             </View>
             {holiday && (
-              <Text style={s.caption}>
-                {tr("Wybrany dzień")}: {duration(holiday.hours * 60)} h ·{" "}
-                {fmt(holiday.hours * holiday.rate)}.{" "}
-                {tr(
-                  "Urlop jest liczony osobno od przepracowanych godzin i nadgodzin.",
-                )}
-              </Text>
+              <>
+                <Text style={s.caption}>
+                  {tr("Wybrany dzień")}: {duration(holiday.hours * 60)} h ·{" "}
+                  {fmt(holiday.hours * holiday.rate)}.{" "}
+                  {tr("Godziny urlopu wliczają się do sumy tygodnia i normy.")}
+                </Text>
+                <View style={[s.row, { flexWrap: "wrap" }]}>
+                  <Button
+                    label="Edytuj urlop"
+                    icon="create-outline"
+                    kind="ghost"
+                    small
+                    onPress={() => openHoliday(holiday)}
+                  />
+                  <Button
+                    label="Usuń urlop"
+                    icon="trash-outline"
+                    kind="danger"
+                    small
+                    disabled={busy}
+                    onPress={() => confirmDeleteHoliday(holiday.id)}
+                  />
+                </View>
+              </>
             )}
             <Text style={s.caption}>
               {tr("Zapisane i zaplanowane dni")}: {yearHolidays.length}
@@ -2960,14 +3087,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           "TWOJE ROZLICZENIE",
           "Raport pracy",
           "Godziny i zarobki w jednym miejscu.",
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Eksportuj CSV"
-            style={s.avatar}
-            onPress={() => void download("csv")}
-          >
-            <I name="download-outline" color={C.green} />
-          </Pressable>,
+          heroAction(
+            "Eksportuj CSV",
+            "download-outline",
+            () => void download("csv"),
+          ),
         )}
         <View style={s.segment}>
           {(["summary", "payments"] as const).map((m, i) => (
@@ -3423,6 +3547,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           <View style={[s.row, { flexWrap: "wrap" }]}>
             {(
               [
+                ["emerald", "Szmaragdowy"],
                 ["pastel", "Pastelowy"],
                 ["navy", "Nocny granat"],
                 ["graphite", "Grafit"],
@@ -3432,7 +3557,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               <Chip
                 key={value}
                 label={label}
-                active={(data.theme ?? "pastel") === value}
+                active={(data.theme ?? "emerald") === value}
                 onPress={() => void save({ ...data, theme: value })}
               />
             ))}
@@ -3932,7 +4057,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.4 · dane na Twoim urządzeniu
+          Work Hours · 2.0.5 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -3942,15 +4067,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     setForm((f) => (f ? { ...f, [key]: value } : f));
   };
   return (
-    <View style={[s.app, { paddingTop: insets.top }]}>
-      <StatusBar
-        style={
-          (state?.theme ?? "pastel") === "light" ||
-          (state?.theme ?? "pastel") === "pastel"
-            ? "dark"
-            : "light"
-        }
-      />
+    <View style={[s.app, wide && { paddingTop: insets.top }]}>
+      <StatusBar style={wide && lightTheme ? "dark" : "light"} />
       {wide && (
         <View style={s.rail}>
           <View style={[s.row, { marginBottom: 45 }]}>
@@ -3975,29 +4093,38 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       )}
       <View style={{ flex: 1 }}>
         {!wide && (
-          <View style={s.mobileBrand}>
+          <View
+            style={[
+              s.mobileBrand,
+              { paddingTop: insets.top + 10, backgroundColor: hero.from },
+            ]}
+          >
             <View style={s.row}>
               <Image
                 source={logoMark}
                 accessibilityIgnoresInvertColors
                 style={[
                   s.brandIcon,
-                  { width: 30, height: 30, borderRadius: 8 },
+                  { width: 34, height: 34, borderRadius: 10 },
                 ]}
               />
-              <Text style={[s.brandName, { fontSize: 18 }]}>
-                work<Text style={{ color: C.green }}>hours</Text>
-                <Text style={{ color: C.muted }}> /</Text>
-              </Text>
+              <View>
+                <Text style={[s.heroSubtitle, { fontSize: 12 }]}>
+                  {tr(greeting(now))}
+                </Text>
+                <Text style={[s.brandName, { fontSize: 18, color: "#FFFFFF" }]}>
+                  work<Text style={{ color: hero.highlight }}>hours</Text>
+                </Text>
+              </View>
             </View>
-            <View style={s.row}>
+            <View style={s.heroChip}>
               <View
                 style={[
                   s.dot,
-                  { backgroundColor: C.green, width: 5, height: 5 },
+                  { backgroundColor: hero.highlight, width: 6, height: 6 },
                 ]}
               />
-              <Text style={[s.caption, { fontSize: 11 }]}>OSOBISTE</Text>
+              <Text style={s.heroChipText}>OSOBISTE</Text>
             </View>
           </View>
         )}
@@ -4258,6 +4385,18 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       placeholder="RRRR-MM-DD"
                       value={form.date}
                       onChange={(v) => setField("date", v)}
+                    />
+                    <Text style={s.fieldLabel}>Albo wybierz z kalendarza</Text>
+                    <DatePicker
+                      value={form.date ?? ""}
+                      days={form.id ? 1 : Number(form.days) || 1}
+                      range={!form.id}
+                      onPick={(date, days) => {
+                        setFormError("");
+                        setForm((f) =>
+                          f ? { ...f, date, days: String(days) } : f,
+                        );
+                      }}
                     />
                     {!form.id && (
                       <>
@@ -4746,31 +4885,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     kind="danger"
                     icon="trash-outline"
                     disabled={busy}
-                    onPress={() => {
-                      const id = form.id!;
-                      setConfirm({
-                        title: "Usunąć ten urlop?",
-                        body: "Ten dzień zostanie usunięty z kalendarza i podsumowania urlopów.",
-                        label: "Usuń urlop",
-                        danger: true,
-                        action: () => {
-                          void save(
-                            {
-                              ...data,
-                              holidays: data.holidays.filter(
-                                (h) => h.id !== id,
-                              ),
-                            },
-                            "Urlop usunięty",
-                          ).then((ok) => {
-                            if (ok) {
-                              setConfirm(null);
-                              setForm(null);
-                            }
-                          });
-                        },
-                      });
-                    }}
+                    onPress={() => confirmDeleteHoliday(form.id!, true)}
                   />
                 )}
                 {form?.type === "entry" && !!form.id && (
@@ -4843,6 +4958,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     </View>
   );
 }
+function greeting(now: number) {
+  const hour = new Date(now).getHours();
+  return hour < 12
+    ? "Dzień dobry!"
+    : hour < 18
+      ? "Miłego dnia!"
+      : "Dobry wieczór!";
+}
 function weekTitle(key: string, locale: string) {
   const start = localDate(key),
     end = localDate(key);
@@ -4898,42 +5021,117 @@ const s = StyleSheet.create({
   },
   mobileBrand: {
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 6,
+    paddingBottom: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   bottomNav: {
     flexDirection: "row",
-    padding: 6,
-    gap: 2,
-    marginHorizontal: 16,
-    borderRadius: 34,
+    alignItems: "center",
+    padding: 8,
+    gap: 4,
+    marginHorizontal: 20,
+    borderRadius: 40,
     borderCurve: "continuous",
-    backgroundColor: C.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: C.line,
-    boxShadow:
-      "0px 2px 6px rgba(15, 15, 30, 0.06), 0px 12px 32px rgba(15, 15, 30, 0.12)",
+    borderWidth: 1,
+    boxShadow: "0px 10px 30px rgba(6, 41, 31, 0.35)",
   },
   navItem: {
     flex: 1,
-    minHeight: 56,
-    borderRadius: 28,
+    height: 54,
+    borderRadius: 27,
+    borderCurve: "continuous",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  navItemSelected: { flex: 2.2, paddingHorizontal: 12 },
+  navText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.1 },
+  hero: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 46,
+    overflow: "hidden",
+  },
+  heroLip: {
+    marginHorizontal: -16,
+    marginTop: -30,
+    marginBottom: 6,
+    height: 30,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    backgroundColor: C.bg,
+  },
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    color: "rgba(255, 255, 255, 0.72)",
+  },
+  heroTitle: {
+    fontSize: 34,
+    fontWeight: "700",
+    letterSpacing: -0.8,
+    color: "#FFFFFF",
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    lineHeight: 19,
+    color: "rgba(255, 255, 255, 0.74)",
+  },
+  heroNumber: {
+    fontSize: 44,
+    fontWeight: "600",
+    letterSpacing: -1.4,
+    color: "#FFFFFF",
+    fontVariant: ["tabular-nums"],
+  },
+  heroUnit: {
+    fontSize: 22,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.6)",
+  },
+  heroChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+  },
+  heroChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    color: "#FFFFFF",
+  },
+  heroTrack: {
+    height: 8,
+    marginTop: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
+  },
+  heroButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
-  navItemSelected: { backgroundColor: C.raised },
-  navText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.1 },
   pageHeader: {
     flexDirection: "row",
     gap: 16,
-    alignItems: "flex-end",
-    marginBottom: 20,
-    marginTop: 6,
+    alignItems: "flex-start",
   },
   eyebrow: {
     fontSize: 12,

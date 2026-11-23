@@ -2,6 +2,12 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Nowy wygląd i urlop z kalendarza — 2.0.5
+
+- Nowy wygląd: ciemny gradientowy nagłówek z powitaniem i postępem tygodnia, jasna treść na zaokrąglonym arkuszu i ciemny, pływający pasek nawigacji. Nowy domyślny motyw **Szmaragdowy**; pozostałe motywy (Pastelowy, Nocny granat, Grafit, Jasny) mają ten sam układ we własnych kolorach.
+- **Kalendarz**: dotknięcie dnia z urlopem otwiera edycję z przyciskiem **Usuń urlop**; pod kalendarzem są też przyciski **Edytuj urlop** i **Usuń urlop** dla wybranego dnia.
+- **Dodaj urlop**: datę można wpisać ręcznie albo wybrać z kalendarza — pierwszy dotknięty dzień to początek, kolejny późniejszy to koniec urlopu (liczba dni ustawia się sama).
+
 ## Urlop w sumie tygodnia i szybsze wpisywanie godzin — 2.0.4
 
 - Godziny urlopu wliczają się do sumy tygodnia, pola „Wykonano” i „Do normy” oraz progu tygodniowej normy. Przykład: 29:15 pracy i 1 dzień urlopu 9:45 daje 39:00. Kwota urlopu jest nadal podsumowana osobno.
