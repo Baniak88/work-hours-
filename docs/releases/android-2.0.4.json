@@ -1,0 +1,20 @@
+{
+  "name": "Work Hours",
+  "version": "2.0.4",
+  "platform": "android",
+  "applicationId": "com.baniak88.workhours",
+  "versionCode": 22,
+  "githubReleaseUrl": "https://github.com/Baniak88/work-hours-/releases/tag/v2.0.4",
+  "githubDownloadUrl": "https://github.com/Baniak88/work-hours-/releases/download/v2.0.4/work-hours-2.0.4.apk",
+  "sizeBytes": 91532774,
+  "sha256": "46d2db90fdae4c9a5f883c247a3fe2e750b490397953f8acbd4fadd4d71f9505",
+  "signerCertificateSha256": "9653ffed5f72cabe9c22f0d2246076d9f847f9ca79be9972d5cf0eec826a39ef",
+  "signatureVerified": true,
+  "signatureSchemes": [
+    "v2"
+  ],
+  "sourceCommit": "efe206418dcc8d9e3a08bf630f6476094effeddb",
+  "buildRunUrl": "https://github.com/Baniak88/work-hours-/actions/runs/45253682592",
+  "githubRedownloadVerified": true,
+  "deviceTested": false
+}
