@@ -2,6 +2,11 @@
 
 Osobista aplikacja do ewidencji czasu i zarobków na **Androida i iPhone'a**, napisana w React Native / Expo / TypeScript. Interfejs po polsku, domyślna waluta **GBP**. Działa offline, bez kont i reklam. Dane na każdym urządzeniu są oddzielne.
 
+## Uporządkowane przyciski pulpitu — 2.0.6
+
+- Karta zmiany: informacja o miejscu pracy i godzinach zmiany, duży licznik w trakcie pracy i jeden główny przycisk — **Rozpocznij zmianę** albo **Zakończ zmianę**.
+- Pozostałe akcje w równej siatce kafelków z ikonami: Start od godziny / Popraw początek, Popraw koniec, Przerwa, Wpis ręczny, Dodaj urlop, Stan z czytnika.
+
 ## Nowy wygląd i urlop z kalendarza — 2.0.5
 
 - Nowy wygląd: ciemny gradientowy nagłówek z powitaniem i postępem tygodnia, jasna treść na zaokrąglonym arkuszu i ciemny, pływający pasek nawigacji. Nowy domyślny motyw **Szmaragdowy**; pozostałe motywy (Pastelowy, Nocny granat, Grafit, Jasny) mają ten sam układ we własnych kolorach.
