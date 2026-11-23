@@ -51,6 +51,8 @@ import {
   setWeeklyBalance,
   parseWeeklyBalance,
   weeklyCorrectionMinutes,
+  weekHolidayMinutes,
+  thresholdCorrections,
   checkEntry,
   findEntryConflicts,
   csv,
@@ -85,6 +87,7 @@ import { dashboardWeek } from "../dashboardWeek";
 import WorkCalendar from "../components/WorkCalendar";
 import { manualDates, moveManualDay, previousLocalDay } from "../manualEntry";
 import { exportFile, importFile } from "../files";
+import { finishTimeInput, typeTimeInput } from "../timeInput";
 import { isLightTheme } from "../themes";
 
 // Same artwork as the app icon, so the in-app logo matches the home screen.
@@ -262,6 +265,7 @@ function Field({
   placeholder,
   numeric = false,
   multiline = false,
+  time = false,
   onBlur,
 }: {
   label: string;
@@ -270,6 +274,8 @@ function Field({
   placeholder?: string;
   numeric?: boolean;
   multiline?: boolean;
+  /** Hours field: "17.45" or "1745" is turned into "17:45". */
+  time?: boolean;
   onBlur?: () => void;
 }) {
   return (
@@ -278,11 +284,17 @@ function Field({
       <TextInput
         accessibilityLabel={label}
         value={value ?? ""}
-        onChangeText={onChange}
-        onBlur={onBlur}
+        onChangeText={time ? (v) => onChange(typeTimeInput(v)) : onChange}
+        onBlur={() => {
+          if (time && value) {
+            const finished = finishTimeInput(value);
+            if (finished !== value) onChange(finished);
+          }
+          onBlur?.();
+        }}
         placeholder={placeholder}
         placeholderTextColor="#7F838D"
-        keyboardType={numeric ? "decimal-pad" : "default"}
+        keyboardType={numeric || time ? "decimal-pad" : "default"}
         multiline={multiline}
         style={[s.input, multiline && { height: 85, textAlignVertical: "top" }]}
         autoCapitalize="none"
@@ -363,22 +375,29 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
     () => (state ? sampleEntryIds(state) : new Set<string>()),
     [state],
   );
+  const stateCorrections = state?.balanceCorrections,
+    stateHolidays = state?.holidays,
+    stateJobs = state?.jobs;
+  const corrections = useMemo(
+    () =>
+      thresholdCorrections({
+        balanceCorrections: stateCorrections ?? [],
+        holidays: stateHolidays ?? [],
+        jobs: stateJobs ?? [],
+      }),
+    [stateCorrections, stateHolidays, stateJobs],
+  );
   const calculated = useMemo(
     () =>
       groupSlices(
         calculate(
           state?.entries ?? [],
           state?.weekBoundary ?? "midnight",
-          state?.balanceCorrections ?? [],
+          corrections,
         ),
         state?.countingMode ?? "shift",
       ),
-    [
-      state?.entries,
-      state?.countingMode,
-      state?.weekBoundary,
-      state?.balanceCorrections,
-    ],
+    [state?.entries, state?.countingMode, state?.weekBoundary, corrections],
   );
   const liveCalculated = useMemo(
     () =>
@@ -389,12 +408,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               state.timer,
               now,
               state.weekBoundary ?? "midnight",
-              state.balanceCorrections,
+              corrections,
             ),
             state.countingMode ?? "shift",
           )
         : calculated,
-    [state, now, tab, calculated],
+    [state, now, tab, calculated, corrections],
   );
   if (!state)
     return (
@@ -603,6 +622,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               label="Tygodniowa norma (godziny:minuty)"
               value={form.weeklyNorm}
               placeholder="40:00"
+              time
               onChange={(value) => updateRate("weeklyNorm", value)}
             />
             <Text style={s.caption}>
@@ -821,7 +841,11 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       id: value?.id,
       date: holidayDate,
       days: "1",
-      hours: formatDuration((value?.hours ?? shift.normHours) * 60),
+      hours: formatDuration(
+        (value?.hours ??
+          data.holidaySettings?.[holidayDate.slice(0, 4)]?.hours ??
+          shift.normHours) * 60,
+      ),
       rate: String(
         value?.rate ??
           data.holidaySettings?.[holidayDate.slice(0, 4)]?.rate ??
@@ -839,6 +863,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       year,
       days: String(settings?.days ?? 28),
       rate: String(settings?.rate ?? job?.rate ?? 0),
+      hours: formatDuration((settings?.hours ?? shift.normHours) * 60),
     });
   }
   async function start(
@@ -1148,13 +1173,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           rate > 100000
         )
           throw new Error("Podaj prawidłową stawkę od 0 do 100 000.");
+        const hours = parseNormHours(form.hours ?? "");
         if (
           await save(
             {
               ...data,
               holidaySettings: {
                 ...data.holidaySettings,
-                [year]: { days, rate },
+                [year]: { days, rate, hours },
               },
             },
             "Ustawienia urlopu zapisane",
@@ -1716,8 +1742,12 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
       timerJob?.id ?? "",
       displayedWeek,
     );
-    const currentBalance = currentWeekData.total.minutes + currentCorrection;
-    const displayedBalance = weekData.total.minutes + weekCorrection;
+    const currentHoliday = weekHolidayMinutes(data.holidays, activeWeek);
+    const weekHoliday = weekHolidayMinutes(data.holidays, displayedWeek);
+    const currentBalance =
+      currentWeekData.total.minutes + currentCorrection + currentHoliday;
+    const displayedBalance =
+      weekData.total.minutes + weekCorrection + weekHoliday;
     const remaining = Math.max(0, weeklyTarget - currentBalance);
     const earlierThisShift = timer?.shift
       ? totals(
@@ -1806,7 +1836,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                 value: timerJob ? `${duration(currentBalance)} h` : "—",
                 note: hasCurrentCorrection
                   ? tr("Z korektą salda")
-                  : tr("W tym tygodniu"),
+                  : currentHoliday
+                    ? tr("Z urlopem")
+                    : tr("W tym tygodniu"),
                 icon: "checkmark-done-outline" as Icon,
                 tint: "#FDE9F0",
               },
@@ -2075,7 +2107,10 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               icon="calendar-outline"
               kind="ghost"
               small
-              onPress={() => openHoliday(undefined, today)}
+              onPress={() => {
+                const existing = data.holidays.find((h) => h.date === today);
+                openHoliday(existing, existing ? undefined : today);
+              }}
             />
           </View>
           {timer && !!timer.autoBreakMinutes && (
@@ -2200,13 +2235,27 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                   );
                 })}
                 {holiday && (
-                  <Text style={s.caption}>
-                    <Text>Urlop</Text> · {duration(holiday.hours * 60)} h
-                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${tr("Edytuj urlop")} ${holiday.date}`}
+                    onPress={() => openHoliday(holiday)}
+                    style={[s.between, { paddingVertical: 4 }]}
+                  >
+                    <Text style={s.caption}>Urlop</Text>
+                    <Text style={s.rowTitle}>
+                      {duration(holiday.hours * 60)} h ›
+                    </Text>
+                  </Pressable>
                 )}
               </View>
             );
           })}
+          {weekHoliday > 0 && (
+            <View style={s.between}>
+              <Text style={s.caption}>Urlop w tygodniu</Text>
+              <Text style={s.rowTitle}>+{duration(weekHoliday)} h</Text>
+            </View>
+          )}
           {hasWeekCorrection && (
             <View style={s.between}>
               <Text style={s.caption}>Korekta salda</Text>
@@ -2243,7 +2292,8 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
             zarobków z zapisanych zmian.
           </Text>
           <Text style={s.caption}>
-            Urlop jest liczony osobno i nie zwiększa normy nadgodzin.
+            Godziny urlopu wliczają się do sumy tygodnia i normy. Dotknij
+            urlopu, aby go zmienić lub usunąć.
           </Text>
         </View>
         {historicalPolicies > 0 && timerJob && (
@@ -3882,7 +3932,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.3 · dane na Twoim urządzeniu
+          Work Hours · 2.0.4 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -4095,6 +4145,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <Field
                       label="Stan godzin (godziny:minuty)"
                       placeholder="29:28"
+                      time
                       value={form.balance}
                       onChange={(v) => setField("balance", v)}
                     />
@@ -4147,6 +4198,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <Field
                       label="Tygodniowa norma (godziny:minuty)"
                       placeholder="np. 37:30"
+                      time
                       value={form.weeklyNorm}
                       onChange={(v) => setField("weeklyNorm", v)}
                     />
@@ -4182,14 +4234,21 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       onChange={(v) => setField("days", v)}
                     />
                     <Field
+                      label="Godziny dnia urlopu (godziny:minuty)"
+                      placeholder="09:45"
+                      time
+                      value={form.hours}
+                      onChange={(v) => setField("hours", v)}
+                    />
+                    <Field
                       label={`Stawka urlopu (${data.currency}/h)`}
                       numeric
                       value={form.rate}
                       onChange={(v) => setField("rate", v)}
                     />
                     <Text style={s.caption}>
-                      Limit dotyczy wybranego roku. Zmiana stawki dotyczy nowych
-                      urlopów; zapisane dni zachowują swoją stawkę.
+                      Limit dotyczy wybranego roku. Godziny i stawka dotyczą
+                      nowych urlopów; zapisane dni zachowują swoje wartości.
                     </Text>
                   </>
                 ) : form?.type === "holiday" ? (
@@ -4217,6 +4276,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                     <Field
                       label="Godziny urlopu (godziny:minuty)"
                       placeholder="08:00"
+                      time
                       value={form.hours}
                       onChange={(v) => setField("hours", v)}
                     />
@@ -4227,8 +4287,9 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       onChange={(v) => setField("rate", v)}
                     />
                     <Text style={s.caption}>
-                      Możesz wpisać 0 dla urlopu bezpłatnego. Urlop i jego kwota
-                      są podsumowane osobno; nie zwiększają normy nadgodzin.
+                      Możesz wpisać 0 dla urlopu bezpłatnego. Godziny urlopu
+                      wliczają się do sumy tygodnia i normy, a kwota urlopu jest
+                      podsumowana osobno.
                     </Text>
                   </>
                 ) : form?.type === "stopAt" ? (
@@ -4246,6 +4307,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <Field
                         label="Godzina zakończenia"
                         placeholder="03:00"
+                        time
                         value={form.endTime}
                         onChange={(v) => setField("endTime", v)}
                       />
@@ -4267,6 +4329,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <Field
                         label="Godzina rozpoczęcia"
                         placeholder="17:30"
+                        time
                         value={form.startTime}
                         onChange={(v) => setField("startTime", v)}
                       />
@@ -4278,7 +4341,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       label="Nazwa zmiany"
                       value={form.name}
                       onChange={(v) => setField("name", v)}
-                      placeholder="np. Nocna w Bowmill"
+                      placeholder="np. Zmiana nocna"
                     />
                     <Text style={s.fieldLabel}>Rodzaj zmiany</Text>
                     <View style={s.row}>
@@ -4299,12 +4362,14 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                         value={form.startTime}
                         onChange={(v) => setField("startTime", v)}
                         placeholder="17:30"
+                        time
                       />
                       <Field
                         label="Koniec zmiany"
                         value={form.endTime}
                         onChange={(v) => setField("endTime", v)}
                         placeholder="03:00"
+                        time
                       />
                     </View>
                     <Text style={s.caption}>
@@ -4316,6 +4381,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       label="Norma zmiany (godziny:minuty)"
                       value={form.normHours}
                       placeholder="08:00"
+                      time
                       onChange={(v) => setField("normHours", v)}
                     />
                     <Text style={s.caption}>
@@ -4350,7 +4416,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       label="Nazwa projektu lub pracodawcy"
                       value={form.name}
                       onChange={(v) => setField("name", v)}
-                      placeholder="np. Bowmill"
+                      placeholder="Nazwa pracodawcy"
                     />
                     {rateFields()}
                     <Text style={s.caption}>
@@ -4518,6 +4584,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                       <Field
                         label="Godzina rozpoczęcia"
                         placeholder="05:40"
+                        time
                         value={form?.startTime}
                         onChange={(v) => setField("startTime", v)}
                       />
@@ -4541,6 +4608,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
                           <Field
                             label="Godzina zakończenia"
                             placeholder="16:00"
+                            time
                             value={form.endTime}
                             onChange={(v) => setField("endTime", v)}
                           />

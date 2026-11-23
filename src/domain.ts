@@ -78,7 +78,10 @@ export type State = {
   holidays: Holiday[];
   defaultBreakMinutes: number;
   automaticBreak: boolean;
-  holidaySettings?: Record<string, { days: number; rate: number }>;
+  holidaySettings?: Record<
+    string,
+    { days: number; rate: number; hours?: number }
+  >;
   countingMode?: "shift" | "midnight";
   weekBoundary?: "shift" | "midnight";
   weeklyCorrectionNotice?: boolean;
@@ -875,6 +878,33 @@ export function calculate(
   }
   return out;
 }
+/** Holiday hours in one Monday-based week; they count towards the weekly target. */
+export function weekHolidayMinutes(holidays: Holiday[], week: string) {
+  return holidays
+    .filter((h) => weekKey(localDate(h.date)) === week)
+    .reduce((sum, h) => sum + h.hours * 60, 0);
+}
+/**
+ * Holidays count towards every workplace's weekly balance from the start of the
+ * holiday, like a balance correction, so the week reaches its target and the
+ * weekly overtime threshold matches the dashboard. Holiday pay stays separate.
+ */
+export function thresholdCorrections(
+  state: Pick<State, "balanceCorrections" | "holidays" | "jobs">,
+): WeeklyBalanceCorrection[] {
+  return [
+    ...state.balanceCorrections,
+    ...state.holidays.flatMap((h) =>
+      state.jobs.map((job) => ({
+        id: `holiday:${h.id}:${job.id}`,
+        jobId: job.id,
+        week: weekKey(localDate(h.date)),
+        asOf: parseLocal(h.date, "00:00"),
+        deltaMinutes: h.hours * 60,
+      })),
+    ),
+  ];
+}
 /** The signed correction is kept separately from shifts and has no pay of its own. */
 export function weeklyCorrectionMinutes(
   corrections: WeeklyBalanceCorrection[],
@@ -930,7 +960,7 @@ export function setWeeklyBalance(
     calculate(
       state.entries,
       state.weekBoundary ?? "midnight",
-      state.balanceCorrections,
+      thresholdCorrections(state),
     ).filter(
       (part) =>
         part.entry.jobId === jobId &&
@@ -942,7 +972,11 @@ export function setWeeklyBalance(
     jobId,
     week,
   );
-  const deltaMinutes = targetMinutes - recorded - previous;
+  const deltaMinutes =
+    targetMinutes -
+    recorded -
+    previous -
+    weekHolidayMinutes(state.holidays, week);
   if (Math.abs(deltaMinutes) < 1e-8) return state;
   return {
     ...state,
@@ -1096,7 +1130,7 @@ export function csv(state: State, entries = state.entries) {
       calculate(
         context,
         state.weekBoundary ?? "midnight",
-        state.balanceCorrections,
+        thresholdCorrections(state),
       ),
       state.countingMode ?? "shift",
     )
@@ -1319,7 +1353,9 @@ export function validateBackup(input: unknown): State {
           value.days > 366 ||
           !number(value.rate) ||
           value.rate < 0 ||
-          value.rate > 100000,
+          value.rate > 100000 ||
+          (value.hours !== undefined &&
+            (!number(value.hours) || value.hours <= 0 || value.hours > 24)),
       ))
   )
     return fail();
@@ -1529,7 +1565,7 @@ export function demoState(): State {
   const state = freshState();
   const job: Job = {
     id: uid(),
-    name: "Bowmill",
+    name: "Demo",
     rate: 23.15,
     dailyHours: 8,
     overtime: 1.25,

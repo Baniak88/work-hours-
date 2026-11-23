@@ -100,8 +100,12 @@ test("dashboard shows the selected workplace week and allows a corrected end", a
     .getByRole("textbox", { name: "Godziny urlopu (godziny:minuty)" })
     .fill("08:00");
   await page.getByRole("button", { name: "Zapisz", exact: true }).click();
-  await expect(page.getByText("Urlop · 8:00 h", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("21:00 h", { exact: true }).first(),
+    page.getByRole("button", { name: "Edytuj urlop 2026-11-19", exact: true }),
+  ).toBeVisible();
+  // 21:00 h of work plus the 8:00 h holiday count towards the week.
+  await expect(page.getByText("+8:00 h", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("29:00 h", { exact: true }).first(),
   ).toBeVisible();
 });

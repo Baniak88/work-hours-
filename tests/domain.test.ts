@@ -7,6 +7,8 @@ import {
   setWeeklyBalance,
   parseWeeklyBalance,
   weeklyCorrectionMinutes,
+  weekHolidayMinutes,
+  thresholdCorrections,
   formatCountdown,
   previewSlices,
   updateActiveWeeklyPolicy,
@@ -62,6 +64,7 @@ import {
   setDeviceLanguage,
   translateText,
 } from "../src/i18n";
+import { finishTimeInput, typeTimeInput } from "../src/timeInput";
 import { themes, themeColor } from "../src/themes";
 import {
   clearWorkData,
@@ -1445,6 +1448,83 @@ test("English interface localises actions, dynamic confirmations and decimal hou
   assert.match(csv(state), /Workplace/);
   assert.match(csv(state), /"Przerwa"/);
 });
+test("hour fields accept dots, commas and plain digits", () => {
+  assert.equal(typeTimeInput("17.45"), "17:45");
+  assert.equal(typeTimeInput("17,45"), "17:45");
+  assert.equal(finishTimeInput("17.45"), "17:45");
+  assert.equal(finishTimeInput("1745"), "17:45");
+  assert.equal(finishTimeInput("945"), "09:45");
+  assert.equal(finishTimeInput("9:45"), "09:45");
+  assert.equal(finishTimeInput("17"), "17:00");
+  assert.equal(finishTimeInput("29.15"), "29:15");
+  assert.equal(finishTimeInput("39"), "39:00");
+  assert.equal(finishTimeInput("7.3"), "07:30");
+  assert.equal(finishTimeInput(""), "");
+});
+test("holiday hours count towards the weekly total and threshold", () => {
+  const weekly = {
+    ...job,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  };
+  // Mon–Thu 29:15 of work, Friday holiday 9:45, then 2 h on Saturday.
+  const days = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19"];
+  const entries = days.map((d, i) => ({
+    ...entry(d, "08:00", i < 3 ? "15:30" : "14:45"),
+    jobId: weekly.id,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  }));
+  entries.push({
+    ...entry("2026-11-21", "08:00", "10:00"),
+    jobId: weekly.id,
+    overtimeThreshold: "week" as const,
+    weeklyHours: 39,
+  });
+  const holidays = [{ id: "h", date: "2026-11-20", hours: 9.75, rate: 20 }];
+  assert.equal(weekHolidayMinutes(holidays, "2026-11-16"), 585);
+  assert.equal(weekHolidayMinutes(holidays, "2026-11-23"), 0);
+  const slices = calculate(
+    entries,
+    "midnight",
+    thresholdCorrections({ balanceCorrections: [], holidays, jobs: [weekly] }),
+  );
+  const worked = totals(slices.filter((s) => s.date < "2026-11-21"));
+  assert.equal(worked.minutes, 29 * 60 + 15);
+  assert.equal(worked.minutes + 585, 39 * 60);
+  // With the holiday the 39 h target is reached, so Saturday is overtime.
+  assert.equal(
+    totals(slices.filter((s) => s.date === "2026-11-21")).extra,
+    120,
+  );
+  // Without holidays the same Saturday stays within the target.
+  assert.equal(
+    totals(calculate(entries).filter((s) => s.date === "2026-11-21")).extra,
+    0,
+  );
+  // Setting the clock balance includes the holiday, so no extra correction.
+  const state = {
+    ...freshState(),
+    jobs: [weekly],
+    entries: entries.slice(0, 4),
+    holidays,
+  };
+  const balanced = setWeeklyBalance(
+    state,
+    weekly.id,
+    "2026-11-16",
+    39 * 60,
+    stamp("2026-11-21", "12:00"),
+  );
+  assert.equal(
+    weeklyCorrectionMinutes(
+      balanced.balanceCorrections,
+      weekly.id,
+      "2026-11-16",
+    ),
+    0,
+  );
+});
 test("automatic language follows the device locale unless one is chosen", () => {
   assert.equal(languageFromLocale("pl"), "pl");
   assert.equal(languageFromLocale("PL"), "pl");
@@ -1623,7 +1703,11 @@ test("sample removal preserves real entries and an active timer, including work 
 });
 test("legacy examples are recognized by their complete fingerprint, not the Bowmill name alone", () => {
   const state = demoState();
-  state.jobs = state.jobs.map(({ demo: _demo, ...j }) => j);
+  // Releases through 1.3 named the unmarked example workplace "Bowmill".
+  state.jobs = state.jobs.map(({ demo: _demo, ...j }) => ({
+    ...j,
+    name: "Bowmill",
+  }));
   state.entries = state.entries.map(({ demo: _demo, ...e }) => e);
   assert.equal(sampleEntryIds(state).size, state.entries.length);
   const marked = markLegacySamples(state);
