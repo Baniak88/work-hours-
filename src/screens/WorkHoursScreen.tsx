@@ -912,6 +912,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
   }
   async function togglePause() {
     if (!timer) return;
+    // eslint-disable-next-line react-hooks/purity -- Runs only when the Break/Resume tile is pressed.
     const at = Date.now();
     await save(
       {
@@ -1846,6 +1847,73 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
         entry.jobId === timerJob?.id &&
         (entry.overtimeThreshold ?? "shift") !== "week",
     ).length;
+    const dashboardActions: {
+      label: string;
+      text: string;
+      icon: Icon;
+      onPress: () => void;
+    }[] = [
+      ...(timer
+        ? [
+            {
+              label: "Popraw początek",
+              text: "Popraw początek",
+              icon: "play-back-outline" as Icon,
+              onPress: openAdjust,
+            },
+            {
+              label: "Popraw koniec",
+              text: "Popraw koniec",
+              icon: "play-forward-outline" as Icon,
+              onPress: () => {
+                setFormError("");
+                setForm({
+                  type: "stopAt",
+                  endDate: dateKey(now),
+                  endTime: timeLabel(now),
+                });
+              },
+            },
+            {
+              label: timer.pausedAt === null ? "Przerwa" : "Wznów",
+              text: timer.pausedAt === null ? "Przerwa" : "Wznów",
+              icon: (timer.pausedAt === null
+                ? "cafe-outline"
+                : "play-outline") as Icon,
+              onPress: () => void togglePause(),
+            },
+          ]
+        : [
+            {
+              label: "Start od godziny",
+              text: "Start od godziny",
+              icon: "time-outline" as Icon,
+              onPress: () => (job ? openStart() : openJob()),
+            },
+          ]),
+      {
+        label: "Dodaj wcześniejszą zmianę",
+        text: "Wpis ręczny",
+        icon: "add-circle-outline",
+        onPress: () =>
+          job ? openEntry(undefined, previousLocalDay(now)) : openJob(),
+      },
+      {
+        label: "Dodaj urlop",
+        text: "Dodaj urlop",
+        icon: "airplane-outline",
+        onPress: () => {
+          const existing = data.holidays.find((h) => h.date === today);
+          openHoliday(existing, existing ? undefined : today);
+        },
+      },
+      {
+        label: "Dopasuj stan z czytnika",
+        text: "Stan z czytnika",
+        icon: "speedometer-outline",
+        onPress: () => openWeeklyBalance(timerJob, activeWeek, currentBalance),
+      },
+    ];
     return (
       <>
         {header(
@@ -1984,237 +2052,139 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
               </View>
             ))}
           </View>
-          <Text style={s.caption}>
-            {timerJob
-              ? `${timerJob.name} · ${tr(timer?.shift?.name ?? shift.name)}`
-              : tr("Dodaj miejsce pracy, aby rozpocząć.")}
-          </Text>
-          <Button
-            label="Dopasuj stan z czytnika"
-            kind="ghost"
-            small
-            icon="create-outline"
-            onPress={() =>
-              openWeeklyBalance(timerJob, activeWeek, currentBalance)
-            }
-          />
+          <View style={s.shiftInfo}>
+            <View style={s.shiftIcon}>
+              <I
+                name={
+                  (timer?.shift ?? shift).kind === "night"
+                    ? "moon-outline"
+                    : "sunny-outline"
+                }
+                size={20}
+                color={C.green}
+              />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text verbatim numberOfLines={1} style={s.rowTitle}>
+                {timerJob
+                  ? `${timerJob.name} · ${tr(timer?.shift?.name ?? shift.name)}`
+                  : tr("Dodaj miejsce pracy, aby rozpocząć.")}
+              </Text>
+              <Text verbatim style={s.caption}>
+                {(timer?.shift ?? shift).startTime} –{" "}
+                {(timer?.shift ?? shift).endTime}
+                {(timer?.shift ?? shift).endTime <
+                (timer?.shift ?? shift).startTime
+                  ? " · +1 " + tr("dzień")
+                  : ""}
+                {timer?.plannedEnd !== undefined
+                  ? ` · ${tr("Automatyczny koniec:")} ${new Date(
+                      timer.plannedEnd,
+                    ).toLocaleString(locale, {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : !timer && shift.autoStop
+                    ? ` · ${tr("Automatyczny stop o")} ${shift.endTime}`
+                    : ""}
+              </Text>
+            </View>
+          </View>
           {timer && (
-            <Text style={s.caption}>
-              Aby dopasować stan po zakończeniu pracy, najpierw naciśnij Stop.
-            </Text>
-          )}
-          <Text style={s.caption}>
-            {(timer?.shift ?? shift).startTime} –{" "}
-            {(timer?.shift ?? shift).endTime}
-            {(timer?.shift ?? shift).endTime < (timer?.shift ?? shift).startTime
-              ? " · +1 " + tr("dzień")
-              : ""}
-          </Text>
-          {timer?.plannedEnd !== undefined && (
-            <Text style={s.caption}>
-              {tr("Automatyczny koniec:")}{" "}
-              {new Date(timer.plannedEnd).toLocaleString(locale, {
-                day: "numeric",
-                month: "short",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-          )}
-          {!timer && shift.autoStop && (
-            <Text style={s.caption}>
-              {tr("Automatyczny stop o")} {shift.endTime}
-            </Text>
-          )}
-          {timer && (
-            <View style={s.between}>
-              <Text style={s.caption}>Bieżąca zmiana</Text>
-              <Text style={s.rowTitle}>
+            <View style={s.liveBox}>
+              <View style={s.row}>
+                <View
+                  style={[
+                    s.dot,
+                    {
+                      backgroundColor:
+                        timer.pausedAt !== null ? "#E8A317" : "#30C26A",
+                    },
+                  ]}
+                />
+                <Text style={s.caption}>
+                  {timer.pausedAt !== null ? "Przerwa" : "Bieżąca zmiana"}
+                </Text>
+              </View>
+              <Text verbatim style={s.liveClock}>
                 {formatCountdown(earlierThisShift + timerMinutes(timer, now))}
-                {timer.pausedAt !== null ? ` · ${tr("Przerwa")}` : ""}
               </Text>
             </View>
           )}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Start zmiany"
-              disabled={busy || !!timer}
-              onPress={() => (job ? void start() : openJob())}
-              style={{
-                flex: 1,
-                minHeight: 54,
-                borderRadius: 27,
-                borderCurve: "continuous",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: timer
-                  ? lightTheme
-                    ? "#34C7591F"
-                    : "#30D15829"
-                  : lightTheme
-                    ? "#1F7F37"
-                    : "#30D158",
-                flexDirection: "row",
-                gap: 6,
-                opacity: timer ? 0.6 : 1,
-                boxShadow: timer
-                  ? undefined
-                  : "0px 6px 16px rgba(31, 127, 55, 0.28)",
-              }}
-            >
-              <I
-                name="play"
-                size={16}
-                color={
-                  timer
-                    ? lightTheme
-                      ? "#1F7F37"
-                      : "#30D158"
-                    : lightTheme
-                      ? "#FFFFFF"
-                      : "#00230A"
-                }
-              />
-              <Text
-                style={{
-                  color: timer
-                    ? lightTheme
-                      ? "#1F7F37"
-                      : "#30D158"
-                    : lightTheme
-                      ? "#FFFFFF"
-                      : "#00230A",
-                  fontWeight: "700",
-                  fontSize: 16,
-                  letterSpacing: -0.2,
-                }}
-              >
-                Start
-              </Text>
-            </Pressable>
+          {timer ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Zakończ zmianę"
-              disabled={busy || !timer}
+              disabled={busy}
               onPress={() => void stop()}
-              style={{
-                flex: 1,
-                minHeight: 54,
-                borderRadius: 27,
-                borderCurve: "continuous",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: timer
-                  ? "#D7332B"
-                  : lightTheme
-                    ? "#FF3B301A"
-                    : "#FF453A24",
-                flexDirection: "row",
-                gap: 6,
-                opacity: timer ? 1 : 0.6,
-                boxShadow: timer
-                  ? "0px 6px 16px rgba(215, 51, 43, 0.28)"
-                  : undefined,
-              }}
+              style={({ pressed }) => [
+                s.mainAction,
+                {
+                  backgroundColor: "#D7332B",
+                  boxShadow: "0px 8px 20px rgba(215, 51, 43, 0.3)",
+                  opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+                },
+              ]}
             >
-              <I
-                name="stop"
-                size={16}
-                color={timer ? "#FFFFFF" : lightTheme ? "#D70015" : "#FF6961"}
-              />
-              <Text
-                style={{
-                  color: timer ? "#FFFFFF" : lightTheme ? "#D70015" : "#FF6961",
-                  fontWeight: "700",
-                  fontSize: 16,
-                  letterSpacing: -0.2,
-                }}
-              >
-                Stop
-              </Text>
+              <I name="stop" size={18} color="#FFFFFF" />
+              <Text style={s.mainActionText}>Zakończ zmianę</Text>
             </Pressable>
+          ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Dodaj wcześniejszą zmianę"
+              accessibilityLabel="Start zmiany"
               disabled={busy}
-              onPress={() =>
-                job ? openEntry(undefined, previousLocalDay(now)) : openJob()
-              }
-              style={{
-                flex: 1,
-                minHeight: 54,
-                borderRadius: 27,
-                borderCurve: "continuous",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: C.raised,
-                paddingHorizontal: 4,
-              }}
+              onPress={() => (job ? void start() : openJob())}
+              style={({ pressed }) => [
+                s.mainAction,
+                {
+                  backgroundColor: lightTheme ? "#1F7F37" : "#30D158",
+                  boxShadow: "0px 8px 20px rgba(31, 127, 55, 0.3)",
+                  opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+                },
+              ]}
             >
+              <I
+                name="play"
+                size={18}
+                color={lightTheme ? "#FFFFFF" : "#00230A"}
+              />
               <Text
-                style={{
-                  color: C.text,
-                  fontWeight: "700",
-                  fontSize: 15,
-                  letterSpacing: -0.2,
-                  textAlign: "center",
-                }}
+                style={[
+                  s.mainActionText,
+                  { color: lightTheme ? "#FFFFFF" : "#00230A" },
+                ]}
               >
-                Wpis ręczny
+                Rozpocznij zmianę
               </Text>
             </Pressable>
-          </View>
-          <View style={[s.row, { flexWrap: "wrap" }]}>
-            {!timer ? (
-              <Button
-                label="Start od godziny"
-                icon="time-outline"
-                kind="ghost"
-                small
-                onPress={() => (job ? openStart() : openJob())}
-              />
-            ) : (
-              <>
-                <Button
-                  label="Popraw początek"
-                  icon="create-outline"
-                  kind="ghost"
-                  small
-                  onPress={openAdjust}
-                />
-                <Button
-                  label="Popraw koniec"
-                  icon="create-outline"
-                  kind="ghost"
-                  small
-                  onPress={() => {
-                    setFormError("");
-                    setForm({
-                      type: "stopAt",
-                      endDate: dateKey(now),
-                      endTime: timeLabel(now),
-                    });
-                  }}
-                />
-                <Button
-                  label={timer.pausedAt === null ? "Przerwa" : "Wznów"}
-                  kind="secondary"
-                  small
-                  onPress={() => void togglePause()}
-                />
-              </>
-            )}
-            <Button
-              label="Dodaj urlop"
-              icon="calendar-outline"
-              kind="ghost"
-              small
-              onPress={() => {
-                const existing = data.holidays.find((h) => h.date === today);
-                openHoliday(existing, existing ? undefined : today);
-              }}
-            />
+          )}
+          <View style={s.tileGrid}>
+            {dashboardActions.map((a) => (
+              <Pressable
+                key={a.label}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+                disabled={busy}
+                onPress={a.onPress}
+                style={({ pressed }) => [
+                  s.tile,
+                  {
+                    width: dashboardActions.length > 4 ? "31.5%" : "48.5%",
+                    opacity: busy ? 0.5 : pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <View style={s.tileIcon}>
+                  <I name={a.icon} size={20} color={C.green} />
+                </View>
+                <Text numberOfLines={2} style={s.tileText}>
+                  {a.text}
+                </Text>
+              </Pressable>
+            ))}
           </View>
           {timer && !!timer.autoBreakMinutes && (
             <Text style={s.caption}>
@@ -4057,7 +4027,7 @@ export default function WorkHoursScreen({ tab }: { tab: Tab }) {
           </>
         )}
         <Text style={[s.footnote, { textAlign: "center", marginVertical: 24 }]}>
-          Work Hours · 2.0.5 · dane na Twoim urządzeniu
+          Work Hours · 2.0.6 · dane na Twoim urządzeniu
         </Text>
       </>
     );
@@ -5049,6 +5019,85 @@ const s = StyleSheet.create({
   },
   navItemSelected: { flex: 2.2, paddingHorizontal: 12 },
   navText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.1 },
+  shiftInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 18,
+    borderCurve: "continuous",
+    backgroundColor: C.raised,
+  },
+  shiftIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.card,
+  },
+  liveBox: {
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+  },
+  liveClock: {
+    fontSize: 44,
+    fontWeight: "600",
+    letterSpacing: -1,
+    color: C.text,
+    fontVariant: ["tabular-nums"],
+  },
+  mainAction: {
+    minHeight: 58,
+    borderRadius: 29,
+    borderCurve: "continuous",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  mainActionText: {
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+    color: "#FFFFFF",
+  },
+  tileGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 10,
+  },
+  tile: {
+    minHeight: 92,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 20,
+    borderCurve: "continuous",
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.card,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.green + "1A",
+  },
+  tileText: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 17,
+    color: C.text,
+    textAlign: "center",
+  },
   hero: {
     paddingHorizontal: 20,
     paddingTop: 14,

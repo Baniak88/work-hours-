@@ -801,4 +801,6 @@ export const english: Record<string, string> = {
   "Dotknij pierwszego dnia, a potem ostatniego dnia urlopu.":
     "Tap the first day, then the last day of your holiday.",
   Szmaragdowy: "Emerald",
+  "Rozpocznij zmianę": "Start shift",
+  "Stan z czytnika": "Clock balance",
 };
