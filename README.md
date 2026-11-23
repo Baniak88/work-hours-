@@ -92,7 +92,7 @@ Formularz dostosowuje się do klawiatury; przycisk klawiatury w jego nagłówku 
 
 ## Pobieranie i udostępnianie
 
-- **Android:** [instrukcja i instalator APK 2.0.5](docs/android/README.md).
+- **Android:** [instrukcja i instalator APK 2.0.6](docs/android/README.md).
 - **iPhone:** [instrukcja instalacji z Safari](docs/iphone/README.md).
 
 Link do wersji dla iPhone’a oraz bezpośredni link APK z wydania możesz wysłać przez e-mail lub WhatsApp. Każdy użytkownik przechowuje własne dane na swoim urządzeniu.
@@ -168,15 +168,15 @@ Licznik działa na zapisanych znacznikach czasu: po zamknięciu aplikacji i pono
 - Przełącznik kalendarza **Godziny / Kwoty** jest zapamiętywany. Brak wpisów w wybranym dniu ma bezpośredni przycisk dodania zmiany, a dni przyszłe jasne wyjaśnienie.
 - Zapis lokalny i kopie formatu 3 pozostają zgodne z wcześniejszą wersją. Nowe preferencje są opcjonalne; ich brak oznacza dotychczasowy format godzin i minut.
 
-## Instalator Android 2.0.5
+## Instalator Android 2.0.6
 
-**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v2.0.5/work-hours-2.0.5.apk)** · około 91 MB.
+**[Pobierz podpisany APK z GitHub Releases](https://github.com/Baniak88/work-hours-/releases/download/v2.0.6/work-hours-2.0.6.apk)** · około 91 MB.
 
-[Wydanie v2.0.5 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v2.0.5) zawiera plik `work-hours-2.0.5.apk` w sekcji **Assets**. Repozytorium jest publiczne; pobranie nie wymaga logowania do GitHuba.
+[Wydanie v2.0.6 na GitHubie](https://github.com/Baniak88/work-hours-/releases/tag/v2.0.6) zawiera plik `work-hours-2.0.6.apk` w sekcji **Assets**. Repozytorium jest publiczne; pobranie nie wymaga logowania do GitHuba.
 
 Pobierz na telefonie z Androidem, otwórz plik i potwierdź instalację. Jeśli masz wcześniejszą wersję, zainstaluj aktualizację bez jej odinstalowywania, aby zachować dane. Jeśli telefon poprosi, zezwól tej przeglądarce na instalowanie aplikacji. Instalacja nie wymaga Expo Go ani konta Expo na telefonie.
 
-Podpis APK v2 i integralność archiwum zostały sprawdzone. SHA-256: `6d8e619ef7c754f6a0aa2359e7432dd548ac99d8033b31f59e3c5978ee1736aa`. Pliku APK nie przechowujemy w głównej gałęzi Git. Nie wykonano testu instalacji na fizycznym telefonie.
+Podpis APK v2 i integralność archiwum zostały sprawdzone. SHA-256: `77000a4b7b2422531729b37f219370e31e29c8410ef08eaaf1125632231d3971`. Pliku APK nie przechowujemy w głównej gałęzi Git. Nie wykonano testu instalacji na fizycznym telefonie.
 
 Osobny instalator iOS nie został zbudowany: dystrybucja IPA przez EAS wymaga podpisu z konta Apple Developer oraz rejestracji urządzenia lub dystrybucji przez TestFlight.
 
